@@ -1,37 +1,34 @@
 from dataclasses import dataclass
 
-from sentinellayer_growth_engine.db import ClaimedSend
+from sentinellayer_growth_engine.engine import DueSend
 from sentinellayer_growth_engine.providers import MockMailProvider, OutboundMessage
 from sentinellayer_growth_engine.service import SendService
 
 
 @dataclass
 class FakeRenderer:
-    def render(self, send: ClaimedSend) -> OutboundMessage:
+    def render(self, send: DueSend) -> OutboundMessage:
         return OutboundMessage(
-            message_id=f"<{send.send_id}@sentinellayer.invalid>",
-            sender="sender@sentinellayer.invalid",
-            recipient="recipient@example.invalid",
-            subject="Test",
-            body_text="Test body",
+            message_id=send.message_id,
+            sender=send.sender,
+            recipient=send.recipient,
+            subject=send.subject,
+            body_text=send.body_text,
             headers={"X-SL-Send-Id": send.send_id},
         )
 
 
-class FakeDb:
-    pass
-
-
 async def test_send_service_processes_claimed_send() -> None:
     provider = MockMailProvider()
-    service = SendService(FakeDb(), provider, FakeRenderer())  # type: ignore[arg-type]
-    claimed = ClaimedSend(
+    service = SendService(provider, FakeRenderer())
+    claimed = DueSend(
         send_id="send-1",
-        person_id=1,
-        campaign_id="campaign-1",
-        sequence_step_id="step-1",
-        mailbox_id="mailbox-1",
-        scheduled_at="2026-08-30T12:00:00Z",
+        sender="sender@sentinellayer.invalid",
+        recipient="recipient@example.invalid",
+        subject="Test",
+        body_text="Test body",
+        message_id="<send-1@sentinellayer.invalid>",
+        attempt_count=1,
     )
 
     result = await service.process_claimed(claimed)
