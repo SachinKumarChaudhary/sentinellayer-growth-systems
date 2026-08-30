@@ -7,9 +7,11 @@ from sentinellayer_growth_engine.providers import MockMailProvider
 class FakeRepository:
     def __init__(self) -> None:
         self.sent: list[str] = []
-        self.failed: list[str] = []
+        self.failed: list[tuple[str, bool]] = []
 
-    async def claim_due(self, *, worker_id: str, now: datetime) -> list[DueSend]:
+    def claim_due(self, *, batch_size: int = 20, worker_id: str = "worker") -> list[DueSend]:
+        assert batch_size > 0
+        assert worker_id
         return [
             DueSend(
                 send_id="send-1",
@@ -21,11 +23,19 @@ class FakeRepository:
             )
         ]
 
-    async def mark_sent(self, *, send_id: str, message_id: str, provider_message_id: str | None) -> None:
+    def mark_sent(self, *, send_id: str, message_id: str, provider_message_id: str | None) -> None:
         self.sent.append(send_id)
 
-    async def mark_failed(self, *, send_id: str, error: str) -> None:
-        self.failed.append(send_id)
+    def mark_failed(
+        self,
+        *,
+        send_id: str,
+        error: str,
+        retry_at: datetime | None,
+        transient: bool = False,
+        provider_code: str | None = None,
+    ) -> None:
+        self.failed.append((send_id, transient))
 
 
 async def test_engine_marks_accepted_send_sent() -> None:
@@ -39,7 +49,7 @@ async def test_engine_marks_accepted_send_sent() -> None:
     assert repo.failed == []
 
 
-async def test_engine_marks_provider_rejection_failed() -> None:
+async def test_engine_marks_permanent_provider_rejection_failed() -> None:
     repo = FakeRepository()
     engine = SendEngine(repo, MockMailProvider(accept=False))
 
@@ -47,4 +57,16 @@ async def test_engine_marks_provider_rejection_failed() -> None:
 
     assert count == 1
     assert repo.sent == []
-    assert repo.failed == ["send-1"]
+    assert repo.failed == [("send-1", False)]
+
+
+async def test_engine_marks_transient_provider_rejection_retryable() -> None:
+    repo = FakeRepository()
+    provider = MockMailProvider(accept=False, transient=True, provider_code="421")
+    engine = SendEngine(repo, provider)
+
+    count = await engine.process_due(worker_id="worker-1", now=datetime.now(timezone.utc))
+
+    assert count == 1
+    assert repo.sent == []
+    assert repo.failed == [("send-1", True)]
