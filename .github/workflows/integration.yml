@@ -5,9 +5,16 @@ on:
 
 jobs:
   supabase-concurrency:
-    if: ${{ secrets.SUPABASE_DATABASE_URL != '' }}
     runs-on: ubuntu-latest
     steps:
+      - name: Require database credential
+        env:
+          SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+        run: |
+          test -n "$SUPABASE_DATABASE_URL" || {
+            echo "Missing required GitHub Actions secret: SUPABASE_DATABASE_URL"
+            exit 1
+          }
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
