@@ -39,6 +39,7 @@ class Database:
                 subject=str(row["subject"]),
                 body_text=str(row["body_text"]),
                 message_id=str(row["message_id"]),
+                attempt_count=int(row["attempt_count"]),
             )
             for row in rows
         ]
