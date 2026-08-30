@@ -16,6 +16,7 @@ class DueSend:
     subject: str
     body_text: str
     message_id: str
+    attempt_count: int = 1
 
 
 class SendRepository(Protocol):
@@ -74,7 +75,7 @@ class SendEngine:
                 result = await self.provider.send(message)
             except Exception as exc:
                 retry_at = self.retry_policy.next_attempt_at(
-                    attempt=1,
+                    attempt=send.attempt_count,
                     now=now,
                 )
                 self.repository.mark_failed(
@@ -93,15 +94,19 @@ class SendEngine:
                     provider_message_id=result.provider_message_id,
                 )
             else:
-                retry_at = self.retry_policy.next_attempt_at(
-                    attempt=1,
-                    now=now,
-                ) if result.transient else None
+                retry_at = (
+                    self.retry_policy.next_attempt_at(
+                        attempt=send.attempt_count,
+                        now=now,
+                    )
+                    if result.transient
+                    else None
+                )
                 self.repository.mark_failed(
                     send_id=send.send_id,
                     error=result.error or "provider rejected message",
                     retry_at=retry_at,
-                    transient=result.transient,
+                    transient=result.transient and retry_at is not None,
                     provider_code=result.provider_code,
                 )
             processed += 1
