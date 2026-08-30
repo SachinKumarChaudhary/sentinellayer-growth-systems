@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
@@ -8,21 +7,6 @@ import psycopg
 from psycopg.rows import dict_row
 
 from .engine import DueSend
-
-
-@dataclass(frozen=True)
-class ClaimedSend:
-    send_id: str
-    person_id: int
-    campaign_id: str
-    sequence_step_id: str
-    mailbox_id: str
-    scheduled_at: datetime
-    sender: str
-    recipient: str
-    subject: str
-    body_text: str
-    message_id: str
 
 
 class Database:
@@ -34,17 +18,18 @@ class Database:
     def connection(self) -> psycopg.Connection[Any]:
         return psycopg.connect(self._dsn, row_factory=dict_row)
 
-    def claim_due_sends(self, batch_size: int = 20) -> list[DueSend]:
-        if batch_size < 1:
-            raise ValueError("batch_size must be >= 1")
+    def claim_due(self, *, batch_size: int = 20, worker_id: str = "worker") -> list[DueSend]:
+        if batch_size < 1 or batch_size > 500:
+            raise ValueError("batch_size must be between 1 and 500")
+        if not worker_id.strip():
+            raise ValueError("worker_id must not be empty")
 
-        with self.connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "select * from public.claim_due_sends(%s)",
-                    (batch_size,),
-                )
-                rows = cur.fetchall()
+        with self.connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                "select * from public.claim_due_sends(%s, %s)",
+                (batch_size, worker_id),
+            )
+            rows = cur.fetchall()
 
         return [
             DueSend(
@@ -58,9 +43,47 @@ class Database:
             for row in rows
         ]
 
+    def claim_due_sends(self, batch_size: int = 20, worker_id: str = "worker") -> list[DueSend]:
+        return self.claim_due(batch_size=batch_size, worker_id=worker_id)
+
+    def mark_sent(
+        self,
+        *,
+        send_id: str,
+        message_id: str,
+        provider_message_id: str | None,
+    ) -> None:
+        with self.connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                "select public.record_send_attempt(%s, 'accepted', %s, null, null, null, '{}'::jsonb)",
+                (send_id, provider_message_id or message_id),
+            )
+
+    def mark_failed(
+        self,
+        *,
+        send_id: str,
+        error: str,
+        retry_at: datetime | None,
+        transient: bool = False,
+        provider_code: str | None = None,
+    ) -> None:
+        outcome = "temporary_failure" if transient and retry_at is not None else "permanent_failure"
+        with self.connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                "select public.record_send_attempt(%s, %s, null, %s, %s, %s, '{}'::jsonb)",
+                (send_id, outcome, provider_code, error, retry_at),
+            )
+
     def is_suppressed(self, email: str) -> bool:
-        with self.connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("select public.is_suppressed(%s)", (email,))
-                row = cur.fetchone()
-                return bool(row[0]) if row is not None else True
+        with self.connection() as conn, conn.cursor() as cur:
+            cur.execute("select public.is_suppressed(%s)", (email,))
+            row = cur.fetchone()
+            return bool(row[0]) if row is not None else True
+
+    def cancel_future_sends(self, *, person_id: int, reason: str) -> None:
+        with self.connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                "select public.cancel_future_sends_for_person(%s, %s)",
+                (person_id, reason),
+            )
