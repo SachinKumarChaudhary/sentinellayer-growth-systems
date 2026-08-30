@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 import psycopg
 from psycopg.rows import dict_row
+
+from .engine import DueSend
 
 
 @dataclass(frozen=True)
@@ -15,15 +17,16 @@ class ClaimedSend:
     campaign_id: str
     sequence_step_id: str
     mailbox_id: str
-    scheduled_at: Any
+    scheduled_at: datetime
+    sender: str
+    recipient: str
+    subject: str
+    body_text: str
+    message_id: str
 
 
 class Database:
-    """Thin PostgreSQL access layer.
-
-    Business rules stay in services; this class owns parameterized SQL and
-    transaction boundaries only.
-    """
+    """PostgreSQL repository; durable state transitions stay in SQL."""
 
     def __init__(self, dsn: str) -> None:
         self._dsn = dsn
@@ -31,7 +34,7 @@ class Database:
     def connection(self) -> psycopg.Connection[Any]:
         return psycopg.connect(self._dsn, row_factory=dict_row)
 
-    def claim_due_sends(self, batch_size: int = 20) -> Sequence[ClaimedSend]:
+    def claim_due_sends(self, batch_size: int = 20) -> list[DueSend]:
         if batch_size < 1:
             raise ValueError("batch_size must be >= 1")
 
@@ -44,13 +47,13 @@ class Database:
                 rows = cur.fetchall()
 
         return [
-            ClaimedSend(
+            DueSend(
                 send_id=str(row["send_id"]),
-                person_id=int(row["person_id"]),
-                campaign_id=str(row["campaign_id"]),
-                sequence_step_id=str(row["sequence_step_id"]),
-                mailbox_id=str(row["mailbox_id"]),
-                scheduled_at=row["scheduled_at"],
+                sender=str(row["sender"]),
+                recipient=str(row["recipient"]),
+                subject=str(row["subject"]),
+                body_text=str(row["body_text"]),
+                message_id=str(row["message_id"]),
             )
             for row in rows
         ]
@@ -59,5 +62,5 @@ class Database:
         with self.connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("select public.is_suppressed(%s)", (email,))
-                result = cur.fetchone()
-                return bool(result[0]) if result is not None else True
+                row = cur.fetchone()
+                return bool(row[0]) if row is not None else True
