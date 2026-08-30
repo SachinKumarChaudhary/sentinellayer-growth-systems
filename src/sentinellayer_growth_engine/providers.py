@@ -2,6 +2,10 @@ from dataclasses import dataclass
 from typing import Protocol
 
 
+class MailProviderError(Exception):
+    """Base exception for expected mail-provider failures."""
+
+
 @dataclass(frozen=True)
 class OutboundMessage:
     message_id: str
