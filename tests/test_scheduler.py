@@ -6,17 +6,38 @@ from sentinellayer_growth_engine.scheduler import Scheduler, SchedulerConfig
 
 
 class FakeRepository:
-    async def claim_due(self, *, worker_id: str, now: datetime) -> list[DueSend]:
+    def __init__(self) -> None:
+        self.worker_id: str | None = None
+        self.batch_size: int | None = None
+
+    def claim_due(self, *, batch_size: int = 20, worker_id: str = "worker") -> list[DueSend]:
+        self.worker_id = worker_id
+        self.batch_size = batch_size
         return []
 
-    async def mark_sent(self, *, send_id: str, message_id: str, provider_message_id: str | None) -> None:
+    def mark_sent(self, *, send_id: str, message_id: str, provider_message_id: str | None) -> None:
         raise AssertionError("no sends expected")
 
-    async def mark_failed(self, *, send_id: str, error: str) -> None:
+    def mark_failed(
+        self,
+        *,
+        send_id: str,
+        error: str,
+        retry_at: datetime | None,
+        transient: bool = False,
+        provider_code: str | None = None,
+    ) -> None:
         raise AssertionError("no sends expected")
 
 
-async def test_scheduler_delegates_to_engine() -> None:
-    engine = SendEngine(FakeRepository(), MockMailProvider())
-    scheduler = Scheduler(engine, SchedulerConfig(worker_id="worker-test"))
+async def test_scheduler_delegates_worker_identity_and_batch_size() -> None:
+    repo = FakeRepository()
+    engine = SendEngine(repo, MockMailProvider())
+    scheduler = Scheduler(
+        engine,
+        SchedulerConfig(worker_id="worker-test", batch_size=7),
+    )
+
     assert await scheduler.tick(now=datetime.now(timezone.utc)) == 0
+    assert repo.worker_id == "worker-test"
+    assert repo.batch_size == 7
