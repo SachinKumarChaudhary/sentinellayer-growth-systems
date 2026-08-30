@@ -1,7 +1,8 @@
 name: integration
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [main]
 
 jobs:
   supabase-concurrency:
