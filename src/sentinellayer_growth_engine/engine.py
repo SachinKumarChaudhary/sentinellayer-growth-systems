@@ -19,7 +19,7 @@ class DueSend:
 
 
 class SendRepository(Protocol):
-    def claim_due(self, *, batch_size: int = 20) -> list[DueSend]:
+    def claim_due(self, *, batch_size: int = 20, worker_id: str = "worker") -> list[DueSend]:
         ...
 
     def mark_sent(
@@ -28,7 +28,13 @@ class SendRepository(Protocol):
         ...
 
     def mark_failed(
-        self, *, send_id: str, error: str, retry_at: datetime | None
+        self,
+        *,
+        send_id: str,
+        error: str,
+        retry_at: datetime | None,
+        transient: bool = False,
+        provider_code: str | None = None,
     ) -> None:
         ...
 
@@ -44,8 +50,14 @@ class SendEngine:
         self.provider = provider
         self.retry_policy = retry_policy or RetryPolicy()
 
-    async def process_due(self, *, batch_size: int = 20, now: datetime) -> int:
-        sends = self.repository.claim_due(batch_size=batch_size)
+    async def process_due(
+        self,
+        *,
+        batch_size: int = 20,
+        worker_id: str = "worker",
+        now: datetime,
+    ) -> int:
+        sends = self.repository.claim_due(batch_size=batch_size, worker_id=worker_id)
         processed = 0
 
         for send in sends:
@@ -57,7 +69,22 @@ class SendEngine:
                 body_text=send.body_text,
                 headers={"X-SL-Send-Id": send.send_id},
             )
-            result = await self.provider.send(message)
+
+            try:
+                result = await self.provider.send(message)
+            except Exception as exc:
+                retry_at = self.retry_policy.next_attempt_at(
+                    attempt=1,
+                    now=now,
+                )
+                self.repository.mark_failed(
+                    send_id=send.send_id,
+                    error=f"provider exception: {exc}",
+                    retry_at=retry_at,
+                    transient=True,
+                )
+                processed += 1
+                continue
 
             if result.accepted:
                 self.repository.mark_sent(
@@ -66,10 +93,16 @@ class SendEngine:
                     provider_message_id=result.provider_message_id,
                 )
             else:
+                retry_at = self.retry_policy.next_attempt_at(
+                    attempt=1,
+                    now=now,
+                ) if result.transient else None
                 self.repository.mark_failed(
                     send_id=send.send_id,
                     error=result.error or "provider rejected message",
-                    retry_at=self.retry_policy.next_attempt_at(attempt=1, now=now),
+                    retry_at=retry_at,
+                    transient=result.transient,
+                    provider_code=result.provider_code,
                 )
             processed += 1
 
