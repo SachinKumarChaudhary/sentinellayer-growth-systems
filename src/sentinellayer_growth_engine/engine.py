@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
 
-from .providers import MailProvider, OutboundMessage
+from .providers import MailProvider, MailProviderError, OutboundMessage
 from .retry import RetryPolicy
 
 
@@ -73,7 +73,7 @@ class SendEngine:
 
             try:
                 result = await self.provider.send(message)
-            except Exception as exc:
+            except MailProviderError as exc:
                 retry_at = self.retry_policy.next_attempt_at(
                     attempt=send.attempt_count,
                     now=now,
