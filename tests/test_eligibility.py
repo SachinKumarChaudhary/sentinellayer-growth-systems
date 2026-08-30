@@ -1,10 +1,10 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sentinellayer_growth_engine.eligibility import LeadEligibility, is_due
 
 
 def test_due_check_uses_absolute_time() -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     assert is_due(now - timedelta(seconds=1), now) is True
     assert is_due(now + timedelta(seconds=1), now) is False
 
