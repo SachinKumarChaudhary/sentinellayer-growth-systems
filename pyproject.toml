@@ -31,6 +31,9 @@ target-version = "py311"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+  "integration: tests requiring a live PostgreSQL/Supabase connection",
+]
 
 [tool.mypy]
 python_version = "3.11"
