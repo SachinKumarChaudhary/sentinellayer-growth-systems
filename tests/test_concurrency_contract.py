@@ -1,5 +1,3 @@
-import threading
-
 from sentinellayer_growth_engine.db import Database
 
 
