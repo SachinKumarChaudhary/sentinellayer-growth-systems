@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from uuid import uuid4
 
@@ -90,7 +91,7 @@ def test_two_workers_cannot_claim_same_send() -> None:
                 ),
             )
 
-        barrier = __import__("threading").Barrier(2)
+        barrier = threading.Barrier(2)
 
         def claim(worker_id: str):
             barrier.wait()
@@ -119,7 +120,10 @@ def test_two_workers_cannot_claim_same_send() -> None:
             )
             row = cur.fetchone()
 
-        assert row == ("claiming", claimed[0] and row[1], 1)
+        assert row is not None
+        assert row[0] == "claiming"
+        assert row[1] in {"ci-worker-a", "ci-worker-b"}
+        assert row[2] == 1
     finally:
         with psycopg.connect(dsn) as conn, conn.cursor() as cur:
             cur.execute("delete from public.sends where id = %s", (send_id,))
