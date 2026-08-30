@@ -11,7 +11,7 @@ class SchedulerConfig:
 
 
 class Scheduler:
-    """Thin scheduler: campaign policy stays in the engine/database."""
+    """Thin scheduler; campaign policy remains in the database/engine."""
 
     def __init__(self, engine: SendEngine, config: SchedulerConfig) -> None:
         self.engine = engine
@@ -19,6 +19,6 @@ class Scheduler:
 
     async def tick(self, *, now: datetime) -> int:
         return await self.engine.process_due(
-            worker_id=self.config.worker_id,
+            batch_size=self.config.batch_size,
             now=now,
         )
