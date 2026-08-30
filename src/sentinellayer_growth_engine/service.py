@@ -3,12 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
-from .db import ClaimedSend, Database
+from .engine import DueSend
 from .providers import MailProvider, OutboundMessage
 
 
 class MessageRenderer(Protocol):
-    def render(self, send: ClaimedSend) -> OutboundMessage:
+    def render(self, send: DueSend) -> OutboundMessage:
         ...
 
 
@@ -21,12 +21,13 @@ class ProcessResult:
 
 
 class SendService:
-    def __init__(self, db: Database, provider: MailProvider, renderer: MessageRenderer) -> None:
-        self._db = db
+    """Pure delivery orchestration for one already-claimed send."""
+
+    def __init__(self, provider: MailProvider, renderer: MessageRenderer) -> None:
         self._provider = provider
         self._renderer = renderer
 
-    async def process_claimed(self, claimed: ClaimedSend) -> ProcessResult:
+    async def process_claimed(self, claimed: DueSend) -> ProcessResult:
         message = self._renderer.render(claimed)
         result = await self._provider.send(message)
         return ProcessResult(
