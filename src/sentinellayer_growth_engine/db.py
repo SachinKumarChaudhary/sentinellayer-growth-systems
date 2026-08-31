@@ -21,16 +21,17 @@ class Database:
     def connection(self) -> psycopg.Connection[Any]:
         return psycopg.connect(self._dsn, row_factory=dict_row)
 
-    def claim_due(self, *, batch_size: int = 20, worker_id: str = "worker") -> list[DueSend]:
+    def claim_due(self, *, batch_size: int = 20, worker_id: str | None = None) -> list[DueSend]:
         if batch_size < 1 or batch_size > 500:
             raise ValueError("batch_size must be between 1 and 500")
-        if not worker_id.strip():
+        effective_worker_id = self._worker_id if worker_id is None else worker_id
+        if not effective_worker_id.strip():
             raise ValueError("worker_id must not be empty")
 
         with self.connection() as conn, conn.cursor() as cur:
             cur.execute(
                 "select * from public.claim_due_sends(%s, %s)",
-                (batch_size, worker_id),
+                (batch_size, effective_worker_id),
             )
             rows = cur.fetchall()
 
@@ -47,7 +48,7 @@ class Database:
             for row in rows
         ]
 
-    def claim_due_sends(self, batch_size: int = 20, worker_id: str = "worker") -> list[DueSend]:
+    def claim_due_sends(self, batch_size: int = 20, worker_id: str | None = None) -> list[DueSend]:
         return self.claim_due(batch_size=batch_size, worker_id=worker_id)
 
     def mark_sent(
