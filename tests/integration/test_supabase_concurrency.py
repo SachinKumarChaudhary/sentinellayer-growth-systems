@@ -95,7 +95,7 @@ def test_two_workers_cannot_claim_same_send() -> None:
 
         def claim(worker_id: str):
             barrier.wait()
-            return Database(dsn).claim_due(batch_size=1, worker_id=worker_id)
+            return Database(dsn, worker_id=worker_id).claim_due(batch_size=1, worker_id=worker_id)
 
         with ThreadPoolExecutor(max_workers=2) as executor:
             futures = [
