@@ -96,7 +96,7 @@ class SmtpMailProvider:
                 accepted=True,
                 provider_message_id=message.message_id,
             )
-        except (TimeoutError, smtplib.SMTPServerDisconnected) as exc:
+        except (TimeoutError, smtplib.SMTPServerDisconnected, OSError) as exc:
             raise MailProviderAmbiguousError(
                 "SMTP connection ended during/after submission; delivery status is unknown"
             ) from exc
