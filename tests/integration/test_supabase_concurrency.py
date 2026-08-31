@@ -276,14 +276,14 @@ def test_uncertain_send_is_reconciled_by_different_worker() -> None:
         worker_b.resolve_uncertain(
             send_id=str(send_id),
             accepted=True,
-            provider_message_id="ci-provider-message-1",
+            provider_message_id=f"ci-provider-message-{suffix}",
         )
 
         with psycopg.connect(dsn) as conn, conn.cursor() as cur:
             cur.execute("select status, message_id, claimed_by, claim_lease_until, next_attempt_at from public.sends where id=%s", (send_id,))
             row = cur.fetchone()
         assert row[0] == "sent"
-        assert row[1] == "ci-provider-message-1"
+        assert row[1] == f"ci-provider-message-{suffix}"
         assert row[2] is None and row[3] is None and row[4] is None
 
         with pytest.raises(Exception, match="not uncertain"):
