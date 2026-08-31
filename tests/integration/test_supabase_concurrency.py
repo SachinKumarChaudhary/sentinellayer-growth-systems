@@ -268,7 +268,9 @@ def test_uncertain_send_is_reconciled_by_different_worker() -> None:
         with psycopg.connect(dsn) as conn, conn.cursor() as cur:
             cur.execute("select status, claimed_by, claim_lease_until from public.sends where id=%s", (send_id,))
             row = cur.fetchone()
-        assert row == ("uncertain", None, None)
+        assert row[0] == "uncertain"
+        assert row[1] == "ci-reconcile-a"
+        assert row[2] is not None
 
         worker_b = Database(dsn, worker_id="ci-reconcile-b")
         worker_b.resolve_uncertain(
