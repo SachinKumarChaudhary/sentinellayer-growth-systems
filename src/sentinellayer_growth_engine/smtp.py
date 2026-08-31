@@ -4,7 +4,12 @@ import asyncio
 import smtplib
 from email.message import EmailMessage
 
-from .providers import MailProviderAmbiguousError, MailProviderError, OutboundMessage, SendResult
+from .providers import (
+    MailProviderAmbiguousError,
+    MailProviderError,
+    OutboundMessage,
+    SendResult,
+)
 class SmtpMailProvider:
     """SMTP submission provider for authenticated port 587/465 delivery.
 
