@@ -34,7 +34,9 @@ def build_worker(settings: Settings) -> MailWorker:
 
 
 async def run() -> None:
-    settings = Settings()
+    settings = Settings(database_url=os.environ.get("SL_DATABASE_URL", ""))
+    if not settings.database_url:
+        raise RuntimeError("SL_DATABASE_URL is required")
     worker = build_worker(settings)
     stop_event = asyncio.Event()
     try:
