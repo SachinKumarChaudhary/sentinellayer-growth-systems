@@ -10,6 +10,8 @@ from .providers import (
     OutboundMessage,
     SendResult,
 )
+
+
 class SmtpMailProvider:
     """SMTP submission provider for authenticated port 587/465 delivery.
 
