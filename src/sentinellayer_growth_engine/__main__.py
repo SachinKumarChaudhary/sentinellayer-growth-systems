@@ -9,7 +9,7 @@ import uuid
 from .config import Settings
 from .db import Database
 from .engine import SendEngine
-from .providers import MockMailProvider
+from .providers import MailProvider, MockMailProvider
 from .smtp import SmtpMailProvider
 from .worker import MailWorker
 
@@ -22,7 +22,7 @@ def build_worker(settings: Settings) -> MailWorker:
     database = Database(settings.database_url, worker_id=worker_id)
 
     if settings.real_email_enabled:
-        provider = SmtpMailProvider(
+        provider: MailProvider = SmtpMailProvider(
             host=settings.smtp_host or "",
             port=settings.smtp_port,
             username=settings.smtp_username or "",
