@@ -207,7 +207,7 @@ def test_retry_lifecycle_and_stale_completion_fencing() -> None:
         assert len(claimed) == 1
         assert claimed[0].attempt_count == 1
 
-        from datetime import timedelta, timezone
+        from datetime import datetime, timedelta, timezone
         retry_at = datetime.now(timezone.utc) + timedelta(minutes=5)
         worker.mark_failed(send_id=str(send_id), error="temporary provider failure", retry_at=retry_at, transient=True, provider_code="421")
 
