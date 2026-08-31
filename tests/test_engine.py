@@ -1,7 +1,11 @@
 from datetime import UTC, datetime
 
 from sentinellayer_growth_engine.engine import DueSend, SendEngine
-from sentinellayer_growth_engine.providers import DeliveryStatus, MailProviderAmbiguousError, MockMailProvider
+from sentinellayer_growth_engine.providers import (
+    DeliveryStatus,
+    MailProviderAmbiguousError,
+    MockMailProvider,
+)
 
 
 class FakeRepository:
