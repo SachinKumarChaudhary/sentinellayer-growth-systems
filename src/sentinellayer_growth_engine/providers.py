@@ -6,6 +6,10 @@ class MailProviderError(Exception):
     """Base exception for expected mail-provider failures."""
 
 
+class MailProviderAmbiguousError(MailProviderError):
+    """The provider outcome is unknown; automatic retry may duplicate delivery."""
+
+
 @dataclass(frozen=True)
 class OutboundMessage:
     message_id: str
