@@ -112,7 +112,7 @@ def test_two_workers_cannot_claim_same_send() -> None:
         with psycopg.connect(dsn) as conn, conn.cursor() as cur:
             cur.execute(
                 """
-                select status, claimed_by, attempt_count
+                select status, claimed_by, attempt_count, claim_lease_until
                 from public.sends
                 where id = %s
                 """,
@@ -124,6 +124,36 @@ def test_two_workers_cannot_claim_same_send() -> None:
         assert row[0] == "claiming"
         assert row[1] in {"ci-worker-a", "ci-worker-b"}
         assert row[2] == 1
+        assert row[3] is not None
+
+        # Simulate worker A dying: expire its lease, then prove worker B can reclaim.
+        with psycopg.connect(dsn) as conn, conn.cursor() as cur:
+            cur.execute(
+                "update public.sends set claim_lease_until = now() - interval '1 second' where id = %s",
+                (send_id,),
+            )
+
+        reclaimed = Database(dsn, worker_id="ci-worker-b").claim_due(
+            batch_size=1, worker_id="ci-worker-b"
+        )
+        assert len(reclaimed) == 1
+        assert reclaimed[0].send_id == str(send_id)
+        assert reclaimed[0].attempt_count == 2
+
+        # A stale worker must not be able to finalize a claim it no longer owns.
+        with pytest.raises(Exception, match="claim ownership lost"):
+            Database(dsn, worker_id="ci-worker-a").mark_sent(
+                send_id=str(send_id),
+                message_id=reclaimed[0].message_id,
+                provider_message_id="ci-stale-worker-must-not-win",
+            )
+
+        Database(dsn, worker_id="ci-worker-b").mark_failed(
+            send_id=str(send_id),
+            error="CI lease recovery cleanup",
+            retry_at=None,
+            transient=False,
+        )
     finally:
         with psycopg.connect(dsn) as conn, conn.cursor() as cur:
             cur.execute("delete from public.sends where id = %s", (send_id,))
