@@ -48,5 +48,5 @@ class MailWorker:
                 logger.exception("mail worker iteration failed")
             try:
                 await asyncio.wait_for(stop_event.wait(), timeout=self.tick_seconds)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pass
