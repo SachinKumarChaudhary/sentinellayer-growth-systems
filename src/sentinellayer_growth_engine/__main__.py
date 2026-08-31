@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import signal
 import socket
 import uuid
 
@@ -46,6 +47,12 @@ async def run() -> None:
         raise RuntimeError("SL_DATABASE_URL is required")
     worker = build_worker(settings)
     stop_event = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        try:
+            loop.add_signal_handler(sig, stop_event.set)
+        except (NotImplementedError, RuntimeError):
+            pass
     try:
         await worker.run(stop_event)
     finally:
