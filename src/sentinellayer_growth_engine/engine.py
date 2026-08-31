@@ -4,7 +4,14 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
 
-from .providers import DeliveryStatus, MailProvider, MailProviderAmbiguousError, MailProviderError, OutboundMessage, ReconciliationProvider
+from .providers import (
+    DeliveryStatus,
+    MailProvider,
+    MailProviderAmbiguousError,
+    MailProviderError,
+    OutboundMessage,
+    ReconciliationProvider,
+)
 from .retry import RetryPolicy
 
 
@@ -29,6 +36,16 @@ class SendRepository(Protocol):
         ...
 
     def mark_ambiguous(self, *, send_id: str, error: str) -> None:
+        ...
+
+    def resolve_uncertain(
+        self,
+        *,
+        send_id: str,
+        accepted: bool,
+        provider_message_id: str | None = None,
+        error: str | None = None,
+    ) -> None:
         ...
 
     def mark_failed(
@@ -138,5 +155,3 @@ class SendEngine:
         elif status != DeliveryStatus.UNKNOWN:
             raise ValueError(f"invalid reconciliation status: {status}")
         return status
-
-        return processed
