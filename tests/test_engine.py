@@ -8,6 +8,7 @@ class FakeRepository:
     def __init__(self) -> None:
         self.sent: list[str] = []
         self.failed: list[tuple[str, bool]] = []
+        self.ambiguous: list[str] = []
 
     def claim_due(
         self, *, batch_size: int = 20, worker_id: str = "worker"
@@ -29,6 +30,9 @@ class FakeRepository:
         self, *, send_id: str, message_id: str, provider_message_id: str | None
     ) -> None:
         self.sent.append(send_id)
+
+    def mark_ambiguous(self, *, send_id: str, error: str) -> None:
+        self.ambiguous.append(send_id)
 
     def mark_failed(
         self,
@@ -76,3 +80,22 @@ async def test_engine_marks_transient_provider_rejection_retryable() -> None:
     assert count == 1
     assert repo.sent == []
     assert repo.failed == [("send-1", True)]
+
+
+async def test_engine_quarantines_ambiguous_provider_result() -> None:
+    class AmbiguousProvider:
+        async def send(self, message: object):
+            from sentinellayer_growth_engine.providers import MailProviderAmbiguousError
+            raise MailProviderAmbiguousError("timeout after submission")
+
+        async def health_check(self) -> bool:
+            return False
+
+    repo = FakeRepository()
+    engine = SendEngine(repo, AmbiguousProvider())
+    count = await engine.process_due(worker_id="worker-1", now=datetime.now(UTC))
+
+    assert count == 1
+    assert repo.sent == []
+    assert repo.failed == []
+    assert repo.ambiguous == ["send-1"]
