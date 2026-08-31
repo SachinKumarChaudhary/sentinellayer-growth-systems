@@ -22,6 +22,16 @@ begin
     raise exception 'send % is not uncertain or does not exist', p_send_id;
   end if;
 
+  if p_accepted and p_provider_message_id is not null and exists (
+    select 1
+    from public.sends
+    where message_id = p_provider_message_id
+      and id <> p_send_id
+  ) then
+    raise exception 'provider message id % already belongs to another send', p_provider_message_id
+      using errcode = '23505';
+  end if;
+
   update public.sends
   set status = case when p_accepted then 'sent' else 'failed' end,
       sent_at = case when p_accepted then coalesce(sent_at, now()) else sent_at end,
