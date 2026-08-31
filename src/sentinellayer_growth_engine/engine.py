@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
 
-from .providers import MailProvider, MailProviderError, OutboundMessage
+from .providers import MailProvider, MailProviderAmbiguousError, MailProviderError, OutboundMessage
 from .retry import RetryPolicy
 
 
@@ -26,6 +26,9 @@ class SendRepository(Protocol):
     def mark_sent(
         self, *, send_id: str, message_id: str, provider_message_id: str | None
     ) -> None:
+        ...
+
+    def mark_ambiguous(self, *, send_id: str, error: str) -> None:
         ...
 
     def mark_failed(
@@ -73,6 +76,13 @@ class SendEngine:
 
             try:
                 result = await self.provider.send(message)
+            except MailProviderAmbiguousError as exc:
+                self.repository.mark_ambiguous(
+                    send_id=send.send_id,
+                    error=f"ambiguous provider outcome: {exc}",
+                )
+                processed += 1
+                continue
             except MailProviderError as exc:
                 retry_at = self.retry_policy.next_attempt_at(
                     attempt=send.attempt_count,
