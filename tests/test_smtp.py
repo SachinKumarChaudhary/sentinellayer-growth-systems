@@ -2,7 +2,7 @@ import smtplib
 
 import pytest
 
-from sentinellayer_growth_engine.providers import OutboundMessage
+from sentinellayer_growth_engine.providers import MailProviderAmbiguousError, OutboundMessage, MailProviderError
 from sentinellayer_growth_engine.smtp import MailProviderAmbiguousError, SmtpMailProvider
 
 
@@ -131,3 +131,39 @@ async def test_smtp_oserror_is_ambiguous(monkeypatch: pytest.MonkeyPatch) -> Non
     )
     with pytest.raises(MailProviderAmbiguousError):
         await provider.send(message())
+
+
+@pytest.mark.asyncio
+async def test_smtp_auth_failure_is_not_ambiguous(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FakeSMTP:
+        def __init__(self, *args: object, **kwargs: object) -> None: pass
+        def ehlo(self) -> None: pass
+        def starttls(self) -> None: pass
+        def login(self, u: str, p: str) -> None:
+            raise smtplib.SMTPAuthenticationError(535, b"authentication failed")
+        def quit(self) -> None: pass
+        def close(self) -> None: pass
+
+    monkeypatch.setattr(smtplib, "SMTP", FakeSMTP)
+    provider = SmtpMailProvider(
+        host="smtp.example.invalid", port=587, username="u", password="p"
+    )
+    result = await provider.send(message())
+    assert result.accepted is False
+    assert result.transient is False
+    assert result.provider_code == "535"
+
+
+@pytest.mark.asyncio
+async def test_smtp_connect_oserror_is_not_ambiguous(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FakeSMTP:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            raise OSError("connection refused")
+
+    monkeypatch.setattr(smtplib, "SMTP", FakeSMTP)
+    provider = SmtpMailProvider(
+        host="smtp.example.invalid", port=587, username="u", password="p"
+    )
+    with pytest.raises(Exception) as exc_info:
+        await provider.send(message())
+    assert not isinstance(exc_info.value, MailProviderAmbiguousError)
