@@ -63,6 +63,13 @@ class Database:
                 (send_id, provider_message_id or message_id, self._worker_id),
             )
 
+    def mark_ambiguous(self, *, send_id: str, error: str) -> None:
+        with self.connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                "select public.record_send_attempt(%s, 'ambiguous', null, null, %s, null, '{}'::jsonb, %s)",
+                (send_id, error, self._worker_id),
+            )
+
     def mark_failed(
         self,
         *,
