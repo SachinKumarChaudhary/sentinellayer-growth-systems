@@ -69,6 +69,16 @@ class SmtpMailProvider:
             smtp.login(self.username, self.password)
             try:
                 refused = smtp.send_message(mail)
+            except smtplib.SMTPResponseException as exc:
+                transient = 400 <= exc.smtp_code < 500
+                return SendResult(
+                    accepted=False,
+                    error=exc.smtp_error.decode(errors="replace")
+                    if isinstance(exc.smtp_error, bytes)
+                    else str(exc.smtp_error),
+                    transient=transient,
+                    provider_code=str(exc.smtp_code),
+                )
             except (TimeoutError, smtplib.SMTPServerDisconnected, OSError) as exc:
                 raise MailProviderAmbiguousError(
                     "SMTP connection ended during/after message submission; delivery status is unknown"
