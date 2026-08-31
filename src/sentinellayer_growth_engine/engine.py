@@ -27,7 +27,7 @@ class DueSend:
 
 
 class SendRepository(Protocol):
-    def claim_due(self, *, batch_size: int = 20, worker_id: str = "worker") -> list[DueSend]:
+    def claim_due(self, *, batch_size: int = 20, worker_id: str | None = None) -> list[DueSend]:
         ...
 
     def mark_sent(
@@ -75,7 +75,7 @@ class SendEngine:
         self,
         *,
         batch_size: int = 20,
-        worker_id: str = "worker",
+        worker_id: str | None = None,
         now: datetime,
     ) -> int:
         sends = self.repository.claim_due(batch_size=batch_size, worker_id=worker_id)
