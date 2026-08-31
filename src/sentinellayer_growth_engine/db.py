@@ -65,7 +65,6 @@ class Database:
             )
 
     def resolve_uncertain(self, *, send_id: str, accepted: bool, provider_message_id: str | None = None, error: str | None = None) -> None:
-        outcome = "accepted" if accepted else "permanent_failure"
         with self.connection() as conn, conn.cursor() as cur:
             cur.execute(
                 "select public.resolve_uncertain_send(%s, %s, %s, %s)",
