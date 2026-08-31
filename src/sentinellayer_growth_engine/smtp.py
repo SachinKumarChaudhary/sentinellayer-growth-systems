@@ -67,7 +67,12 @@ class SmtpMailProvider:
                 smtp.ehlo()
 
             smtp.login(self.username, self.password)
-            refused = smtp.send_message(mail)
+            try:
+                refused = smtp.send_message(mail)
+            except (TimeoutError, smtplib.SMTPServerDisconnected, OSError) as exc:
+                raise MailProviderAmbiguousError(
+                    "SMTP connection ended during/after message submission; delivery status is unknown"
+                ) from exc
             if refused:
                 details = "; ".join(
                     f"{recipient}: {response}" for recipient, response in refused.items()
@@ -97,8 +102,8 @@ class SmtpMailProvider:
                 provider_message_id=message.message_id,
             )
         except (TimeoutError, smtplib.SMTPServerDisconnected, OSError) as exc:
-            raise MailProviderAmbiguousError(
-                "SMTP connection ended during/after submission; delivery status is unknown"
+            raise MailProviderError(
+                f"SMTP transport error before message submission: {exc}"
             ) from exc
         except smtplib.SMTPResponseException as exc:
             transient = 400 <= exc.smtp_code < 500
