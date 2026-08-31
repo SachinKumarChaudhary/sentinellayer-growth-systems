@@ -12,8 +12,11 @@ from .engine import DueSend
 class Database:
     """PostgreSQL repository; durable state transitions stay in SQL."""
 
-    def __init__(self, dsn: str) -> None:
+    def __init__(self, dsn: str, worker_id: str = "worker") -> None:
         self._dsn = dsn
+        if not worker_id.strip():
+            raise ValueError("worker_id must not be empty")
+        self._worker_id = worker_id
 
     def connection(self) -> psycopg.Connection[Any]:
         return psycopg.connect(self._dsn, row_factory=dict_row)
@@ -56,8 +59,8 @@ class Database:
     ) -> None:
         with self.connection() as conn, conn.cursor() as cur:
             cur.execute(
-                "select public.record_send_attempt(%s, 'accepted', %s, null, null, null, '{}'::jsonb)",
-                (send_id, provider_message_id or message_id),
+                "select public.record_send_attempt(%s, 'accepted', %s, null, null, null, '{}'::jsonb, %s)",
+                (send_id, provider_message_id or message_id, self._worker_id),
             )
 
     def mark_failed(
@@ -72,8 +75,8 @@ class Database:
         outcome = "temporary_failure" if transient and retry_at is not None else "permanent_failure"
         with self.connection() as conn, conn.cursor() as cur:
             cur.execute(
-                "select public.record_send_attempt(%s, %s, null, %s, %s, %s, '{}'::jsonb)",
-                (send_id, outcome, provider_code, error, retry_at),
+                "select public.record_send_attempt(%s, %s, null, %s, %s, %s, '{}'::jsonb, %s)",
+                (send_id, outcome, provider_code, error, retry_at, self._worker_id),
             )
 
     def is_suppressed(self, email: str) -> bool:
