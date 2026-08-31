@@ -178,3 +178,74 @@ def test_two_workers_cannot_claim_same_send() -> None:
                 "delete from mail.domains where id = %s",
                 (domain_id,),
             )
+
+
+@pytest.mark.integration
+def test_retry_and_completion_are_idempotent() -> None:
+    dsn = os.environ.get("SUPABASE_DATABASE_URL")
+    if not dsn:
+        pytest.skip("SUPABASE_DATABASE_URL is required for integration tests")
+
+    domain_id, mailbox_id, campaign_id, step_id, send_id = (uuid4() for _ in range(5))
+    suffix = uuid4().hex
+    person_email = f"ci-retry-{suffix}@example.invalid"
+    mailbox_email = f"retry-worker-{suffix}@example.invalid"
+    person_id: int | None = None
+
+    try:
+        with psycopg.connect(dsn) as conn, conn.cursor() as cur:
+            cur.execute("insert into mail.domains (id, domain_name, purpose, provider, dns_provider, status) values (%s,%s,'outbound','test','test','active')", (domain_id, f"{suffix}.invalid"))
+            cur.execute("insert into mail.mailboxes (id, domain_id, email, display_name, provider, credentials_ref, status, health_status, daily_limit) values (%s,%s,%s,'CI Retry','test','ci-test','active','unknown',0)", (mailbox_id, domain_id, mailbox_email))
+            cur.execute("insert into public.people (full_name,email,status) values ('CI Retry Test',%s,'NEW') returning id", (person_email,))
+            person_id = cur.fetchone()[0]
+            cur.execute("insert into public.campaigns (id,name,status,daily_global_limit,timezone) values (%s,'CI Retry','active',0,'UTC')", (campaign_id,))
+            cur.execute("insert into public.sequence_steps (id,campaign_id,step_no,delay_days,subject_template,body_template,active) values (%s,%s,1,0,'CI retry','test body',true)", (step_id,campaign_id))
+            cur.execute("insert into public.sends (id,person_id,campaign_id,sequence_step_id,mailbox_id,idempotency_key,scheduled_at,status) values (%s,%s,%s,%s,%s,%s,now(),'queued')", (send_id,person_id,campaign_id,step_id,mailbox_id,f"ci-retry-{suffix}"))
+
+        db = Database(dsn, worker_id="ci-retry-worker")
+        claimed = db.claim_due(batch_size=1, worker_id="ci-retry-worker")
+        assert len(claimed) == 1
+        assert claimed[0].attempt_count == 1
+
+        from datetime import timedelta
+        retry_at = __import__("datetime").datetime.now(__import__("datetime").timezone.utc) + timedelta(minutes=5)
+        db.mark_failed(send_id=str(send_id), error="temporary provider failure", retry_at=retry_at, transient=True, provider_code="421")
+
+        with psycopg.connect(dsn) as conn, conn.cursor() as cur:
+            cur.execute("select status, attempt_count, next_attempt_at, claimed_by from public.sends where id=%s", (send_id,))
+            row = cur.fetchone()
+        assert row[0] == "queued"
+        assert row[1] == 1
+        assert row[2] is not None
+        assert row[3] is None
+
+        # Make retry due and claim it as a new attempt.
+        with psycopg.connect(dsn) as conn, conn.cursor() as cur:
+            cur.execute("update public.sends set next_attempt_at=now() where id=%s", (send_id,))
+        retried = db.claim_due(batch_size=1, worker_id="ci-retry-worker")
+        assert len(retried) == 1
+        assert retried[0].attempt_count == 2
+
+        db.mark_sent(send_id=str(send_id), message_id=retried[0].message_id, provider_message_id="provider-ci-1")
+
+        # Repeating the same completion is idempotent at the attempt-history key,
+        # and must not create a third attempt or alter the final send status.
+        db.mark_sent(send_id=str(send_id), message_id=retried[0].message_id, provider_message_id="provider-ci-1")
+        with psycopg.connect(dsn) as conn, conn.cursor() as cur:
+            cur.execute("select status, attempt_count from public.sends where id=%s", (send_id,))
+            row = cur.fetchone()
+            cur.execute("select count(*) from public.send_attempts where send_id=%s and attempt_no=2", (send_id,))
+            attempt_row = cur.fetchone()
+        assert row[0] == "sent"
+        assert row[1] == 2
+        assert attempt_row[0] == 1
+    finally:
+        with psycopg.connect(dsn) as conn, conn.cursor() as cur:
+            cur.execute("delete from public.send_attempts where send_id=%s", (send_id,))
+            cur.execute("delete from public.sends where id=%s", (send_id,))
+            cur.execute("delete from public.sequence_steps where id=%s", (step_id,))
+            cur.execute("delete from public.campaigns where id=%s", (campaign_id,))
+            if person_id is not None:
+                cur.execute("delete from public.people where id=%s", (person_id,))
+            cur.execute("delete from mail.mailboxes where id=%s", (mailbox_id,))
+            cur.execute("delete from mail.domains where id=%s", (domain_id,))
