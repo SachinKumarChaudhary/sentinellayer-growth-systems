@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
 
-from .providers import MailProvider, MailProviderAmbiguousError, MailProviderError, OutboundMessage
+from .providers import DeliveryStatus, MailProvider, MailProviderAmbiguousError, MailProviderError, OutboundMessage, ReconciliationProvider
 from .retry import RetryPolicy
 
 
@@ -120,5 +120,23 @@ class SendEngine:
                     provider_code=result.provider_code,
                 )
             processed += 1
+
+    async def reconcile_uncertain(self, *, send_id: str, message_id: str, provider: ReconciliationProvider) -> str:
+        status = await provider.lookup_delivery(message_id)
+        if status == DeliveryStatus.ACCEPTED:
+            self.repository.resolve_uncertain(
+                send_id=send_id,
+                accepted=True,
+                provider_message_id=message_id,
+            )
+        elif status == DeliveryStatus.REJECTED:
+            self.repository.resolve_uncertain(
+                send_id=send_id,
+                accepted=False,
+                error="provider reconciliation confirmed rejection",
+            )
+        elif status != DeliveryStatus.UNKNOWN:
+            raise ValueError(f"invalid reconciliation status: {status}")
+        return status
 
         return processed
