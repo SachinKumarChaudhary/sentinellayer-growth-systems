@@ -4,13 +4,7 @@ import asyncio
 import smtplib
 from email.message import EmailMessage
 
-from .providers import MailProviderError, OutboundMessage, SendResult
-
-
-class MailProviderAmbiguousError(MailProviderError):
-    """The SMTP transaction may have succeeded, so automatic retry is unsafe."""
-
-
+from .providers import MailProviderAmbiguousError, MailProviderError, OutboundMessage, SendResult
 class SmtpMailProvider:
     """SMTP submission provider for authenticated port 587/465 delivery.
 
