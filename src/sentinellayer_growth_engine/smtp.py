@@ -66,7 +66,31 @@ class SmtpMailProvider:
                 smtp.ehlo()
 
             smtp.login(self.username, self.password)
-            smtp.send_message(mail)
+            refused = smtp.send_message(mail)
+            if refused:
+                details = "; ".join(
+                    f"{recipient}: {response}" for recipient, response in refused.items()
+                )
+                transient = any(
+                    isinstance(response, tuple)
+                    and len(response) >= 1
+                    and 400 <= int(response[0]) < 500
+                    for response in refused.values()
+                )
+                code = next(
+                    (
+                        str(response[0])
+                        for response in refused.values()
+                        if isinstance(response, tuple) and len(response) >= 1
+                    ),
+                    None,
+                )
+                return SendResult(
+                    accepted=False,
+                    error=f"SMTP refused recipient(s): {details}",
+                    transient=transient,
+                    provider_code=code,
+                )
             return SendResult(
                 accepted=True,
                 provider_message_id=message.message_id,
