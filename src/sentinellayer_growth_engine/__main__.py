@@ -10,6 +10,7 @@ from .config import Settings
 from .db import Database
 from .engine import SendEngine
 from .providers import MockMailProvider
+from .smtp import SmtpMailProvider
 from .worker import MailWorker
 
 logger = logging.getLogger(__name__)
@@ -20,12 +21,18 @@ def build_worker(settings: Settings) -> MailWorker:
     worker_id = os.getenv("SL_WORKER_ID", f"{socket.gethostname()}-{uuid.uuid4().hex[:8]}")
     database = Database(settings.database_url, worker_id=worker_id)
 
-    # Real SMTP integration is deliberately not enabled until its credentials
-    # are explicitly configured; production must never silently fall back to mock.
     if settings.real_email_enabled:
-        raise RuntimeError("real email provider is not configured yet")
+        provider = SmtpMailProvider(
+            host=settings.smtp_host or "",
+            port=settings.smtp_port,
+            username=settings.smtp_username or "",
+            password=settings.smtp_password or "",
+            timeout_seconds=settings.smtp_timeout_seconds,
+        )
+    else:
+        provider = MockMailProvider()
 
-    engine = SendEngine(database, MockMailProvider())
+    engine = SendEngine(database, provider)
     return MailWorker(
         engine,
         tick_seconds=settings.scheduler_tick_seconds,
