@@ -16,12 +16,37 @@ jobs:
             echo "Missing required GitHub Actions secret: SUPABASE_DATABASE_URL"
             exit 1
           }
+          echo "::add-mask::$SUPABASE_DATABASE_URL"
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       - name: Install
         run: python -m pip install --upgrade pip && pip install -e '.[dev]'
+      - name: Validate PostgreSQL connection safely
+        env:
+          SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+        run: |
+          python - <<'PY'
+          import os
+          from urllib.parse import urlsplit
+          import psycopg
+
+          dsn = os.environ["SUPABASE_DATABASE_URL"]
+          parsed = urlsplit(dsn)
+          safe = f"{parsed.scheme}://{parsed.username}:REDACTED@{parsed.hostname}:{parsed.port or 5432}{parsed.path}"
+          print(f"Connection target: {safe}")
+
+          try:
+              with psycopg.connect(dsn, connect_timeout=15) as conn:
+                  with conn.cursor() as cur:
+                      cur.execute("select 1")
+                      assert cur.fetchone() == (1,)
+              print("PostgreSQL authentication and query: OK")
+          except Exception:
+              print("PostgreSQL connection failed. Credentials are intentionally not printed.")
+              raise SystemExit(1)
+          PY
       - name: Supabase concurrency integration test
         env:
           SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
