@@ -111,3 +111,23 @@ async def test_smtp_refused_recipient_4xx_is_retryable(monkeypatch: pytest.Monke
     assert result.accepted is False
     assert result.transient is True
     assert result.provider_code == "451"
+
+
+@pytest.mark.asyncio
+async def test_smtp_oserror_is_ambiguous(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FakeSMTP:
+        def __init__(self, *args: object, **kwargs: object) -> None: pass
+        def ehlo(self) -> None: pass
+        def starttls(self) -> None: pass
+        def login(self, u: str, p: str) -> None: pass
+        def send_message(self, m: object) -> None:
+            raise OSError("connection reset")
+        def quit(self) -> None: pass
+        def close(self) -> None: pass
+
+    monkeypatch.setattr(smtplib, "SMTP", FakeSMTP)
+    provider = SmtpMailProvider(
+        host="smtp.example.invalid", port=587, username="u", password="p"
+    )
+    with pytest.raises(MailProviderAmbiguousError):
+        await provider.send(message())
