@@ -138,6 +138,8 @@ class SendEngine:
                 )
             processed += 1
 
+        return processed
+
     async def reconcile_uncertain(self, *, send_id: str, message_id: str, provider: ReconciliationProvider) -> str:
         status = await provider.lookup_delivery(message_id)
         if status == DeliveryStatus.ACCEPTED:
