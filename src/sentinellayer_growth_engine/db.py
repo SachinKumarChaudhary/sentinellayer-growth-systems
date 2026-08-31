@@ -68,8 +68,8 @@ class Database:
         outcome = "accepted" if accepted else "permanent_failure"
         with self.connection() as conn, conn.cursor() as cur:
             cur.execute(
-                "select public.record_send_attempt(%s, %s, %s, null, %s, null, '{}'::jsonb, %s)",
-                (send_id, outcome, provider_message_id, error, self._worker_id),
+                "select public.resolve_uncertain_send(%s, %s, %s, %s)",
+                (send_id, accepted, provider_message_id, error),
             )
 
     def mark_ambiguous(self, *, send_id: str, error: str) -> None:
