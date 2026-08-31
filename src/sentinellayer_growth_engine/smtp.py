@@ -101,10 +101,6 @@ class SmtpMailProvider:
                 accepted=True,
                 provider_message_id=message.message_id,
             )
-        except (TimeoutError, smtplib.SMTPServerDisconnected, OSError) as exc:
-            raise MailProviderError(
-                f"SMTP transport error before message submission: {exc}"
-            ) from exc
         except smtplib.SMTPResponseException as exc:
             transient = 400 <= exc.smtp_code < 500
             return SendResult(
@@ -115,6 +111,10 @@ class SmtpMailProvider:
                 transient=transient,
                 provider_code=str(exc.smtp_code),
             )
+        except (TimeoutError, smtplib.SMTPServerDisconnected, OSError) as exc:
+            raise MailProviderError(
+                f"SMTP transport error before message submission: {exc}"
+            ) from exc
         except smtplib.SMTPException as exc:
             raise MailProviderError(f"SMTP provider error: {exc}") from exc
         finally:
