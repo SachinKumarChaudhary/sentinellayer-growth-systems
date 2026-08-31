@@ -43,8 +43,25 @@ jobs:
                       cur.execute("select 1")
                       assert cur.fetchone() == (1,)
               print("PostgreSQL authentication and query: OK")
-          except Exception:
-              print("PostgreSQL connection failed. Credentials are intentionally not printed.")
+          except Exception as exc:
+              # Never print the exception verbatim: database drivers may include
+              # connection details. Expose only a safe diagnostic classification.
+              error_type = type(exc).__name__
+              message = str(exc)
+              lowered = message.lower()
+              if "password authentication failed" in lowered:
+                  reason = "authentication_failed"
+              elif "network is unreachable" in lowered:
+                  reason = "network_unreachable"
+              elif "connection refused" in lowered:
+                  reason = "connection_refused"
+              elif "timed out" in lowered or "timeout" in lowered:
+                  reason = "connection_timeout"
+              elif "ssl" in lowered or "tls" in lowered:
+                  reason = "tls_or_ssl_error"
+              else:
+                  reason = "postgresql_connection_error"
+              print(f"PostgreSQL connection failed: type={error_type}, reason={reason}")
               raise SystemExit(1)
           PY
       - name: Supabase concurrency integration test
