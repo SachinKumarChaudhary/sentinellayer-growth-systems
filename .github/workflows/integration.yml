@@ -34,11 +34,15 @@ jobs:
 
           dsn = os.environ["SUPABASE_DATABASE_URL"]
           parsed = urlsplit(dsn)
-          safe = f"{parsed.scheme}://{parsed.username}:REDACTED@{parsed.hostname}:{parsed.port or 5432}{parsed.path}"
+          params = dict(q.split("=", 1) for q in parsed.query.split("&") if "=" in q)
+          sslmode = params.get("sslmode", "driver-default")
+          safe = f"{parsed.scheme}://{parsed.username}:REDACTED@{parsed.hostname}:{parsed.port or 5432}{parsed.path}?sslmode={sslmode}"
+          print(f"Safe connection identity: user={parsed.username}, host={parsed.hostname}, port={parsed.port or 5432}, database={parsed.path.lstrip('/')}, sslmode={sslmode}")
           print(f"Connection target: {safe}")
 
           try:
-              with psycopg.connect(dsn, connect_timeout=15) as conn:
+              # Supabase recommends SSL for Session Pooler connections.
+              with psycopg.connect(dsn, connect_timeout=15, sslmode="require") as conn:
                   with conn.cursor() as cur:
                       cur.execute("select 1")
                       assert cur.fetchone() == (1,)
