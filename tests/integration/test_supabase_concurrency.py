@@ -238,3 +238,64 @@ def test_retry_lifecycle_and_stale_completion_fencing() -> None:
             if person_id is not None: cur.execute("delete from public.people where id=%s", (person_id,))
             cur.execute("delete from mail.mailboxes where id=%s", (mailbox_id,))
             cur.execute("delete from mail.domains where id=%s", (domain_id,))
+
+
+@pytest.mark.integration
+def test_uncertain_send_is_reconciled_by_different_worker() -> None:
+    dsn = os.environ.get("SUPABASE_DATABASE_URL")
+    if not dsn:
+        pytest.skip("SUPABASE_DATABASE_URL is required for integration tests")
+
+    domain_id, mailbox_id, campaign_id, step_id, send_id = (uuid4() for _ in range(5))
+    suffix = uuid4().hex
+    person_id = None
+    try:
+        with psycopg.connect(dsn) as conn, conn.cursor() as cur:
+            cur.execute("insert into mail.domains (id, domain_name, purpose, provider, dns_provider, status) values (%s,%s,'outbound','test','test','active')", (domain_id, f"{suffix}.invalid"))
+            cur.execute("insert into mail.mailboxes (id, domain_id, email, display_name, provider, credentials_ref, status, health_status, daily_limit) values (%s,%s,%s,'CI Reconcile','test','ci-test','active','unknown',0)", (mailbox_id, domain_id, f"reconcile-{suffix}@example.invalid"))
+            cur.execute("insert into public.people (full_name,email,status) values ('CI Reconcile Test',%s,'NEW') returning id", (f"recipient-{suffix}@example.invalid",))
+            person_id = cur.fetchone()[0]
+            cur.execute("insert into public.campaigns (id,name,status,daily_global_limit,timezone) values (%s,'CI Reconcile','active',0,'UTC')", (campaign_id,))
+            cur.execute("insert into public.sequence_steps (id,campaign_id,step_no,delay_days,subject_template,body_template,active) values (%s,%s,1,0,'CI reconcile','test body',true)", (step_id,campaign_id))
+            cur.execute("insert into public.sends (id,person_id,campaign_id,sequence_step_id,mailbox_id,idempotency_key,scheduled_at,status) values (%s,%s,%s,%s,%s,%s,now(),'queued')", (send_id,person_id,campaign_id,step_id,mailbox_id,f"ci-reconcile-{suffix}"))
+
+        worker_a = Database(dsn, worker_id="ci-reconcile-a")
+        claimed = worker_a.claim_due(batch_size=1)
+        assert len(claimed) == 1
+
+        worker_a.mark_ambiguous(send_id=str(send_id), error="CI simulated timeout after submission")
+
+        with psycopg.connect(dsn) as conn, conn.cursor() as cur:
+            cur.execute("select status, claimed_by, claim_lease_until from public.sends where id=%s", (send_id,))
+            row = cur.fetchone()
+        assert row == ("uncertain", None, None)
+
+        worker_b = Database(dsn, worker_id="ci-reconcile-b")
+        worker_b.resolve_uncertain(
+            send_id=str(send_id),
+            accepted=True,
+            provider_message_id="ci-provider-message-1",
+        )
+
+        with psycopg.connect(dsn) as conn, conn.cursor() as cur:
+            cur.execute("select status, message_id, claimed_by, claim_lease_until, next_attempt_at from public.sends where id=%s", (send_id,))
+            row = cur.fetchone()
+        assert row[0] == "sent"
+        assert row[1] == "ci-provider-message-1"
+        assert row[2] is None and row[3] is None and row[4] is None
+
+        with pytest.raises(Exception, match="not uncertain"):
+            worker_b.resolve_uncertain(
+                send_id=str(send_id),
+                accepted=True,
+                provider_message_id="ci-provider-message-2",
+            )
+    finally:
+        with psycopg.connect(dsn) as conn, conn.cursor() as cur:
+            cur.execute("delete from public.send_attempts where send_id=%s", (send_id,))
+            cur.execute("delete from public.sends where id=%s", (send_id,))
+            cur.execute("delete from public.sequence_steps where id=%s", (step_id,))
+            cur.execute("delete from public.campaigns where id=%s", (campaign_id,))
+            if person_id is not None: cur.execute("delete from public.people where id=%s", (person_id,))
+            cur.execute("delete from mail.mailboxes where id=%s", (mailbox_id,))
+            cur.execute("delete from mail.domains where id=%s", (domain_id,))
