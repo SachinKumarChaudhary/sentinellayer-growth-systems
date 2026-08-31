@@ -2,7 +2,7 @@ import smtplib
 
 import pytest
 
-from sentinellayer_growth_engine.providers import MailProviderAmbiguousError, OutboundMessage, MailProviderError
+from sentinellayer_growth_engine.providers import MailProviderAmbiguousError, MailProviderError, OutboundMessage
 from sentinellayer_growth_engine.smtp import MailProviderAmbiguousError, SmtpMailProvider
 
 
@@ -164,6 +164,6 @@ async def test_smtp_connect_oserror_is_not_ambiguous(monkeypatch: pytest.MonkeyP
     provider = SmtpMailProvider(
         host="smtp.example.invalid", port=587, username="u", password="p"
     )
-    with pytest.raises(Exception) as exc_info:
+    with pytest.raises(MailProviderError) as exc_info:
         await provider.send(message())
     assert not isinstance(exc_info.value, MailProviderAmbiguousError)
