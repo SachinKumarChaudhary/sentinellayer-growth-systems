@@ -29,6 +29,18 @@ class SendResult:
     provider_code: str | None = None
 
 
+class DeliveryStatus:
+    UNKNOWN = "unknown"
+    ACCEPTED = "accepted"
+    REJECTED = "rejected"
+
+
+class ReconciliationProvider(Protocol):
+    async def lookup_delivery(self, message_id: str) -> str:
+        """Return accepted/rejected/unknown using authoritative provider evidence."""
+        ...
+
+
 class MailProvider(Protocol):
     async def send(self, message: OutboundMessage) -> SendResult:
         ...
