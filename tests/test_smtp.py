@@ -2,8 +2,11 @@ import smtplib
 
 import pytest
 
-from sentinellayer_growth_engine.providers import MailProviderError, OutboundMessage
-from sentinellayer_growth_engine.providers import MailProviderAmbiguousError
+from sentinellayer_growth_engine.providers import (
+    MailProviderAmbiguousError,
+    MailProviderError,
+    OutboundMessage,
+)
 from sentinellayer_growth_engine.smtp import SmtpMailProvider
 
 
