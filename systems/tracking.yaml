@@ -1,0 +1,54 @@
+system: tracking
+owner: tracking
+purpose: collect, normalize, attribute, and confidence-score post-send behavioral observations
+
+owns:
+  - behavioral_event_ingestion
+  - link_event_ingestion
+  - first_party_trackable_links
+  - first_party_asset_tokens
+  - session_correlation
+  - scanner_and_automation_classification
+  - tracking_confidence
+  - tracking_storage
+  - tracking_views
+  - tracking_tests
+
+consumes:
+  - provider_outcome
+  - rendered_send_treatment
+  - account_ref
+  - person_ref
+  - campaign_context
+
+produces:
+  - tracking_event
+  - normalized_behavioral_timeline
+
+depends_on:
+  - platform
+  - mail
+  - campaign
+
+must_not:
+  - send_email
+  - authorize_email_send
+  - recompute_intent
+  - directly_set_sales_opportunity
+  - bypass_rls
+  - expose_email_addresses_or_raw_ips_in_public_tracking_urls
+
+safety_rules:
+  - open_events_are_low_confidence
+  - scanner_activity_must_not_be_treated_as_human_interest
+  - tracking_is_evidence_not_buying_intent
+  - public_tokens_are_opaque
+  - ingestion_is_server_side
+  - duplicate_events_are_idempotent
+
+handoff:
+  mail_to_tracking: ProviderOutcome + canonical event identity
+  campaign_to_tracking: asset/link context through RenderedSendTreatment
+  tracking_to_intent: TrackingEvent evidence only
+  tracking_to_conversation: behavioral context only
+  tracking_to_analytics: canonical attribution identifiers + event timestamps
