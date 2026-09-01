@@ -1,0 +1,21 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://sentinellayer.invalid/schemas/intent-snapshot.schema.json",
+  "title":"IntentSnapshot",
+  "type":"object",
+  "additionalProperties":false,
+  "required":["schema_version","account_id","fit_score","intent_score","priority","negative_flags","behavior_flags","evidence","calculated_at","model_version"],
+  "properties":{
+    "schema_version":{"type":"string"},
+    "account_id":{"type":"string"},
+    "person_id":{"type":["string","null"]},
+    "fit_score":{"type":"number","minimum":0,"maximum":10},
+    "intent_score":{"type":"number","minimum":0,"maximum":10},
+    "priority":{"type":"string","enum":["P1","P2","P3","P4"]},
+    "negative_flags":{"type":"array","items":{"type":"string"}},
+    "behavior_flags":{"type":"array","items":{"type":"string"}},
+    "evidence":{"type":"array","items":{"type":"object"}},
+    "calculated_at":{"type":"string","format":"date-time"},
+    "model_version":{"type":"string"}
+  }
+}
