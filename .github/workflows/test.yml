@@ -6,19 +6,58 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      SL_ENVIRONMENT: development
+      SL_REAL_EMAIL_ENABLED: "false"
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
+          cache: pip
       - name: Install
-        run: python -m pip install --upgrade pip && pip install -e '.[dev]'
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[dev]'
+      - name: Operations CI safety gate
+        run: bash scripts/ci-gate.sh
       - name: Ruff
-        run: ruff check .
+        run: python -m ruff check .
       - name: MyPy
-        run: mypy src
-      - name: Pytest
-        run: pytest -q
+        run: python -m mypy src
+      - name: Unit and repository tests
+        run: python -m pytest -q
+      - name: Contract tests
+        run: python -m pytest -q tests/contracts
+      - name: Docker build
+        run: docker build --pull -t sentinellayer-growth-engine:ci .
+      - name: Verify container runs as non-root
+        run: |
+          test "$(docker image inspect sentinellayer-growth-engine:ci --format '{{.Config.User}}')" = "nobody"
+      - name: Upload test metadata
+        if: always()
+        run: |
+          mkdir -p test-results
+          {
+            echo "commit=${GITHUB_SHA}"
+            echo "environment=${SL_ENVIRONMENT}"
+            echo "real_email_enabled=${SL_REAL_EMAIL_ENABLED}"
+            echo "docker_image=sentinellayer-growth-engine:ci"
+          } > test-results/ci-metadata.txt
+      - name: Upload CI metadata
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-metadata-${{ github.run_id }}
+          path: test-results/ci-metadata.txt
+          if-no-files-found: error
