@@ -13,4 +13,7 @@ RUN python -m pip install --no-cache-dir --upgrade pip \
 
 USER nobody
 
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD ["python", "-m", "sentinellayer_growth_engine.health"]
+
 ENTRYPOINT ["python", "-m", "sentinellayer_growth_engine"]
