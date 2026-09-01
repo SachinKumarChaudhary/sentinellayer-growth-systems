@@ -1,0 +1,19 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://sentinellayer.invalid/schemas/send-request.schema.json",
+  "title":"SendRequest",
+  "type":"object",
+  "additionalProperties":false,
+  "required":["schema_version","send_id","idempotency_key","campaign_id","person_id","sequence_step_id","mailbox_id","scheduled_at","treatment"],
+  "properties":{
+    "schema_version":{"type":"string"},
+    "send_id":{"type":"string","format":"uuid"},
+    "idempotency_key":{"type":"string","minLength":1},
+    "campaign_id":{"type":"string","format":"uuid"},
+    "person_id":{"type":"string"},
+    "sequence_step_id":{"type":"string","format":"uuid"},
+    "mailbox_id":{"type":"string","format":"uuid"},
+    "scheduled_at":{"type":"string","format":"date-time"},
+    "treatment":{"type":"object"}
+  }
+}
