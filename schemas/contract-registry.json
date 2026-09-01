@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SentinelLayer Contract Registry",
+  "description": "Machine-readable ownership and consumer registry. Individual contract schemas remain authoritative for payload shape.",
+  "registry_version": "1.0",
+  "contracts": {
+    "account_ref": {
+      "schema": "account-ref.schema.json",
+      "producer": "intelligence",
+      "consumers": [
+        "campaign",
+        "platform"
+      ]
+    },
+    "person_ref": {
+      "schema": "person-ref.schema.json",
+      "producer": "intelligence",
+      "consumers": [
+        "campaign",
+        "mail",
+        "platform"
+      ]
+    },
+    "intent_snapshot": {
+      "schema": "intent-snapshot.schema.json",
+      "producer": "intelligence",
+      "consumers": [
+        "campaign"
+      ]
+    },
+    "campaign_enrollment": {
+      "schema": "campaign-enrollment.schema.json",
+      "producer": "campaign",
+      "consumers": [
+        "campaign",
+        "mail",
+        "analytics"
+      ]
+    },
+    "rendered_send_treatment": {
+      "schema": "rendered-send-treatment.schema.json",
+      "producer": "campaign",
+      "consumers": [
+        "mail",
+        "analytics"
+      ]
+    },
+    "send_request": {
+      "schema": "send-request.schema.json",
+      "producer": "platform",
+      "consumers": [
+        "mail"
+      ]
+    },
+    "provider_outcome": {
+      "schema": "provider-outcome.schema.json",
+      "producer": "mail",
+      "consumers": [
+        "tracking",
+        "conversation",
+        "analytics"
+      ]
+    },
+    "tracking_event": {
+      "schema": "tracking-event.schema.json",
+      "producer": "tracking",
+      "consumers": [
+        "conversation",
+        "analytics"
+      ]
+    },
+    "conversation_handoff": {
+      "schema": "conversation-handoff.schema.json",
+      "producer": "conversation",
+      "consumers": [
+        "sales",
+        "analytics"
+      ]
+    },
+    "sales_handoff": {
+      "schema": "sales-handoff.schema.json",
+      "producer": "sales",
+      "consumers": [
+        "analytics"
+      ]
+    },
+    "attribution_context": {
+      "schema": "attribution-context.schema.json",
+      "producer": "platform",
+      "consumers": [
+        "analytics"
+      ]
+    }
+  }
+}
