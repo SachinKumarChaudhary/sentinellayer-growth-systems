@@ -1,0 +1,61 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-gate:
+    runs-on: ubuntu-latest
+    env:
+      SL_ENVIRONMENT: staging
+      SL_REAL_EMAIL_ENABLED: "false"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[dev]'
+      - name: Operations safety gate
+        run: bash scripts/ci-gate.sh
+      - name: Quality gates
+        run: |
+          python -m ruff check .
+          python -m mypy src
+          python -m pytest -q
+          python -m pytest -q tests/contracts
+      - name: Build immutable release image
+        run: docker build --pull --label org.opencontainers.image.revision="${GITHUB_SHA}" --label org.opencontainers.image.version="${GITHUB_REF_NAME}" -t sentinellayer-growth-engine:${GITHUB_REF_NAME} .
+      - name: Export release artifact
+        run: docker save sentinellayer-growth-engine:${GITHUB_REF_NAME} -o sentinellayer-growth-engine-${GITHUB_REF_NAME}.tar
+      - name: Generate release manifest
+        run: |
+          cat > release-manifest.txt <<EOF
+          version=${GITHUB_REF_NAME}
+          commit=${GITHUB_SHA}
+          environment=${SL_ENVIRONMENT}
+          real_email_enabled=${SL_REAL_EMAIL_ENABLED}
+          artifact=sentinellayer-growth-engine-${GITHUB_REF_NAME}.tar
+          EOF
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ github.ref_name }}
+          path: |
+            sentinellayer-growth-engine-${{ github.ref_name }}.tar
+            release-manifest.txt
+          if-no-files-found: error
