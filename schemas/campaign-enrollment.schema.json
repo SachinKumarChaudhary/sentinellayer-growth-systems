@@ -1,0 +1,25 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://sentinellayer.invalid/schemas/campaign-enrollment.schema.json",
+  "title":"CampaignEnrollment",
+  "type":"object",
+  "additionalProperties":false,
+  "required":["schema_version","enrollment_id","campaign_id","account_id","person_id","priority_at_enrollment","strategy_version_id","offer_version_id","sequence_version_id","enrolled_at","status"],
+  "properties":{
+    "schema_version":{"type":"string"},
+    "enrollment_id":{"type":"string","format":"uuid"},
+    "campaign_id":{"type":"string","format":"uuid"},
+    "account_id":{"type":"string"},
+    "person_id":{"type":"string"},
+    "priority_at_enrollment":{"type":"string","enum":["P1","P2","P3","P4"]},
+    "strategy_version_id":{"type":"string","format":"uuid"},
+    "offer_version_id":{"type":"string","format":"uuid"},
+    "sequence_version_id":{"type":"string","format":"uuid"},
+    "experiment_id":{"type":["string","null"]},
+    "experiment_variant_id":{"type":["string","null"]},
+    "enrolled_at":{"type":"string","format":"date-time"},
+    "status":{"type":"string","enum":["active","paused","terminated","completed"]},
+    "message_context":{"type":["object","null"]},
+    "personalization_snapshot_id":{"type":["string","null"]}
+  }
+}
