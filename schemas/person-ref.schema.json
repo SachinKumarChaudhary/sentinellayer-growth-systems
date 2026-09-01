@@ -1,0 +1,21 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://sentinellayer.invalid/schemas/person-ref.schema.json",
+  "title":"PersonRef",
+  "type":"object",
+  "additionalProperties":false,
+  "required":["schema_version","person_id","account_id","email","name","title","contactability_status"],
+  "properties":{
+    "schema_version":{"type":"string"},
+    "person_id":{"type":"string","minLength":1},
+    "account_id":{"type":"string","minLength":1},
+    "email":{"type":"string","format":"email"},
+    "name":{"type":"string","minLength":1},
+    "title":{"type":"string","minLength":1},
+    "contactability_status":{"type":"string","minLength":1},
+    "linkedin_url":{"type":["string","null"]},
+    "buyer_role":{"type":["string","null"]},
+    "decision_authority":{"type":["string","null"]},
+    "verification_status":{"type":["string","null"]}
+  }
+}
