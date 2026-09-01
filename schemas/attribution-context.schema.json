@@ -1,0 +1,23 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://sentinellayer.invalid/schemas/attribution-context.schema.json",
+  "title":"AttributionContext",
+  "type":"object",
+  "additionalProperties":false,
+  "required":["schema_version","account_id","person_id"],
+  "properties":{
+    "schema_version":{"type":"string"},
+    "account_id":{"type":"string"},
+    "person_id":{"type":["string","null"]},
+    "campaign_id":{"type":["string","null"]},
+    "enrollment_id":{"type":["string","null"]},
+    "strategy_version_id":{"type":["string","null"]},
+    "offer_version_id":{"type":["string","null"]},
+    "message_version_id":{"type":["string","null"]},
+    "cta_version_id":{"type":["string","null"]},
+    "sequence_version_id":{"type":["string","null"]},
+    "experiment_id":{"type":["string","null"]},
+    "experiment_variant_id":{"type":["string","null"]},
+    "send_id":{"type":["string","null"]}
+  }
+}
