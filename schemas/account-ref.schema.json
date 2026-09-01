@@ -1,0 +1,20 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://sentinellayer.invalid/schemas/account-ref.schema.json",
+  "title":"AccountRef",
+  "type":"object",
+  "additionalProperties":false,
+  "required":["schema_version","account_id","domain","account_name","qualification_status","source"],
+  "properties":{
+    "schema_version":{"type":"string"},
+    "account_id":{"type":"string","minLength":1},
+    "domain":{"type":"string","minLength":1},
+    "account_name":{"type":"string","minLength":1},
+    "qualification_status":{"type":"string","minLength":1},
+    "source":{"type":"string","minLength":1},
+    "employee_band":{"type":["string","null"]},
+    "traffic_band":{"type":["string","null"]},
+    "geography":{"type":["string","null"]},
+    "vertical":{"type":["string","null"]}
+  }
+}
