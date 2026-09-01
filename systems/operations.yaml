@@ -1,0 +1,90 @@
+system: operations
+name: Operations / Control Plane
+owner: operations
+status: active
+
+mission: >-
+  Keep all SentinelLayer systems deployable, observable, secure, recoverable,
+  and controllable across development, staging, and production.
+
+depends_on:
+  - platform
+  - intelligence
+  - campaign
+  - mail
+  - tracking
+  - conversation
+  - sales
+  - analytics
+
+owns:
+  - ci_cd
+  - deployment
+  - environment_promotion
+  - runtime_configuration
+  - secret_injection_conventions
+  - health_readiness
+  - operational_observability
+  - alerting
+  - incident_response
+  - kill_switches
+  - pause_resume_controls
+  - rollback
+  - backup_restore
+  - release_management
+  - production_readiness_gates
+
+consumes:
+  - system_health_signals
+  - deployment_artifacts
+  - test_results
+  - operational_events
+  - provider_health_signals
+  - queue_health_signals
+
+produces:
+  - deployment_status
+  - health_status
+  - alerts
+  - operational_audit_events
+  - release_status
+  - emergency_control_state
+
+must:
+  - keep development side_effects disabled
+  - keep production secrets out of source control
+  - require CI gates before promotion
+  - provide rollback and recovery procedures
+  - preserve auditability of critical administrative changes
+  - fail closed when required safety configuration is invalid
+
+must_not:
+  - implement campaign_strategy
+  - implement message_copy
+  - perform_mail_delivery
+  - compute_buying_intent
+  - classify_conversations
+  - own_sales_opportunity_logic
+  - become_the_operational_source_of_business_truth
+  - bypass_domain_safety_policies
+
+required_files:
+  - docs/operations/OPERATIONS_CONTROL_PLANE_SPEC.md
+  - docs/00-master/deployment-contract.md
+  - .github/workflows/
+
+quality_gates:
+  - lint
+  - type_check
+  - unit_tests
+  - contract_tests
+  - integration_tests
+  - migration_validation
+  - secret_scan
+  - container_build
+  - staging_smoke_test
+
+production_gate:
+  real_side_effects: explicit_only
+  human_approval_required: true
+  rollback_required: true
