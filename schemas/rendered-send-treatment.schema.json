@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinellayer.invalid/schemas/rendered-send-treatment.schema.json",
+  "title": "RenderedSendTreatment",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version","enrollment_id","campaign_id","person_id","account_id","sequence_step_id","strategy_version_id","offer_version_id","message_version_id","cta_version_id","sequence_version_id","recipient_email","subject","body_text","headers","rendered_at"],
+  "properties": {
+    "schema_version": {"type":"string"},
+    "enrollment_id": {"type":"string","format":"uuid"},
+    "campaign_id": {"type":"string","format":"uuid"},
+    "person_id": {"type":"string"},
+    "account_id": {"type":"string"},
+    "sequence_step_id": {"type":"string","format":"uuid"},
+    "strategy_version_id": {"type":"string","format":"uuid"},
+    "offer_version_id": {"type":"string","format":"uuid"},
+    "message_version_id": {"type":"string","format":"uuid"},
+    "cta_version_id": {"type":"string","format":"uuid"},
+    "sequence_version_id": {"type":"string","format":"uuid"},
+    "experiment_id": {"type":["string","null"]},
+    "experiment_variant_id": {"type":["string","null"]},
+    "recipient_email": {"type":"string","format":"email"},
+    "subject": {"type":"string","minLength":1},
+    "body_text": {"type":"string","minLength":1},
+    "headers": {"type":"object","additionalProperties":{"type":"string"}},
+    "asset": {"type":["object","null"]},
+    "personalization": {"type":["object","null"]},
+    "reply_to": {"type":["string","null"],"format":"email"},
+    "rendered_at": {"type":"string","format":"date-time"}
+  }
+}
