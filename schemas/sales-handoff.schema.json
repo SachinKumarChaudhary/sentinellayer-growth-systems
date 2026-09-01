@@ -1,0 +1,23 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://sentinellayer.invalid/schemas/sales-handoff.schema.json",
+  "title":"SalesHandoff",
+  "type":"object",
+  "additionalProperties":false,
+  "required":["schema_version","sales_task_id","account_id","person_id","trigger_type","priority","recommended_action","created_at"],
+  "properties":{
+    "schema_version":{"type":"string"},
+    "sales_task_id":{"type":"string","format":"uuid"},
+    "account_id":{"type":"string"},
+    "person_id":{"type":"string"},
+    "trigger_type":{"type":"string","minLength":1},
+    "priority":{"type":"string","enum":["P1","P2","P3","P4"]},
+    "recommended_action":{"type":"string","minLength":1},
+    "why_now":{"type":"array"},
+    "latest_reply":{"type":["object","null"]},
+    "behavior_summary":{"type":["array","null"]},
+    "campaign_context":{"type":["object","null"]},
+    "conversation_summary":{"type":["object","null"]},
+    "created_at":{"type":"string","format":"date-time"}
+  }
+}
