@@ -1,0 +1,26 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://sentinellayer.invalid/schemas/conversation-handoff.schema.json",
+  "title":"ConversationHandoff",
+  "type":"object",
+  "additionalProperties":false,
+  "required":["schema_version","conversation_id","reply_id","account_id","person_id","classification","conversation_state","recommended_action","created_at"],
+  "properties":{
+    "schema_version":{"type":"string"},
+    "conversation_id":{"type":"string","format":"uuid"},
+    "reply_id":{"type":"string","format":"uuid"},
+    "account_id":{"type":"string"},
+    "person_id":{"type":"string"},
+    "source_send_id":{"type":["string","null"],"format":"uuid"},
+    "classification":{"type":"string","enum":["interested","not_now","negative","ooo","unsubscribe","question","other","unclassified"]},
+    "conversation_state":{"type":"string","enum":["received","normalized","thread_matched","classified","action_selected","human_handled","resolved"]},
+    "recommended_action":{"type":"string","minLength":1},
+    "intent_snapshot":{"type":["object","null"]},
+    "timeline":{"type":"array"},
+    "commitments":{"type":"array"},
+    "objections":{"type":"array"},
+    "questions":{"type":"array"},
+    "evidence":{"type":"array"},
+    "created_at":{"type":"string","format":"date-time"}
+  }
+}
