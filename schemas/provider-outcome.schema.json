@@ -1,0 +1,23 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://sentinellayer.invalid/schemas/provider-outcome.schema.json",
+  "title":"ProviderOutcome",
+  "type":"object",
+  "additionalProperties":false,
+  "required":["schema_version","send_id","attempt_id","provider","outcome_type","occurred_at"],
+  "properties":{
+    "schema_version":{"type":"string"},
+    "send_id":{"type":"string","format":"uuid"},
+    "attempt_id":{"type":"string","format":"uuid"},
+    "provider":{"type":"string","minLength":1},
+    "outcome_type":{"type":"string","enum":["accepted","temporary_failure","permanent_failure","ambiguous","policy_rejection","timeout","connection_failure"]},
+    "occurred_at":{"type":"string","format":"date-time"},
+    "provider_message_id":{"type":["string","null"]},
+    "smtp_code":{"type":["integer","null"]},
+    "provider_status":{"type":["string","null"]},
+    "raw_reference":{"type":["string","null"]},
+    "retry_after":{"type":["integer","null"],"minimum":0},
+    "error_code":{"type":["string","null"]},
+    "error_message":{"type":["string","null"]}
+  }
+}
