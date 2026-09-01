@@ -14,10 +14,15 @@ Operations should extend these controls rather than create a second competing te
 - migration immutability rule
 
 ## Phase 2 — CI quality gates
-Current:
+Current implemented:
 - Ruff
 - MyPy
 - Pytest
+- CI safety gate enforcing non-production environment and real-email disabled
+- pip dependency audit
+- explicit contract-test gate
+- Docker build gate
+- non-root container assertion
 
 Required progression:
 - contract/schema validation
