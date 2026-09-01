@@ -2,9 +2,9 @@
 
 ## Current baseline
 
-Existing repository automation already has a core CI gate for Ruff, MyPy, and Pytest on pushes and pull requests to `main`. The repository also has a system test script that runs unit tests, contract tests, integration tests, and a Docker build. See `.github/workflows/test.yml` and `scripts/test-system.sh`.
+Existing repository automation has a core CI gate for Ruff, MyPy, Pytest, contract tests, dependency auditing, Docker build validation, and CI safety controls. A system test script also exists for the broader unit/contract/integration/Docker path.
 
-Operations should extend these controls rather than create a second competing test path.
+Operations extends these controls rather than creating competing test paths.
 
 ## Phase 1 — Repository governance
 - machine-readable Operations manifest
@@ -14,51 +14,57 @@ Operations should extend these controls rather than create a second competing te
 - migration immutability rule
 
 ## Phase 2 — CI quality gates
-Current implemented:
+Implemented:
 - Ruff
 - MyPy
 - Pytest
-- CI safety gate enforcing non-production environment and real-email disabled
-- pip dependency audit
 - explicit contract-test gate
+- CI safety gate enforcing non-production environment and real-email disabled
+- dependency audit
 - Docker build gate
 - non-root container assertion
-
-Required progression:
-- contract/schema validation
-- integration tests
-- migration validation
-- dependency/security checks
-- secret scanning
-- container build
-
-A quality gate must block promotion when its required check fails.
+- least-privilege workflow permissions
+- CI concurrency cancellation
+- CI metadata artifact
 
 ## Phase 3 — Build and release
-- produce immutable versioned artifacts
-- record commit SHA/version in artifact metadata
-- build Docker image reproducibly
-- publish only from trusted release paths
-- separate staging and production configuration
+Implemented:
+- tag-based release workflow
+- immutable version/commit labels on release image
+- release manifest
+- exported release artifact
+- release quality and safety gates
+
+Not implemented yet:
+- external container registry publication
+- automatic production deployment
+
+These remain deployment-target decisions and require the selected production platform.
 
 ## Phase 4 — Runtime controls
-- startup configuration validation
-- liveness/readiness
-- graceful shutdown
-- restart recovery
-- operational logs
-- service identity
-- correlation IDs
+Implemented:
+- container healthcheck for process liveness and PostgreSQL readiness
+- startup configuration validation in the application
+- graceful shutdown in the mail worker
+
+Remaining:
+- runtime-specific deployment adapter
+- centralized operational logs/metrics
+- deployment version endpoint where required by the selected runtime
 
 ## Phase 5 — Safety controls
+Defined by contract:
 - global outbound kill switch
 - campaign pause/resume
 - mailbox pause/resume
 - production-send enable gate
-- maintenance mode where required
-- audit trail for administrative changes
+- maintenance mode
+- administrative audit trail
+
+Implementation of domain-specific pause/eligibility semantics remains with the owning domain systems. Operations owns the control plane and emergency override mechanism.
 
 ## Phase 6 — Observability and alerting
+Defined:
 - service health
 - queue depth/backlog
 - error rates
@@ -68,16 +74,25 @@ A quality gate must block promotion when its required check fails.
 - worker crashes/restarts
 - safety-state changes
 
+Remaining:
+- select metrics/logging backend
+- configure alert thresholds with domain owners
+- wire runtime alerts
+
 ## Phase 7 — Recovery
+Defined:
 - database backup verification
-- restore test
+- isolated restore test
 - application rollback
 - migration recovery
 - configuration recovery
 - incident runbooks
 
+Remaining:
+- execute the first real restore/rollback drills after staging infrastructure exists
+
 ## Phase 8 — Production gate
-All relevant unit, contract, integration, concurrency, security, migration, container, staging-smoke, observability, and recovery gates pass. Real outbound effects remain disabled until the separate production approval is explicitly recorded.
+All relevant unit, contract, integration, concurrency, security, migration, container, staging-smoke, observability, and recovery gates must pass. Real outbound effects remain disabled until the separate production approval is explicitly recorded.
 
 ## Operating principle
-Operations provides the machinery and gates. Domain systems own their domain policies. Do not move business logic into CI/CD or the control plane merely because it is easier to orchestrate there.
+Operations provides the machinery and gates. Domain systems own domain policies. Do not move business logic into CI/CD or the control plane merely because it is easier to orchestrate there.
