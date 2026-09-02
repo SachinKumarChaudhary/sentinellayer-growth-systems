@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -31,7 +31,7 @@ T = {
 }
 
 def test_builds_valid_send_request():
-    when = datetime(2026, 9, 2, 12, tzinfo=timezone.utc)
+    when = datetime(2026, 9, 2, 12, tzinfo=UTC)
     result = CampaignMailHandoff().build_send_request(
         treatment=T, mailbox_id=U["mailbox"], scheduled_at=when, send_id=U["send"]
     )
@@ -46,7 +46,7 @@ def test_rejects_invalid_treatment():
         CampaignMailHandoff().build_send_request(
             treatment=bad,
             mailbox_id=U["mailbox"],
-            scheduled_at=datetime(2026, 9, 2, 12, tzinfo=timezone.utc),
+            scheduled_at=datetime(2026, 9, 2, 12, tzinfo=UTC),
         )
 
 def test_rejects_naive_schedule():
@@ -62,14 +62,14 @@ def test_rejects_invalid_mailbox():
         CampaignMailHandoff().build_send_request(
             treatment=T,
             mailbox_id="not-a-uuid",
-            scheduled_at=datetime(2026, 9, 2, 12, tzinfo=timezone.utc),
+            scheduled_at=datetime(2026, 9, 2, 12, tzinfo=UTC),
         )
 
 def test_idempotency_key_can_be_explicitly_frozen():
     result = CampaignMailHandoff().build_send_request(
         treatment=T,
         mailbox_id=U["mailbox"],
-        scheduled_at=datetime(2026, 9, 2, 12, tzinfo=timezone.utc),
+        scheduled_at=datetime(2026, 9, 2, 12, tzinfo=UTC),
         send_id=U["send"],
         idempotency_key="campaign-send:v2:abc",
     )
