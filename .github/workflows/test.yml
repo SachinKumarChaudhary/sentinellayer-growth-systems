@@ -43,6 +43,15 @@ jobs:
         run: python -m pytest -q
       - name: Contract tests
         run: python -m pytest -q tests/contracts
+      - name: Validate self-hosted Nginx configuration
+        run: |
+          docker run --rm \
+            -v "$PWD/ops/nginx/selfhosted.conf:/etc/nginx/nginx.conf:ro" \
+            nginx:1.29-alpine nginx -t
+
+      - name: Validate self-hosted Compose configuration
+        run: docker compose -f compose.selfhosted.yml config --quiet
+
       - name: Docker build
         run: docker build --pull -t sentinellayer-growth-engine:ci .
       - name: Verify container runs as non-root
