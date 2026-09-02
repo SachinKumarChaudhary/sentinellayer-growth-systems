@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 import pytest
@@ -87,7 +87,7 @@ def test_default_confidence_reflects_evidence_quality() -> None:
 
 
 def test_build_tracking_event_validates_and_preserves_identity() -> None:
-    when = datetime(2026, 9, 1, 12, 0, tzinfo=timezone.utc)
+    when = datetime(2026, 9, 1, 12, 0, tzinfo=UTC)
     event = build_tracking_event(
         event_type="pricing_viewed",
         source_system="tracking",
