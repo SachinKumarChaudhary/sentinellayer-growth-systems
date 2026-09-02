@@ -38,6 +38,7 @@ def make_handler(
     database_url: str,
     environment: str,
     tracking_hash_secret: str,
+    service: TrackingService | None = None,
 ) -> type[BaseHTTPRequestHandler]:
     if not database_url:
         raise ValueError("database_url is required")
@@ -46,10 +47,10 @@ def make_handler(
     if environment not in {"development", "staging", "production"}:
         raise ValueError("invalid environment")
 
-    def connection_factory() -> psycopg.Connection:
-        return psycopg.connect(database_url)
-
-    service = TrackingService(TrackingRepository(connection_factory))
+    if service is None:
+        def connection_factory() -> psycopg.Connection:
+            return psycopg.connect(database_url)
+        service = TrackingService(TrackingRepository(connection_factory))
 
     class TrackingHandler(BaseHTTPRequestHandler):
         server_version = "SentinelLayerTracking/1"
@@ -98,8 +99,6 @@ def make_handler(
             if prefix != "t":
                 self._json(404, {"error": "not_found"})
                 return
-            link_type = None
-
             user_agent = _bounded(self.headers.get("User-Agent"), _MAX_USER_AGENT)
             accept = _bounded(self.headers.get("Accept"), _MAX_HEADER)
             sec_ch_ua = _bounded(self.headers.get("Sec-CH-UA"), _MAX_HEADER)
@@ -111,11 +110,6 @@ def make_handler(
             # The token itself is the only client-controlled identity. All
             # account/person/campaign/send identifiers are resolved server-side.
             try:
-                target = service.repository.resolve_trackable_link(token)
-                if target is None:
-                    self._json(404, {"error": "not_found"})
-                    return
-
                 result = service.ingest_link_request(
                     public_token=token,
                     environment=environment,
@@ -133,8 +127,10 @@ def make_handler(
                 if not result.accepted and result.destination_url is None:
                     self._json(404, {"error": "not_found"})
                     return
-                destination = result.destination_url or target.destination_url
-                self._redirect(destination)
+                if result.destination_url is None:
+                    self._json(404, {"error": "not_found"})
+                    return
+                self._redirect(result.destination_url)
             except (ValueError, psycopg.Error):
                 logger.exception("tracking request failed")
                 # Never leak database/runtime details to the client.
