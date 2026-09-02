@@ -1,5 +1,7 @@
-from collections.abc import Mapping
 from __future__ import annotations
+import hashlib
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 import hashlib
 from dataclasses import dataclass
