@@ -6,7 +6,7 @@
 
 ## Current status
 
-Operations CI/CD and runtime baseline are implemented. Remaining work is platform-dependent operationalization and production-gate validation.
+Operations CI/CD and runtime baseline are implemented. The production target is now explicitly self-hosted on an owner-controlled laptop. Remaining work is runtime validation, observability/recovery drills, and production-gate validation.
 
 ## Completed
 
@@ -23,6 +23,8 @@ Operations CI/CD and runtime baseline are implemented. Remaining work is platfor
 - incident runbook
 - operations machine-readable manifest
 - repository secret scanning workflow
+- self-hosted laptop runtime contract
+- self-hosted Docker Compose worker baseline
 
 ## Operations-owned paths
 
@@ -41,16 +43,17 @@ Operations depends on Platform for shared contracts and integration boundaries, 
 ## Remaining
 
 1. Verify secret scanning passes in CI.
-2. Add migration validation once the repository's Supabase migration layout/CLI configuration is authoritative.
-3. Add a runtime deployment adapter after the production runtime is selected.
-4. Select and wire centralized metrics/logging after the runtime target is selected.
-5. Configure operational alert thresholds with domain owners.
-6. Execute backup/restore and rollback drills in staging.
-7. Complete the production-readiness gate after Campaign, Tracking, Mail, and shared contracts are complete.
+2. Validate the security workflow in CI.
+3. Add migration validation once the repository's Supabase migration layout/CLI configuration is authoritative.
+4. Add the self-hosted reverse-proxy/Tracking edge once Tracking's HTTP contract is merged.
+5. Select and wire centralized/local metrics and logs for the laptop runtime.
+6. Configure operational alert thresholds with domain owners.
+7. Execute backup/restore, reboot, network-interruption, and rollback drills in staging.
+8. Complete the production-readiness gate after Campaign, Tracking, Mail, and shared contracts are complete.
 
 ## Blockers
 
-No current implementation blocker. Production deployment and centralized observability are intentionally waiting on runtime/platform decisions.
+No current implementation blocker for the worker runtime. Tracking edge integration depends on Tracking PR #6; migration validation depends on the authoritative Supabase migration layout.
 
 ## Risks
 
@@ -60,4 +63,4 @@ No current implementation blocker. Production deployment and centralized observa
 
 ## Next action
 
-Validate the security workflow and continue only with platform-authoritative inputs. Do not modify shared domain contracts without Platform review.
+Validate CI/security, then implement the self-hosted HTTP edge against the merged Tracking contract. Do not modify shared domain contracts without Platform review.
