@@ -1,38 +1,36 @@
 # Campaign Handoff
 
 ## Status
-ACTIVE — Campaign / Messaging implementation.
+IN PROGRESS — Campaign / Messaging implementation.
 
 ## Completed
-- Deterministic treatment resolver with stable SHA-256 experiment assignment.
-- Campaign configuration validation and active-step integrity constraints.
+- Deterministic campaign treatment resolver with stable experiment assignment.
+- Campaign configuration validation and activation hardening.
 - Enrollment service with fail-closed validation and idempotent treatment reuse.
-- Sequence orchestrator that selects the next step and applies sequence delay without sending mail.
-
-## Current files
-- src/sentinellayer_growth_engine/resolver.py
-- src/sentinellayer_growth_engine/enrollment.py
-- src/sentinellayer_growth_engine/sequence.py
-- tests/test_enrollment.py
-- tests/test_sequence.py
-- docs/01-campaigns/enrollment.md
+- Pure sequence orchestration.
+- Campaign treatment rendering through the existing Campaign renderer and authoritative RenderedSendTreatment contract.
+- Atomic campaign sequence-step claim/release/complete protocol backed by Supabase row locking and short-lived leases.
+- Python repository adapter and unit tests for the claim protocol.
 
 ## Database
-Campaign owns campaign-domain migrations. Enrollment contract alignment and activation-hardening migrations are present on main. No new migration was added in this slice.
+Supabase migration 20260902150000_campaign_step_claims.sql is applied successfully. The live database exposes claim_campaign_step(uuid,text,integer), release_campaign_step_claim(uuid,uuid), and complete_campaign_step_claim(uuid,uuid,integer,timestamptz), plus campaign enrollment step-claim lease columns.
+
+The claim function locks the enrollment row, rejects non-active/paused/terminated states and future actions, prevents an unexpired duplicate claim, validates the sequence version/step references, and returns the frozen enrollment plus next-step routing data.
 
 ## Contracts
-RenderedSendTreatment remains a shared Platform contract. This session consumes it at the Campaign → Mail boundary and does not modify the shared schema.
+Campaign produces RenderedSendTreatment and must not send mail. Mail remains responsible for delivery. Shared schema ownership remains Platform.
 
 ## Tests
-Unit coverage added for enrollment and sequence progression. Full CI remains the completion gate; this handoff does not claim repository-wide CI is green.
+Unit tests were added for the claim repository. Live migration/function existence was verified directly in Supabase. Full repository CI remains the final completion gate.
 
 ## Dependencies
 - Platform: shared RenderedSendTreatment contract and cross-system validation.
-- Mail: delivery execution after Campaign produces a valid rendered treatment.
-- Tracking/Conversation: downstream behavioral/reply signals used to terminate or alter campaign progression.
+- Mail: delivery execution after Campaign produces a valid treatment.
+- Tracking/Conversation: downstream signals must update campaign termination state through their owned boundaries.
+- Operations: runtime scheduling/worker deployment.
 
 ## Known limitation
-Sequence progression currently provides pure orchestration. Atomic persistence of current_step_no/next_action_at and downstream termination signals must be implemented at the domain integration boundary before production activation.
+The claim protocol reserves a step but does not itself advance current_step_no. Completion must occur only after the downstream Mail boundary has safely accepted ownership of the send request. The exact cross-system acknowledgement is a Platform/Mail integration concern and must not be invented inside Campaign.
 
 ## Next action
-Implement the Campaign Treatment Renderer and validate its output against the shared RenderedSendTreatment schema without changing the shared contract.
+Build the Campaign-to-Mail handoff adapter around the existing SendRequest contract, then add the cross-system integration test through the Platform-owned contract suite.
