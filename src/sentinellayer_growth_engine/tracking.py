@@ -110,7 +110,7 @@ def generate_tracking_token() -> str:
 def validate_destination_url(url: str) -> str:
     """Allow only absolute HTTP(S) destinations for tracked redirects."""
     parsed = urlparse(url)
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+    if parsed.scheme != "https" or not parsed.netloc:
         raise ValueError("destination URL must be absolute HTTP(S)")
     if parsed.username or parsed.password:
         raise ValueError("destination URL must not contain embedded credentials")
