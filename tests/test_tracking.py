@@ -206,9 +206,10 @@ def test_repeated_same_event_id_is_safe_to_replay() -> None:
 
 @pytest.mark.parametrize(
     "token",
-    ["", "short", "token with spaces", "../escape", "x/y", "a" * 1024],
+    ["", "short", "token with spaces", "../escape", "x/y", "a" * 1024, "a" * 19],
 )
 def test_malformed_tokens_do_not_get_treated_as_valid_identity(token: str) -> None:
-    # HTTP-layer token syntax must fail closed; this test documents the boundary
-    # expectation independently of database lookup.
-    assert not token or "/" in token or " " in token or len(token) < 16 or len(token) > 256
+    # Mirror the HTTP boundary: tokens must be 20-128 URL-safe characters.
+    import re
+
+    assert re.fullmatch(r"[A-Za-z0-9_-]{20,128}", token) is None
