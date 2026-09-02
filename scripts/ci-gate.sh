@@ -25,21 +25,7 @@ if [[ -f .env.test ]] && grep -Eiq '^SL_REAL_EMAIL_ENABLED=(true|1|yes|on)[[:spa
   exit 1
 fi
 
-tracked_bad="$(git ls-files | grep -Ei '(^|/)(\.env|\.env\.[^/]+|.*\.pem|.*\.key)
-
-python -m pip check
-
-echo "CI safety gate: PASS"
-echo "Environment: ${SL_ENVIRONMENT}"
-echo "Real email: disabled"
- | grep -Eiv '(^|/)\.env\.example$|(^|/)\.env\.test\.example
-
-python -m pip check
-
-echo "CI safety gate: PASS"
-echo "Environment: ${SL_ENVIRONMENT}"
-echo "Real email: disabled"
- || true)"
+tracked_bad="$(git ls-files | grep -Ei '(^|/)(\.env|\.env\.[^/]+|.*\.pem|.*\.key)$' | grep -Eiv '(^|/)\.env\.example$|(^|/)\.env\.test\.example$' || true)"
 if [[ -n "${tracked_bad}" ]]; then
   echo "FAIL: tracked environment/credential file detected."
   printf '%s\n' "${tracked_bad}"
@@ -48,14 +34,7 @@ fi
 
 for template in .env.example .env.test.example; do
   [[ -f "${template}" ]] || continue
-  if grep -Eiq '^[[:space:]]*SL_REAL_EMAIL_ENABLED[[:space:]]*=[[:space:]]*(true|1|yes|on)[[:space:]]*
-
-python -m pip check
-
-echo "CI safety gate: PASS"
-echo "Environment: ${SL_ENVIRONMENT}"
-echo "Real email: disabled"
- "${template}"; then
+  if grep -Eiq '^[[:space:]]*SL_REAL_EMAIL_ENABLED[[:space:]]*=[[:space:]]*(true|1|yes|on)[[:space:]]*$' "${template}"; then
     echo "FAIL: example environment template enables real email: ${template}"
     exit 1
   fi
