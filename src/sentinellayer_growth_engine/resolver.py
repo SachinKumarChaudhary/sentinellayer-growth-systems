@@ -1,11 +1,9 @@
 from __future__ import annotations
-import hashlib
-from collections.abc import Mapping, Sequence
-from typing import Any
 
 import hashlib
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, , Sequence
+from typing import Any
 
 
 class CampaignResolutionError(ValueError):
