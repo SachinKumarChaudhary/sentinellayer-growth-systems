@@ -124,9 +124,6 @@ def make_handler(
                     ip_hash=ip_digest,
                 )
 
-                if not result.accepted and result.destination_url is None:
-                    self._json(404, {"error": "not_found"})
-                    return
                 if result.destination_url is None:
                     self._json(404, {"error": "not_found"})
                     return
