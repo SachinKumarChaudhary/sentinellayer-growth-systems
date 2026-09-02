@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Protocol
+from uuid import UUID
 
 class EnrollmentError(RuntimeError):
     pass
@@ -35,6 +36,17 @@ class CampaignEnrollmentService:
         self._store = store
 
     def enroll(self, request: EnrollmentRequest) -> Any:
+        try:
+            UUID(request.campaign_id)
+        except (ValueError, TypeError, AttributeError) as exc:
+            raise EnrollmentError('campaign_id must be a UUID') from exc
+        if request.offer_version_id is None:
+            raise EnrollmentError('offer_version_id is required by the canonical CampaignEnrollment contract')
+        for field, value in (("strategy_version_id", request.strategy_version_id), ("offer_version_id", request.offer_version_id), ("sequence_version_id", request.sequence_version_id)):
+            try:
+                UUID(value)
+            except (ValueError, TypeError, AttributeError) as exc:
+                raise EnrollmentError(f'{field} must be a UUID') from exc
         if request.priority not in {'P1', 'P2', 'P3', 'P4'}:
             raise EnrollmentError('invalid priority')
         if not request.account_id:
