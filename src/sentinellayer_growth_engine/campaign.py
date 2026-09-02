@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from email.utils import parseaddr
 from typing import Any, Mapping
 
@@ -164,7 +164,7 @@ class TreatmentRenderer:
             "asset": dict(context.asset) if context.asset is not None else None,
             "personalization": dict(context.personalization),
             "reply_to": context.reply_to,
-            "rendered_at": datetime.now(timezone.utc).isoformat(),
+            "rendered_at": datetime.now(UTC).isoformat(),
         }
 
         try:
