@@ -122,6 +122,7 @@ def make_handler(
                     sec_fetch_mode=sec_fetch_mode,
                     referrer=referrer,
                     ip_hash=ip_digest,
+                    idempotency_key=_bounded(self.headers.get("X-Idempotency-Key"), 128),
                 )
 
                 if result.destination_url is None:
