@@ -4,7 +4,7 @@ import hashlib
 import re
 import secrets
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Mapping
 from urllib.parse import urlparse
 from uuid import UUID, uuid4
@@ -85,7 +85,7 @@ class TrackingEvent:
             "event_id": str(self.event_id),
             "schema_version": self.schema_version,
             "event_type": self.event_type,
-            "occurred_at": self.occurred_at.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "occurred_at": self.occurred_at.astimezone(UTC).isoformat().replace("+00:00", "Z"),
             "source_system": self.source_system,
             "environment": self.environment,
             "account_id": self.account_id,
@@ -201,7 +201,7 @@ def build_tracking_event(
         event_id=event_id or uuid4(),
         schema_version=TRACKING_EVENT_SCHEMA_VERSION,
         event_type=event_type,
-        occurred_at=occurred_at or datetime.now(timezone.utc),
+        occurred_at=occurred_at or datetime.now(UTC),
         source_system=source_system,
         environment=environment,
         correlation_id=correlation_id,
