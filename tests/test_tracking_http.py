@@ -114,3 +114,29 @@ def test_post_is_rejected() -> None:
         server.shutdown()
         thread.join(timeout=3)
         server.server_close()
+
+
+def test_public_idempotency_header_is_not_forwarded_to_tracking_service() -> None:
+    service = FakeTrackingService(
+        IngestionResult(True, None, "human_candidate", "https://example.com")
+    )
+    server, thread = _serve(service)
+    try:
+        conn = HTTPConnection("127.0.0.1", server.server_address[1], timeout=3)
+        conn.request(
+            "GET",
+            "/t/AbCdEfGhIjKlMnOpQrStUvWxYz123456",
+            headers={
+                "User-Agent": "Mozilla/5.0",
+                "X-Idempotency-Key": "attacker-controlled-key",
+            },
+        )
+        response = conn.getresponse()
+        response.read()
+        conn.close()
+        assert response.status == 302
+        assert "idempotency_key" not in service.calls[0]
+    finally:
+        server.shutdown()
+        thread.join(timeout=3)
+        server.server_close()
