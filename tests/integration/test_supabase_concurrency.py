@@ -222,7 +222,7 @@ def test_retry_lifecycle_and_stale_completion_fencing() -> None:
         assert len(retried) == 1
         assert retried[0].attempt_count == 2
 
-        worker.mark_sent(send_id=str(send_id), message_id=retried[0].message_id, provider_message_id="provider-ci-1")
+        worker.mark_sent(send_id=str(send_id), message_id=retried[0].message_id, provider_message_id=f"provider-ci-1-{suffix}")
         with psycopg.connect(dsn) as conn, conn.cursor() as cur:
             cur.execute("select status, attempt_count, claimed_by from public.sends where id=%s", (send_id,))
             row = cur.fetchone()
