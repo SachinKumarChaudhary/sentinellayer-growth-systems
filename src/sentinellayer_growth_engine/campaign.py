@@ -1,13 +1,11 @@
 from __future__ import annotations
-import re
-from collections.abc import Mapping
-from typing import Any
 
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from email.utils import parseaddr
-from typing import Any, 
+from typing import Any
 
 from .contracts import validate_rendered_send_treatment
 
