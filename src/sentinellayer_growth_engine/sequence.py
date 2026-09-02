@@ -1,8 +1,9 @@
+from collections.abc import Mapping
 from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Mapping, Sequence
+from typing import Any, , Sequence
 
 from .resolver import CampaignResolutionError, select_sequence_step
 
