@@ -1,0 +1,25 @@
+name: sentinellayer
+
+services:
+  mail-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    init: true
+    env_file:
+      - .env
+    environment:
+      SL_ENVIRONMENT: ${SL_ENVIRONMENT:-development}
+      SL_REAL_EMAIL_ENABLED: ${SL_REAL_EMAIL_ENABLED:-false}
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD", "python", "-m", "sentinellayer_growth_engine.health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
