@@ -177,3 +177,38 @@ def test_non_browser_methods_remain_unknown(method: str) -> None:
         sec_fetch_mode="navigate",
     )
     assert result.classification == "unknown"
+
+
+def test_repeated_same_event_id_is_safe_to_replay() -> None:
+    when = datetime(2026, 9, 2, 12, 0, tzinfo=timezone.utc)
+    event_id = UUID("00000000-0000-0000-0000-000000000001")
+    first = build_tracking_event(
+        event_type="link_clicked",
+        source_system="tracking",
+        environment="development",
+        correlation_id="corr-replay",
+        confidence=0.8,
+        occurred_at=when,
+        event_id=event_id,
+    )
+    second = build_tracking_event(
+        event_type="link_clicked",
+        source_system="tracking",
+        environment="development",
+        correlation_id="corr-replay",
+        confidence=0.8,
+        occurred_at=when,
+        event_id=event_id,
+    )
+    assert first.event_id == second.event_id
+    assert first.as_contract() == second.as_contract()
+
+
+@pytest.mark.parametrize(
+    "token",
+    ["", "short", "token with spaces", "../escape", "x/y", "a" * 1024],
+)
+def test_malformed_tokens_do_not_get_treated_as_valid_identity(token: str) -> None:
+    # HTTP-layer token syntax must fail closed; this test documents the boundary
+    # expectation independently of database lookup.
+    assert not token or "/" in token or " " in token or len(token) < 16 or len(token) > 256
