@@ -26,6 +26,8 @@ Implemented:
 - least-privilege workflow permissions
 - CI concurrency cancellation
 - CI metadata artifact
+- repository secret scanning
+- release workflow permissions reduced to the minimum required
 
 ## Phase 3 — Build and release
 Implemented:
