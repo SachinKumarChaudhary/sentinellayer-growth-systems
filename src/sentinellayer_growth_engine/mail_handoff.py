@@ -1,11 +1,9 @@
-from collections.abc import Mapping
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import UTC, datetime
-from typing import Any, 
+from typing import Any
 from uuid import UUID, uuid4
-
-from .contracts import ContractValidationError, validate_rendered_send_treatment, validate_send_request
 
 
 class CampaignMailHandoffError(ValueError):
