@@ -30,14 +30,16 @@ A semantic retry MUST NOT be used merely because two requests look similar.
 
 ## 3. HTTP boundary
 
-`X-Idempotency-Key` is optional.
+`X-Idempotency-Key` MUST NOT be accepted as a trusted idempotency mechanism on the public tracking GET endpoint.
+
+A future authenticated/internal ingestion boundary MAY accept a producer-supplied idempotency key. Until that boundary exists, public GET requests are always independent observations.
 
 Tracking must:
 
-- bound the value length;
-- never trust it for person/account/campaign identity;
-- use it only for duplicate-effect protection;
-- preserve ordinary GET observations when it is absent.
+- never trust public client input to collapse behavioral observations;
+- never use a client-provided key for person/account/campaign identity;
+- preserve ordinary GET observations, including repeated requests;
+- scope any future trusted idempotency key to an authenticated producer/event contract.
 
 ## 4. Security properties
 
