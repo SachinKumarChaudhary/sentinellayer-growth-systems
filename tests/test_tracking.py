@@ -137,3 +137,43 @@ def test_canonical_event_taxonomy_is_nonempty() -> None:
     assert "link_clicked" in CANONICAL_EVENT_TYPES
     assert "loom_progressed" in CANONICAL_EVENT_TYPES
     assert "trial_signup" in CANONICAL_EVENT_TYPES
+
+
+@pytest.mark.parametrize(
+    "user_agent",
+    [
+        "Mozilla/5.0 Proofpoint URLScanner",
+        "Mozilla/5.0 HeadlessChrome/140.0",
+        "curl/8.0 crawler",
+        "ExampleSpider/1.0",
+    ],
+)
+def test_known_automation_signals_never_become_human_candidates(user_agent: str) -> None:
+    result = classify_traffic(
+        user_agent=user_agent,
+        accept="text/html",
+        sec_ch_ua='"Chromium";v="140"',
+        sec_fetch_mode="navigate",
+    )
+    assert result.classification == "automated"
+
+
+def test_high_repeat_without_fetch_metadata_is_automated() -> None:
+    result = classify_traffic(
+        user_agent="Mozilla/5.0 Chrome/140.0",
+        accept="text/html",
+        repeated_requests=20,
+    )
+    assert result.classification == "automated"
+
+
+@pytest.mark.parametrize("method", ["POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
+def test_non_browser_methods_remain_unknown(method: str) -> None:
+    result = classify_traffic(
+        user_agent="Mozilla/5.0 Chrome/140.0",
+        method=method,
+        accept="text/html",
+        sec_ch_ua='"Chromium";v="140"',
+        sec_fetch_mode="navigate",
+    )
+    assert result.classification == "unknown"
