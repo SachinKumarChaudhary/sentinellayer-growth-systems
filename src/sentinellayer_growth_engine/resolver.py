@@ -87,8 +87,9 @@ def resolve_treatment(
         raise CampaignResolutionError(f"unknown priority: {context.priority}")
     _version_is_usable(strategy_version, "strategy")
     _version_is_usable(sequence_version, "sequence")
-    if offer_version is not None:
-        _version_is_usable(offer_version, "offer")
+    if offer_version is None or context.active_offer_version_id is None:
+        raise CampaignResolutionError("offer version is required by the canonical treatment contract")
+    _version_is_usable(offer_version, "offer")
 
     if strategy_version.get("id") != context.active_strategy_version_id:
         raise CampaignResolutionError("strategy context/version mismatch")
