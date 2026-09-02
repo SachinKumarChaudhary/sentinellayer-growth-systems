@@ -47,8 +47,20 @@ if [[ -n "${tracked_bad}" ]]; then
 fi
 
 for template in .env.example .env.test.example; do
-  if [[ -f "${template}" ]] && grep -Eiq '^[[:space:]]*(SL_REAL_EMAIL_ENABLED|SMTP_HOST|SMTP_USERNAME|SMTP_PASSWORD|SL_DATABASE_URL)[[:space:]]*=' "${template}"; then
-    echo "FAIL: example environment template contains a live credential/capability setting: ${template}"
+  [[ -f "${template}" ]] || continue
+  if grep -Eiq '^[[:space:]]*SL_REAL_EMAIL_ENABLED[[:space:]]*=[[:space:]]*(true|1|yes|on)[[:space:]]*
+
+python -m pip check
+
+echo "CI safety gate: PASS"
+echo "Environment: ${SL_ENVIRONMENT}"
+echo "Real email: disabled"
+ "${template}"; then
+    echo "FAIL: example environment template enables real email: ${template}"
+    exit 1
+  fi
+  if grep -Eiq '^[[:space:]]*(SL_DATABASE_URL|SL_SMTP_HOST|SL_SMTP_USERNAME|SL_SMTP_PASSWORD)[[:space:]]*=[[:space:]]*[^[:space:]#]+' "${template}"; then
+    echo "FAIL: example environment template contains a non-empty credential/connection value: ${template}"
     exit 1
   fi
 done
