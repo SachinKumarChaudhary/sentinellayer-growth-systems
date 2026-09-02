@@ -94,7 +94,11 @@ def make_handler(
 
             parsed = urlparse(self.path)
             prefix = parsed.path.split("/")[1]
-            link_type = "asset" if prefix == "a" else None
+            # Asset-token ingestion stays behind its own contract until semantics are fixed.
+            if prefix != "t":
+                self._json(404, {"error": "not_found"})
+                return
+            link_type = None
 
             user_agent = _bounded(self.headers.get("User-Agent"), _MAX_USER_AGENT)
             accept = _bounded(self.headers.get("Accept"), _MAX_HEADER)
@@ -107,11 +111,7 @@ def make_handler(
             # The token itself is the only client-controlled identity. All
             # account/person/campaign/send identifiers are resolved server-side.
             try:
-                target = (
-                    service.repository.resolve_asset_token(token)
-                    if link_type == "asset"
-                    else service.repository.resolve_trackable_link(token)
-                )
+                target = service.repository.resolve_trackable_link(token)
                 if target is None:
                     self._json(404, {"error": "not_found"})
                     return
@@ -130,9 +130,6 @@ def make_handler(
                     ip_hash=ip_digest,
                 )
 
-                # An asset token currently resolves to an asset URL. Keep the
-                # redirect contract identical while the asset-specific event
-                # contract is finalized by Platform.
                 if not result.accepted and result.destination_url is None:
                     self._json(404, {"error": "not_found"})
                     return
