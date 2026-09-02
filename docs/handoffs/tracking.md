@@ -62,7 +62,7 @@ TrackingEvent + durable link event
 - #3 first-party HTTP tracking boundary.
 - #4 retention/privacy/deletion controls.
 - #5 adversarial/evidence-quality tests.
-- #8 semantic replay/idempotency contract for GET link events.
+- #8 semantic replay/idempotency contract for GET link events — contract proposed; public-header trust issue resolved; Platform compatibility review pending.
 
 Issue #3 is now implemented at the code boundary but remains open until runtime integration and endpoint tests pass through CI.
 
