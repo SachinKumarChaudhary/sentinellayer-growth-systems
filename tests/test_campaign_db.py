@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -51,7 +51,7 @@ def test_complete_requires_timezone_aware_time():
 def test_complete_calls_database_function():
     enrollment = "11111111-1111-4111-8111-111111111111"
     token = "22222222-2222-4222-8222-222222222222"
-    when = datetime(2026, 9, 3, 12, tzinfo=timezone.utc)
+    when = datetime(2026, 9, 3, 12, tzinfo=UTC)
     conn, cur = fake_connection((True,))
     with patch.object(CampaignDatabase, "_connection", return_value=conn):
         assert make_db().complete_step(enrollment, token, 1, when) is True
