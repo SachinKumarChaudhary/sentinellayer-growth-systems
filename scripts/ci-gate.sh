@@ -25,9 +25,29 @@ if [[ -f .env.test ]] && grep -Eiq '^SL_REAL_EMAIL_ENABLED=(true|1|yes|on)[[:spa
   exit 1
 fi
 
-if git ls-files -z | grep -Eizq '(^|/)(\.env|\.env\..*|.*\.pem|.*\.key)$'; then
+# Example templates are safe to track; real environment/credential files are not.
+tracked_sensitive="$(
+  git ls-files |
+    grep -Ei '(^|/)(\.env|\.env\..*|.*\.pem|.*\.key)
+
+python -m pip check
+
+echo "CI safety gate: PASS"
+echo "Environment: ${SL_ENVIRONMENT}"
+echo "Real email: disabled"
+ |
+    grep -Eiv '(^|/)\.env(\.example|\.test\.example)
+
+python -m pip check
+
+echo "CI safety gate: PASS"
+echo "Environment: ${SL_ENVIRONMENT}"
+echo "Real email: disabled"
+ || true
+)"
+if [[ -n "$tracked_sensitive" ]]; then
   echo "FAIL: tracked environment/credential file detected."
-  git ls-files | grep -Ei '(^|/)(\.env|\.env\..*|.*\.pem|.*\.key)$' || true
+  printf '%s\n' "$tracked_sensitive"
   exit 1
 fi
 
