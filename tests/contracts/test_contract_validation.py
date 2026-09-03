@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
@@ -15,7 +15,7 @@ from sentinellayer_growth_engine.contracts import (
     validate_send_request,
 )
 
-UTC_NOW = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+UTC_NOW = datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
 def uid() -> str:
