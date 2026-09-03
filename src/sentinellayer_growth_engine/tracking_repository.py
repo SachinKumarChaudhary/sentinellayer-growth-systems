@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Any, Mapping, Protocol
+from datetime import UTC, datetime
+from typing import Any, Protocol
 from uuid import UUID, uuid4
 
 import psycopg
@@ -173,7 +174,7 @@ class TrackingRepository:
         occurred_at: datetime | None = None,
         metadata: Mapping[str, Any] | None = None,
     ) -> None:
-        now = (occurred_at or datetime.now(timezone.utc)).astimezone(timezone.utc)
+        now = (occurred_at or datetime.now(UTC)).astimezone(UTC)
         with self._connection_factory() as conn, conn.cursor() as cur:
             cur.execute(
                 """
