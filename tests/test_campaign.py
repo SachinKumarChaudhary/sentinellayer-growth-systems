@@ -1,6 +1,10 @@
 import pytest
 
-from sentinellayer_growth_engine.campaign import CampaignRenderError, RenderContext, TreatmentRenderer
+from sentinellayer_growth_engine.campaign import (
+    CampaignRenderError,
+    RenderContext,
+    TreatmentRenderer,
+)
 
 def context(**overrides: object) -> RenderContext:
     values: dict[str, object] = {
