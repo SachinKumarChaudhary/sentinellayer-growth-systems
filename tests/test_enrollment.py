@@ -1,5 +1,13 @@
 import pytest
-from sentinellayer_growth_engine.enrollment import CampaignEnrollmentService, CampaignNotReady, EnrollmentConflict, EnrollmentRequest, EnrollmentError
+
+from sentinellayer_growth_engine.enrollment import (
+    CampaignEnrollmentService,
+    CampaignNotReady,
+    EnrollmentConflict,
+    EnrollmentError,
+    EnrollmentRequest,
+)
+
 
 class Store:
     def __init__(self): self.record=None; self.errors=[]; self.created=[]
