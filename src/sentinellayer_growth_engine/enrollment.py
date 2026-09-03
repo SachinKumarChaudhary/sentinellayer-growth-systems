@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Any, Protocol
 from uuid import UUID
 
+
 class EnrollmentError(RuntimeError):
     pass
 
