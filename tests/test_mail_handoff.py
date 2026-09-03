@@ -74,3 +74,42 @@ def test_idempotency_key_can_be_explicitly_frozen():
         idempotency_key="campaign-send:v2:abc",
     )
     assert result["idempotency_key"] == "campaign-send:v2:abc"
+
+
+def test_campaign_treatment_to_mail_request_preserves_canonical_provenance():
+    when = datetime(2026, 9, 3, 12, tzinfo=UTC)
+    result = CampaignMailHandoff().build_send_request(
+        treatment=T,
+        mailbox_id=U["mailbox"],
+        scheduled_at=when,
+        send_id=U["send"],
+    )
+    assert result["campaign_id"] == T["campaign_id"]
+    assert result["person_id"] == T["person_id"]
+    assert result["sequence_step_id"] == T["sequence_step_id"]
+    assert result["mailbox_id"] == U["mailbox"]
+    assert result["scheduled_at"] == when.isoformat()
+    assert result["treatment"] == T
+
+
+def test_default_idempotency_identity_is_stable_for_same_treatment():
+    handoff = CampaignMailHandoff()
+    when = datetime(2026, 9, 3, 12, tzinfo=UTC)
+    first = handoff.build_send_request(
+        treatment=T, mailbox_id=U["mailbox"], scheduled_at=when, send_id=U["send"]
+    )
+    second = handoff.build_send_request(
+        treatment=T, mailbox_id=U["mailbox"], scheduled_at=when, send_id=U["send"]
+    )
+    assert first["idempotency_key"] == second["idempotency_key"]
+
+
+def test_explicit_idempotency_key_does_not_change_treatment():
+    result = CampaignMailHandoff().build_send_request(
+        treatment=T,
+        mailbox_id=U["mailbox"],
+        scheduled_at=datetime(2026, 9, 3, 12, tzinfo=UTC),
+        send_id=U["send"],
+        idempotency_key="campaign-send:explicit:v1",
+    )
+    assert result["treatment"] == T
