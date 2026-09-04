@@ -56,7 +56,7 @@ def test_event_envelope_rejects_unsupported_schema_version() -> None:
         "event_type": "tracking.observation.recorded",
         "occurred_at": "2026-09-03T00:00:00Z",
         "source_system": "tracking",
-        "environment": "test",
+        "environment": "development",
         "correlation_id": "corr_01",
         "schema_version": "v999",
         "payload": {},
@@ -88,11 +88,6 @@ def test_rendered_send_treatment_accepts_canonical_fixture() -> None:
         "body_text": "A deterministic test body.",
         "headers": {},
         "rendered_at": "2026-09-03T00:00:00Z",
-        "experiment_id": None,
-        "experiment_variant_id": None,
-        "asset": None,
-        "personalization": None,
-        "reply_to": None,
     }
     jsonschema.validate(fixture, schema)
 
