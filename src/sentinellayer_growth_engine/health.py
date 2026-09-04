@@ -19,8 +19,7 @@ def check() -> int:
             return 1
         settings = Settings(database_url=dsn)
         settings.assert_safe()
-        with psycopg.connect(dsn, connect_timeout=3) as conn:
-            with conn.cursor() as cur:
+        with psycopg.connect(dsn, connect_timeout=3) as conn, conn.cursor() as cur:
                 cur.execute("select 1")
                 if cur.fetchone() != (1,):
                     print("NOT_READY: database probe returned an unexpected result")
