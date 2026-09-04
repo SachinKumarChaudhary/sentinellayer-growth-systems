@@ -5,8 +5,8 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-
 from .contracts import ContractValidationError, validate_rendered_send_treatment, validate_send_request
+
 
 class CampaignMailHandoffError(ValueError):
     """Raised when Campaign cannot safely construct a Mail request."""
