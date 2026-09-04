@@ -169,8 +169,8 @@ class TrackingRepository:
         session_id: str,
         person_id: int | None,
         account_id: str | None,
-        campaign_id: str | None,
-        send_id: str | None,
+        campaign_id: str | UUID | None,
+        send_id: str | UUID | None,
         occurred_at: datetime | None = None,
         metadata: Mapping[str, Any] | None = None,
     ) -> None:
