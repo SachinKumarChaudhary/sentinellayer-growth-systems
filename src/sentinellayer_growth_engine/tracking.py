@@ -43,16 +43,8 @@ AUTOMATION_CLASSES = frozenset({"automated", "human_candidate", "unknown"})
 
 # Strong indicators only. A missing marker does not imply human traffic.
 _SCANNER_PATTERNS = (
-    re.compile(r"googleimageproxy", re.I),
-    re.compile(r"proofpoint", re.I),
-    re.compile(r"mimecast", re.I),
-    re.compile(r"barracuda", re.I),
-    re.compile(r"urlscan", re.I),
-    re.compile(r"headlesschrome", re.I),
-    re.compile(r"phantomjs", re.I),
-    re.compile(r"crawler", re.I),
-    re.compile(r"spider", re.I),
-    re.compile(r"bot(?:/|\b)", re.I),
+    re.compile(r"(?:googleimageproxy|proofpoint|mimecast|barracuda|urlscan)", re.I),
+    re.compile(r"(?:headlesschrome|phantomjs|crawler|spider|bot(?:/|\\b))", re.I),
 )
 
 _TRACKING_TOKEN_BYTES = 24
