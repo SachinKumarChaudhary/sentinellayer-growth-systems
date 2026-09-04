@@ -16,7 +16,7 @@ class Store:
     def create_enrollment(self, request): self.created.append(request); return {"id":"new"}
 
 def request(**overrides):
-    data={"campaign_id":"c1","account_id":"a1","person_id":7,"priority":"P1","strategy_version_id":"s1","offer_version_id":"o1","sequence_version_id":"q1"}
+    data={"campaign_id": "11111111-1111-4111-8111-111111111111","account_id":"a1","person_id":7,"priority":"P1","strategy_version_id": "22222222-2222-4222-8222-222222222222","offer_version_id": "33333333-3333-4333-8333-333333333333","sequence_version_id": "44444444-4444-4444-8444-444444444444"}
     data.update(overrides); return EnrollmentRequest(**data)
 
 def test_not_ready_fails_closed():
