@@ -9,8 +9,10 @@ from uuid import UUID
 class EnrollmentError(RuntimeError):
     pass
 
+
 class EnrollmentConflict(EnrollmentError):
     pass
+
 
 class CampaignNotReady(EnrollmentError):
     pass
