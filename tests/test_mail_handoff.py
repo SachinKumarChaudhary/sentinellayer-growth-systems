@@ -49,7 +49,7 @@ def test_rejects_invalid_treatment():
         CampaignMailHandoff().build_send_request(
             treatment=bad,
             mailbox_id=U["mailbox"],
-            scheduled_at=datetime(2026, 9, 2, 12, tzinfo=UTC),
+            scheduled_at=datetime(2026, 9, 2, 12),
         )
 
 def test_rejects_naive_schedule():
