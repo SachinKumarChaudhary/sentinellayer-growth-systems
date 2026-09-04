@@ -26,7 +26,7 @@ def test_event_envelope_accepts_canonical_fixture() -> None:
         "event_type": "tracking.observation.recorded",
         "occurred_at": "2026-09-03T00:00:00Z",
         "source_system": "tracking",
-        "environment": "test",
+        "environment": "development",
         "correlation_id": "corr_01",
         "schema_version": "v1",
         "payload": {"observation_id": "obs_01"},
@@ -41,7 +41,7 @@ def test_event_envelope_rejects_missing_correlation_id() -> None:
         "event_type": "tracking.observation.recorded",
         "occurred_at": "2026-09-03T00:00:00Z",
         "source_system": "tracking",
-        "environment": "test",
+        "environment": "development",
         "schema_version": "v1",
         "payload": {},
     }
@@ -72,17 +72,27 @@ def test_event_envelope_rejects_unsupported_schema_version() -> None:
 def test_rendered_send_treatment_accepts_canonical_fixture() -> None:
     schema = load_schema("rendered-send-treatment.schema.json")
     fixture = {
-        "treatment_id": "treatment_01",
-        "strategy_version": "strategy.v1",
-        "offer_version": "offer.v1",
-        "message_version": "message.v1",
-        "cta_version": "cta.v1",
-        "sequence_version": "sequence.v1",
-        "selected_assets": [],
-        "rendered_content": {
-            "subject": "A deterministic test subject",
-            "body": "A deterministic test body.",
-        },
+        "schema_version": "1.0",
+        "enrollment_id": "11111111-1111-4111-8111-111111111111",
+        "campaign_id": "22222222-2222-4222-8222-222222222222",
+        "person_id": "person-001",
+        "account_id": "account-001",
+        "sequence_step_id": "33333333-3333-4333-8333-333333333333",
+        "strategy_version_id": "44444444-4444-4444-8444-444444444444",
+        "offer_version_id": "55555555-5555-4555-8555-555555555555",
+        "message_version_id": "66666666-6666-4666-8666-666666666666",
+        "cta_version_id": "77777777-7777-4777-8777-777777777777",
+        "sequence_version_id": "88888888-8888-4888-8888-888888888888",
+        "recipient_email": "prospect@example.invalid",
+        "subject": "A deterministic test subject",
+        "body_text": "A deterministic test body.",
+        "headers": {},
+        "rendered_at": "2026-09-03T00:00:00Z",
+        "experiment_id": None,
+        "experiment_variant_id": None,
+        "asset": None,
+        "personalization": None,
+        "reply_to": None,
     }
     jsonschema.validate(fixture, schema)
 
