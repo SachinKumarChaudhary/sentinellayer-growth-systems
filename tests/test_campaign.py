@@ -20,7 +20,7 @@ def context(**overrides: object) -> RenderContext:
         "cta_version_id": "00000000-0000-0000-0000-000000000007",
         "sequence_version_id": "00000000-0000-0000-0000-000000000008",
         "recipient_email": "buyer@example.com",
-        "personalization": {"first_name": "Alex", "company": "Example"},
+        "personalization": {"first_name": "Alex", "company": "Example", "trigger": "new security initiative"},
         "evidence": {"trigger": "new security initiative"},
     }
     values.update(overrides)
