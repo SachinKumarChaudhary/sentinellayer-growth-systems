@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import SchemaError, ValidationError
@@ -47,7 +47,7 @@ def _load_schema(contract_name: str) -> dict[str, Any]:
         Draft202012Validator.check_schema(schema)
     except SchemaError as exc:
         raise RuntimeError(f"contract schema is not valid JSON Schema: {path}") from exc
-    return schema
+    return cast(dict[str, Any], schema)
 
 
 def validate_contract(contract_name: str, payload: Mapping[str, Any]) -> dict[str, Any]:
