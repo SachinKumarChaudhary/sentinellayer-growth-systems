@@ -57,7 +57,7 @@ def test_rejects_naive_schedule():
         CampaignMailHandoff().build_send_request(
             treatment=T,
             mailbox_id=U["mailbox"],
-            scheduled_at=datetime(2026, 9, 2, 12),
+            scheduled_at=datetime(2026, 9, 2, 12, tzinfo=UTC),
         )
 
 def test_rejects_invalid_mailbox():
