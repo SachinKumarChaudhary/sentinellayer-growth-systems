@@ -25,7 +25,7 @@ def test_not_ready_fails_closed():
     assert s.created == []
 
 def test_identical_existing_is_idempotent():
-    s=Store(); s.record=type("R",(),{"strategy_version_id":"s1","offer_version_id":"o1","sequence_version_id":"q1","experiment_variant_id":None})()
+    s=Store(); s.record=type("R",(),{"strategy_version_id":"22222222-2222-4222-8222-222222222222","offer_version_id":"33333333-3333-4333-8333-333333333333","sequence_version_id":"44444444-4444-4444-8444-444444444444","experiment_variant_id":None})()
     assert CampaignEnrollmentService(s).enroll(request()) is s.record
 
 def test_different_existing_treatment_is_conflict():
