@@ -27,7 +27,7 @@ def check() -> int:
                     return 1
         print(f"READY: host={socket.gethostname()} environment={settings.environment}")
         return 0
-    except Exception as exc:
+    except (OSError, psycopg.Error, ValueError) as exc:
         print(f"NOT_READY: {type(exc).__name__}")
         return 1
 
