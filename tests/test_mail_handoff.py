@@ -2,7 +2,10 @@ from datetime import UTC, datetime
 
 import pytest
 
-from sentinellayer_growth_engine.mail_handoff import CampaignMailHandoff, CampaignMailHandoffError
+from sentinellayer_growth_engine.mail_handoff import (
+    CampaignMailHandoff,
+    CampaignMailHandoffError,
+)
 
 U = {
     "campaign": "11111111-1111-4111-8111-111111111111",
