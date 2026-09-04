@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "registry_version": "v1",
+  "supported": {
+    "event-envelope": ["v1"],
+    "rendered-send-treatment": ["v1"]
+  }
+}
