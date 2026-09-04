@@ -284,7 +284,7 @@ class TrackingRepository:
             return str(row[0])
 
     def resolve_asset_token(self, token: str, *, now: datetime | None = None) -> AssetTarget | None:
-        now_utc = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+        now_utc = (now or datetime.now(UTC)).astimezone(UTC)
         with self._connection_factory() as conn, conn.cursor(row_factory=dict_row) as cur:
             cur.execute(
                 """
