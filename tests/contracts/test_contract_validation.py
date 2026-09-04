@@ -132,7 +132,7 @@ def contract_fixtures() -> dict[str, dict[str, object]]:
             "event_type": "link_clicked",
             "occurred_at": UTC_NOW,
             "source_system": "tracking",
-            "environment": "test",
+            "environment": "development",
             "account_id": account_id,
             "person_id": person_id,
             "campaign_id": campaign_id,
@@ -224,7 +224,7 @@ def test_additional_properties_are_rejected() -> None:
 
 
 def test_send_request_rejects_invalid_nested_treatment() -> None:
-    payload = contract_fixtures()["send_request"]
+    payload = dict(contract_fixtures()["send_request"])
     treatment = dict(payload["treatment"])
     treatment.pop("recipient_email")
     payload["treatment"] = treatment
