@@ -44,7 +44,7 @@ def test_complete_requires_timezone_aware_time():
             "11111111-1111-4111-8111-111111111111",
             "22222222-2222-4222-8222-222222222222",
             1,
-            datetime(2026, 9, 2, tzinfo=UTC),
+            datetime(2026, 9, 2),
         )
 
 
