@@ -6,6 +6,7 @@ from sentinellayer_growth_engine.campaign import (
     TreatmentRenderer,
 )
 
+
 def context(**overrides: object) -> RenderContext:
     values: dict[str, object] = {
         "enrollment_id": "00000000-0000-0000-0000-000000000001",
