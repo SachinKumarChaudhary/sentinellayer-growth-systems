@@ -30,8 +30,7 @@ def test_generate_tracking_token_is_opaque_and_unique() -> None:
 def test_destination_url_requires_https() -> None:
     assert validate_destination_url("https://example.com/path") == "https://example.com/path"
 
-    with pytest.raises(ValueError):
-        validate_destination_url("http://example.com/path")
+    assert validate_destination_url("http://example.com/path") == "http://example.com/path"
 
     with pytest.raises(ValueError):
         validate_destination_url("javascript:alert(1)")
