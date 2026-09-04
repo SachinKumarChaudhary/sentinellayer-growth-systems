@@ -8,6 +8,7 @@ from sentinellayer_growth_engine.sequence import (
     SequenceOrchestrator,
 )
 
+
 def step(no, version="q1", delay=0, active=True):
     return {"id": f"st{no}", "sequence_version_id": version, "step_no": no, "delay_days": delay, "active": active}
 
