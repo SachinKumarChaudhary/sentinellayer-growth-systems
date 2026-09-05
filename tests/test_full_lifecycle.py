@@ -153,7 +153,7 @@ def test_unsubscribe_path_is_terminal_for_future_outbound() -> None:
     store = ConversationStore()
     outcome = ConversationRuntime(store).handle_inbound(
         account_id="account-1",
-        person_id="person-1",
+        person_id="1",
         sender_email="buyer@example.com",
         subject="Re: Sentinel Layer",
         body_text="Please unsubscribe me.",
