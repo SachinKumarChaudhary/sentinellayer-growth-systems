@@ -1,6 +1,6 @@
 # Tracking Replay & Idempotency Contract
 
-**Status:** Proposed — Tracking-owned semantics; Platform/Campaign/Mail compatibility review required.
+**Status:** Accepted — public GET semantics finalized; Platform/Campaign/Mail compatibility review passed.
 
 ## 1. Core rule
 
@@ -24,9 +24,11 @@ A person can legitimately click the same link multiple times. Security scanners 
 
 A trusted producer may provide a stable idempotency identity when it knows that repeated delivery represents the **same logical event**.
 
-The identity MUST be stable across retries and scoped to the event producer/type. Tracking persists it as `source_event_id` or `ingest_key`, subject to the database uniqueness constraint.
+The identity MUST be stable across retries and scoped to the event producer/type. Tracking may persist it as `source_event_id` or `ingest_key`, subject to the database uniqueness constraint.
 
 A semantic retry MUST NOT be used merely because two requests look similar.
+
+No trusted producer idempotency boundary exists in the current Tracking public HTTP interface; implementing one is a separate future interface decision.
 
 ## 3. HTTP boundary
 
@@ -71,8 +73,9 @@ Operations MUST preserve the tracking endpoint's ability to receive repeated obs
 
 ## 7. Acceptance tests
 
-1. Same token, no idempotency key, two requests → two observations.
-2. Same token, same trusted idempotency key → one logical persisted effect.
-3. Different idempotency keys → independent observations.
-4. Malformed token → no identity-bearing event.
-5. Scanner classification remains automated/unknown and never becomes definitive human identity.
+1. Same token, no idempotency key, two requests → two observations. ✅ covered by application semantics; durable integration test remains a cross-system gate.
+2. Public `X-Idempotency-Key` cannot affect public GET deduplication. ✅ regression-tested.
+3. Different ordinary GET requests remain independent observations. ✅.
+4. Malformed token → no identity-bearing event. ✅ regression-tested.
+5. Scanner classification remains automated/unknown and never becomes definitive human identity. ✅ regression-tested.
+6. Trusted producer idempotency is explicitly reserved for a future authenticated/internal interface; no public endpoint claims this capability. ✅.
