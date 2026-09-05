@@ -60,16 +60,25 @@ class SendRepository(Protocol):
         ...
 
 
+class SendControlGate(Protocol):
+    def assert_send_allowed(self, *, environment: str) -> None:
+        ...
+
+
 class SendEngine:
     def __init__(
         self,
         repository: SendRepository,
         provider: MailProvider,
         retry_policy: RetryPolicy | None = None,
+        control_gate: SendControlGate | None = None,
+        environment: str = "development",
     ) -> None:
         self.repository = repository
         self.provider = provider
         self.retry_policy = retry_policy or RetryPolicy()
+        self.control_gate = control_gate
+        self.environment = environment
 
     async def process_due(
         self,
@@ -78,6 +87,8 @@ class SendEngine:
         worker_id: str | None = None,
         now: datetime,
     ) -> int:
+        if self.control_gate is not None:
+            self.control_gate.assert_send_allowed(environment=self.environment)
         sends = self.repository.claim_due(batch_size=batch_size, worker_id=worker_id)
         processed = 0
 
