@@ -14,6 +14,10 @@ dependencies = [
   "jsonschema>=4.23,<5",
 ]
 
+
+[project.scripts]
+slctl = "sentinellayer_growth_engine.cli:main"
+
 [project.optional-dependencies]
 dev = [
   "pytest>=9.0.3,<10",
