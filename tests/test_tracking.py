@@ -254,3 +254,22 @@ def test_tracking_event_cannot_use_unknown_environment() -> None:
             environment="production-unknown",
             correlation_id="corr-env",
         )
+
+
+def test_token_generation_matches_public_http_contract() -> None:
+    token = generate_tracking_token()
+    assert re.fullmatch(r"[A-Za-z0-9_-]{20,128}", token)
+
+
+@pytest.mark.parametrize(
+    "classification,expected_max",
+    [
+        ("automated", 0.1),
+        ("unknown", 0.4),
+        ("human_candidate", 0.8),
+    ],
+)
+def test_weak_behavioral_evidence_has_bounded_default_confidence(
+    classification: str, expected_max: float
+) -> None:
+    assert default_confidence(classification) <= expected_max
