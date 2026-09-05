@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from collections.abc import Mapping
 from typing import Any
 from uuid import UUID
 
@@ -40,6 +40,7 @@ class TrackingService:
         ip_hash: str | None = None,
         session_id: str | None = None,
         occurred_at: datetime | None = None,
+        idempotency_key: str | None = None,
     ) -> IngestionResult:
         target = self.repository.resolve_trackable_link(public_token, now=occurred_at)
         if target is None:
@@ -84,7 +85,7 @@ class TrackingService:
             automation_classification=traffic.classification,
             automation_reason=traffic.reason,
             source_event_id=None,
-            ingest_key=f"link:{target.token}:{correlation_id}:{event_time.isoformat()}",
+            ingest_key=(f"link:{target.token}:{idempotency_key}" if idempotency_key else None),
         )
 
         if session_id:
