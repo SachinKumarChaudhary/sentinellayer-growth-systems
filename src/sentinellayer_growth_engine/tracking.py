@@ -43,8 +43,16 @@ AUTOMATION_CLASSES = frozenset({"automated", "human_candidate", "unknown"})
 
 # Strong indicators only. A missing marker does not imply human traffic.
 _SCANNER_PATTERNS = (
-    re.compile(r"googleimageproxy|proofpoint|mimecast|barracuda|urlscan", re.IGNORECASE),
-    re.compile(r"headlesschrome|phantomjs|crawler|spider|bot(?:/|\\b)", re.IGNORECASE),
+    re.compile(r"googleimageproxy", re.I),
+    re.compile(r"proofpoint", re.I),
+    re.compile(r"mimecast", re.I),
+    re.compile(r"barracuda", re.I),
+    re.compile(r"urlscan", re.I),
+    re.compile(r"headlesschrome", re.I),
+    re.compile(r"phantomjs", re.I),
+    re.compile(r"crawler", re.I),
+    re.compile(r"spider", re.I),
+    re.compile(r"bot(?:/|\b)", re.I),
 )
 
 _TRACKING_TOKEN_BYTES = 24
@@ -103,7 +111,7 @@ def generate_tracking_token() -> str:
 def validate_destination_url(url: str) -> str:
     """Allow only absolute HTTP(S) destinations for tracked redirects."""
     parsed = urlparse(url)
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+    if parsed.scheme != "https" or not parsed.netloc:
         raise ValueError("destination URL must be absolute HTTP(S)")
     if parsed.username or parsed.password:
         raise ValueError("destination URL must not contain embedded credentials")
