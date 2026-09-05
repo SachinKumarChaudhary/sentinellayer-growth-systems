@@ -76,6 +76,8 @@ $function$;
 revoke all on function mail.enqueue_campaign_send(uuid,text,uuid,bigint,uuid,uuid,timestamptz,text,text,text,jsonb,text,jsonb) from public;
 grant execute on function mail.enqueue_campaign_send(uuid,text,uuid,bigint,uuid,uuid,timestamptz,text,text,text,jsonb,text,jsonb) to service_role;
 
+drop function if exists public.claim_due_sends(integer, text);
+
 create or replace function public.claim_due_sends(
   p_batch_size integer default 20,
   p_worker_id text default 'worker'
