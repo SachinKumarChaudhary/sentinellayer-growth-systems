@@ -19,6 +19,16 @@ class FakeCursor:
         return self.rows
 
     def fetchone(self) -> object:
+        if self.query and "returning sales_task_id" in self.query.lower():
+            return {
+                "sales_task_id": "11111111-1111-4111-8111-111111111111",
+                "account_id": "account-1",
+                "person_id": "person-1",
+                "trigger_type": "interested",
+                "priority": "P1",
+                "recommended_action": "human_follow_up",
+                "status": "open",
+            }
         return (False,)
 
     def __enter__(self) -> Self:
