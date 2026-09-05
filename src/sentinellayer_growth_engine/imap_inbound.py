@@ -109,7 +109,10 @@ def parse_message(uid: str, raw_message: bytes) -> ImapInboundMessage:
     subject = _decode_header(msg.get("Subject")).strip()
     in_reply_to = _decode_header(msg.get("In-Reply-To")).strip()
     references = _decode_header(msg.get("References")).split()
-    thread_key = in_reply_to or (references[0] if references else provider_message_id)
+    # A multi-turn reply chain can point In-Reply-To at the previous inbound
+    # message (e.g. Gmail's generated Message-ID). References[0] preserves the
+    # root message-id and therefore the canonical Conversation thread key.
+    thread_key = references[0] if references else (in_reply_to or provider_message_id)
     source_send_id = _decode_header(msg.get("X-SL-Send-Id")).strip() or None
     if not provider_message_id:
         raise ValueError("inbound message missing Message-ID")
