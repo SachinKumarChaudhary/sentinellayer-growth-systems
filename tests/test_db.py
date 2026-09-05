@@ -162,3 +162,69 @@ def test_persist_handoff_dedupes_provider_message_id(monkeypatch: pytest.MonkeyP
     )
     assert out["status"] == "duplicate"
     assert out["reply_id"] == "22222222-2222-4222-8222-222222222222"
+
+
+def test_resolve_inbound_identity_prefers_existing_thread(monkeypatch: pytest.MonkeyPatch) -> None:
+    db = Database("postgresql://invalid")
+
+    class IdentityCursor(FakeCursor):
+        def __init__(self):
+            super().__init__([])
+            self.calls = 0
+
+        def execute(self, query: str, params=()):
+            self.query = query
+            self.params = params
+            self.calls += 1
+
+        def fetchone(self):
+            if self.calls == 1:
+                return {"account_id": "account-1", "person_id": "42"}
+            return None
+
+    class IdentityConnection(FakeConnection):
+        def cursor(self):
+            self.last_cursor = IdentityCursor()
+            return self.last_cursor
+
+    connection = IdentityConnection([])
+    monkeypatch.setattr(db, "connection", lambda: connection)
+    assert db.resolve_inbound_identity(
+        sender_email="buyer@example.com",
+        thread_key="<send-1@example.com>",
+    ) == ("account-1", "42")
+    assert connection.last_cursor is not None
+    assert connection.last_cursor.calls == 1
+
+
+def test_resolve_inbound_identity_falls_back_to_latest_enrollment(monkeypatch: pytest.MonkeyPatch) -> None:
+    db = Database("postgresql://invalid")
+
+    class IdentityCursor(FakeCursor):
+        def __init__(self):
+            super().__init__([])
+            self.calls = 0
+
+        def execute(self, query: str, params=()):
+            self.query = query
+            self.params = params
+            self.calls += 1
+
+        def fetchone(self):
+            if self.calls == 1:
+                return None
+            return {"account_id": "account-2", "person_id": "84"}
+
+    class IdentityConnection(FakeConnection):
+        def cursor(self):
+            self.last_cursor = IdentityCursor()
+            return self.last_cursor
+
+    connection = IdentityConnection([])
+    monkeypatch.setattr(db, "connection", lambda: connection)
+    assert db.resolve_inbound_identity(
+        sender_email="buyer@example.com",
+        thread_key="<unknown-thread>",
+    ) == ("account-2", "84")
+    assert connection.last_cursor is not None
+    assert connection.last_cursor.calls == 2
