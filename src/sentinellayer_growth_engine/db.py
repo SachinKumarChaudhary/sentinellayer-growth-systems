@@ -21,6 +21,21 @@ class Database:
     def connection(self) -> psycopg.Connection[Any]:
         return psycopg.connect(self._dsn, row_factory=dict_row)
 
+    def get_control_state(self) -> dict[str, object]:
+        with self.connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                select environment, outbound_state, maintenance_mode,
+                       updated_at, updated_by
+                from operations.control_state
+                where singleton = true
+                """
+            )
+            row = cur.fetchone()
+        if row is None:
+            raise RuntimeError("operations control state is missing")
+        return dict(row)
+
     def claim_due(self, *, batch_size: int = 20, worker_id: str | None = None) -> list[DueSend]:
         if batch_size < 1 or batch_size > 500:
             raise ValueError("batch_size must be between 1 and 500")
