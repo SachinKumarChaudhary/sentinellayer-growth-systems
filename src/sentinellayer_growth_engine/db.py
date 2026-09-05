@@ -82,6 +82,8 @@ class Database:
                 ),
             )
             row = cur.fetchone()
+            if row is None:
+                raise RuntimeError("SalesTaskStore upsert returned no row")
         return dict(row)
 
     def claim_due(self, *, batch_size: int = 20, worker_id: str | None = None) -> list[DueSend]:
