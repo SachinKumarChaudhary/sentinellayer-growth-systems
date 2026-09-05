@@ -1,6 +1,9 @@
 import pytest
 
-from sentinellayer_growth_engine.conversation_inbound import InboundNormalizationError, InboundReplyAdapter
+from sentinellayer_growth_engine.conversation_inbound import (
+    InboundNormalizationError,
+    InboundReplyAdapter,
+)
 
 
 def test_normalizes_common_provider_fields():
