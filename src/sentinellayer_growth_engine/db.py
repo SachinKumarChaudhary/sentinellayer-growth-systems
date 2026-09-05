@@ -129,6 +129,24 @@ class Database:
             "status": "stored",
         }
 
+    def add_suppression(self, *, email: str, reason: str) -> None:
+        """Permanently suppress an email address after a deterministic stop signal."""
+        normalized = email.strip().lower()
+        if not normalized or "@" not in normalized:
+            raise ValueError("email must be valid")
+        if not reason.strip():
+            raise ValueError("reason must not be empty")
+        with self.connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                insert into public.suppression (email, reason, added_at)
+                values (%s, %s, now())
+                on conflict (email) do update
+                set reason=excluded.reason, added_at=excluded.added_at
+                """,
+                (normalized, reason),
+            )
+
     def cancel_future_sends_for_person(self, *, person_id: int, reason: str) -> None:
         """Cancel future queued campaign sends for a person."""
         if person_id <= 0:
