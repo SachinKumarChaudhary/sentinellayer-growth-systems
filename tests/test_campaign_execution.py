@@ -7,6 +7,7 @@ from sentinellayer_growth_engine.campaign_execution import (
     CampaignExecutionError,
     CampaignExecutionOrchestrator,
 )
+from sentinellayer_growth_engine.mail_handoff import CampaignMailHandoffError
 
 
 class FakeCampaignDB:
