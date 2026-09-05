@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import UUID
 
+import re
+
 import pytest
 
 from sentinellayer_growth_engine.contracts import ContractValidationError
@@ -30,7 +32,8 @@ def test_generate_tracking_token_is_opaque_and_unique() -> None:
 def test_destination_url_requires_https() -> None:
     assert validate_destination_url("https://example.com/path") == "https://example.com/path"
 
-    assert validate_destination_url("http://example.com/path") == "http://example.com/path"
+    with pytest.raises(ValueError):
+        validate_destination_url("http://example.com/path")
 
     with pytest.raises(ValueError):
         validate_destination_url("javascript:alert(1)")
@@ -136,3 +139,137 @@ def test_canonical_event_taxonomy_is_nonempty() -> None:
     assert "link_clicked" in CANONICAL_EVENT_TYPES
     assert "loom_progressed" in CANONICAL_EVENT_TYPES
     assert "trial_signup" in CANONICAL_EVENT_TYPES
+
+
+@pytest.mark.parametrize(
+    "user_agent",
+    [
+        "Mozilla/5.0 Proofpoint URLScanner",
+        "Mozilla/5.0 HeadlessChrome/140.0",
+        "curl/8.0 crawler",
+        "ExampleSpider/1.0",
+    ],
+)
+def test_known_automation_signals_never_become_human_candidates(user_agent: str) -> None:
+    result = classify_traffic(
+        user_agent=user_agent,
+        accept="text/html",
+        sec_ch_ua='"Chromium";v="140"',
+        sec_fetch_mode="navigate",
+    )
+    assert result.classification == "automated"
+
+
+def test_high_repeat_without_fetch_metadata_is_automated() -> None:
+    result = classify_traffic(
+        user_agent="Mozilla/5.0 Chrome/140.0",
+        accept="text/html",
+        repeated_requests=20,
+    )
+    assert result.classification == "automated"
+
+
+@pytest.mark.parametrize("method", ["POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
+def test_non_browser_methods_remain_unknown(method: str) -> None:
+    result = classify_traffic(
+        user_agent="Mozilla/5.0 Chrome/140.0",
+        method=method,
+        accept="text/html",
+        sec_ch_ua='"Chromium";v="140"',
+        sec_fetch_mode="navigate",
+    )
+    assert result.classification == "unknown"
+
+
+def test_repeated_same_event_id_is_safe_to_replay() -> None:
+    when = datetime(2026, 9, 2, 12, 0, tzinfo=UTC)
+    event_id = UUID("00000000-0000-0000-0000-000000000001")
+    first = build_tracking_event(
+        event_type="link_clicked",
+        source_system="tracking",
+        environment="development",
+        correlation_id="corr-replay",
+        confidence=0.8,
+        occurred_at=when,
+        event_id=event_id,
+    )
+    second = build_tracking_event(
+        event_type="link_clicked",
+        source_system="tracking",
+        environment="development",
+        correlation_id="corr-replay",
+        confidence=0.8,
+        occurred_at=when,
+        event_id=event_id,
+    )
+    assert first.event_id == second.event_id
+    assert first.as_contract() == second.as_contract()
+
+
+@pytest.mark.parametrize(
+    "token",
+    ["", "short", "token with spaces", "../escape", "x/y", "a" * 1024, "a" * 19],
+)
+def test_malformed_tokens_do_not_get_treated_as_valid_identity(token: str) -> None:
+    # Mirror the HTTP boundary: tokens must be 20-128 URL-safe characters.
+    assert re.fullmatch(r"[A-Za-z0-9_-]{20,128}", token) is None
+
+
+@pytest.mark.parametrize(
+    "user_agent",
+    [
+        None,
+        "",
+        "Mozilla/5.0",
+        "Mozilla/5.0 Safari/537.36",
+    ],
+)
+def test_ambiguous_browser_signals_do_not_promote_to_human_candidate(user_agent: str | None) -> None:
+    result = classify_traffic(
+        user_agent=user_agent,
+        accept="text/html",
+        sec_ch_ua=None,
+        sec_fetch_mode=None,
+    )
+    assert result.classification == "unknown"
+
+
+@pytest.mark.parametrize("confidence", [0.0, 1.0])
+def test_confidence_boundary_values_are_valid(confidence: float) -> None:
+    event = build_tracking_event(
+        event_type="link_clicked",
+        source_system="tracking",
+        environment="development",
+        correlation_id="corr-boundary",
+        confidence=confidence,
+    )
+    assert event.confidence == confidence
+
+
+def test_tracking_event_cannot_use_unknown_environment() -> None:
+    with pytest.raises(Exception):
+        build_tracking_event(
+            event_type="link_clicked",
+            source_system="tracking",
+            environment="production-unknown",
+            correlation_id="corr-env",
+        )
+
+
+def test_token_generation_matches_public_http_contract() -> None:
+    token = generate_tracking_token()
+    assert re.fullmatch(r"[A-Za-z0-9_-]{20,128}", token)
+
+
+@pytest.mark.parametrize(
+    "classification,expected_max",
+    [
+        ("automated", 0.1),
+        ("unknown", 0.4),
+        ("human_candidate", 0.8),
+    ],
+)
+def test_weak_behavioral_evidence_has_bounded_default_confidence(
+    classification: str, expected_max: float
+) -> None:
+    assert default_confidence(classification) <= expected_max
