@@ -36,6 +36,7 @@ jobs:
       IMAP_USERNAME: ${{ secrets.SL_IMAP_USERNAME }}
       IMAP_PASSWORD: ${{ secrets.SL_IMAP_PASSWORD }}
       IMAP_MAILBOX: ${{ secrets.SL_IMAP_MAILBOX }}
+      ALLOWED_RECIPIENT: ${{ secrets.SL_STAGING_RECIPIENT }}
       TEST_RECIPIENT: ${{ github.event.inputs.recipient }}
     steps:
       - uses: actions/checkout@v5
@@ -45,7 +46,7 @@ jobs:
       - name: Validate required configuration
         run: |
           set -euo pipefail
-          for name in SMTP_HOST SMTP_PORT SMTP_USERNAME SMTP_PASSWORD IMAP_HOST IMAP_PORT IMAP_USERNAME IMAP_PASSWORD IMAP_MAILBOX; do
+          for name in SMTP_HOST SMTP_PORT SMTP_USERNAME SMTP_PASSWORD IMAP_HOST IMAP_PORT IMAP_USERNAME IMAP_PASSWORD IMAP_MAILBOX ALLOWED_RECIPIENT; do
             test -n "${!name}" || { echo "Missing $name"; exit 1; }
           done
           python - <<'PY'
