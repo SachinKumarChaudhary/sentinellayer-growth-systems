@@ -2,7 +2,10 @@ from datetime import UTC, datetime
 
 import pytest
 
-from sentinellayer_growth_engine.campaign_execution import CampaignExecutionError, CampaignExecutionOrchestrator
+from sentinellayer_growth_engine.campaign_execution import (
+    CampaignExecutionError,
+    CampaignExecutionOrchestrator,
+)
 
 
 class FakeCampaignDB:
@@ -85,7 +88,7 @@ def test_claim_render_handoff_produces_send_request_without_delivery():
 
 def test_claim_failure_releases_lease():
     db = FakeCampaignDB(claim())
-    with pytest.raises(Exception):
+    with pytest.raises(CampaignMailHandoffError):
         CampaignExecutionOrchestrator(db).build_send_request(
             enrollment_id=U["enrollment_id"],
             worker_id="worker-1",
