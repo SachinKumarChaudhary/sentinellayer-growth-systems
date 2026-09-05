@@ -72,7 +72,7 @@ class CampaignDatabase:
 
         treatment = request["treatment"]
         if not isinstance(treatment, dict):
-            raise ValueError("send request treatment must be an object")
+            raise TypeError("send request treatment must be an object")
         for key in ("recipient_email", "subject", "body_text", "headers"):
             if key not in treatment:
                 raise ValueError(f"rendered treatment missing: {key}")
