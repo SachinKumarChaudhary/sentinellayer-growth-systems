@@ -237,7 +237,7 @@ async def test_mock_provider_boundary_preserves_headers_and_idempotent_enqueue()
         now=datetime(2026, 9, 5, 12, tzinfo=UTC),
     )
     assert processed == 1
-    assert provider.sent[0].headers["X-Campaign-Test"] == "true"
+    assert provider.sent[0].headers["X-SL-Send-Id"] == due_repo.sends[0]["send_id"]
     assert provider.sent[0].headers["Reply-To"] == "replies@example.com"
 
 
