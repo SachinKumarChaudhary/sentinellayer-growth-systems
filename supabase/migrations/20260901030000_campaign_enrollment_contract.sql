@@ -1,5 +1,5 @@
 -- Align campaign enrollment storage with the shared campaign-enrollment contract.
--- Applied migrations remain immutable.
+-- Applied migrations remain immutable. Re-runnable on persistent integration databases.
 
 alter table public.campaign_enrollments
   add column if not exists account_id text,
