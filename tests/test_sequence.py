@@ -12,6 +12,7 @@ from sentinellayer_growth_engine.sequence import (
 def step(no, version="q1", delay=0, active=True):
     return {"id": f"st{no}", "sequence_version_id": version, "step_no": no, "delay_days": delay, "active": active}
 
+
 def enrollment(**overrides):
     data = {"enrollment_id": "e1", "sequence_version_id": "q1", "current_step_no": 0, "status": "active", "next_action_at": None}
     data.update(overrides)
