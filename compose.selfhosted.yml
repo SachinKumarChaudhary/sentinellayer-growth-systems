@@ -1,0 +1,74 @@
+name: sentinellayer
+
+services:
+  tracking:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    init: true
+    env_file:
+      - .env
+    environment:
+      SL_ENVIRONMENT: ${SL_ENVIRONMENT:-development}
+      SL_REAL_EMAIL_ENABLED: ${SL_REAL_EMAIL_ENABLED:-false}
+      SL_TRACKING_HOST: 0.0.0.0
+      SL_TRACKING_PORT: 8080
+    command: ["python", "-m", "sentinellayer_growth_engine.tracking_http"]
+    expose:
+      - "8080"
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD", "python", "-m", "sentinellayer_growth_engine.health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  mail-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    init: true
+    env_file:
+      - .env
+    environment:
+      SL_ENVIRONMENT: ${SL_ENVIRONMENT:-development}
+      SL_REAL_EMAIL_ENABLED: ${SL_REAL_EMAIL_ENABLED:-false}
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD", "python", "-m", "sentinellayer_growth_engine.health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  edge:
+    image: nginx:1.29-alpine
+    restart: unless-stopped
+    init: true
+    depends_on:
+      tracking:
+        condition: service_healthy
+    ports:
+      - "${SL_EDGE_BIND:-127.0.0.1}:8080:8080"
+    volumes:
+      - ./ops/nginx/selfhosted.conf:/etc/nginx/nginx.conf:ro
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
