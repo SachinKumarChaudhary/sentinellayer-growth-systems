@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Protocol
+from typing import Any, Protocol
 
 from .providers import (
     DeliveryStatus,
@@ -24,6 +24,8 @@ class DueSend:
     body_text: str
     message_id: str
     attempt_count: int = 1
+    headers: dict[str, str] | None = None
+    reply_to: str | None = None
 
 
 class SendRepository(Protocol):
@@ -100,7 +102,7 @@ class SendEngine:
                 recipient=send.recipient,
                 subject=send.subject,
                 body_text=send.body_text,
-                headers={"X-SL-Send-Id": send.send_id},
+                headers={**(send.headers or {}), "X-SL-Send-Id": send.send_id, **({"Reply-To": send.reply_to} if send.reply_to else {})},
             )
 
             try:
