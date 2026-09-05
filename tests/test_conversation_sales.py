@@ -43,5 +43,6 @@ def test_question_creates_sales_task():
 
 
 def test_negative_does_not_create_sales_task():
-    with pytest.raises(Exception):
+    from sentinellayer_growth_engine.sales import SalesHandoffError
+    with pytest.raises(SalesHandoffError):
         ConversationSalesBridge(Store()).bridge(conversation("negative"), priority="P2")
