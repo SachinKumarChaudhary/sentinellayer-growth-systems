@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import json
 from typing import Any
 
 import psycopg
@@ -72,11 +73,11 @@ class Database:
                     handoff["trigger_type"],
                     handoff["priority"],
                     handoff["recommended_action"],
-                    __import__("json").dumps(handoff.get("why_now") or []),
-                    __import__("json").dumps(handoff.get("latest_reply")),
-                    __import__("json").dumps(handoff.get("behavior_summary")),
-                    __import__("json").dumps(handoff.get("campaign_context")),
-                    __import__("json").dumps(handoff.get("conversation_summary")),
+                    json.dumps(handoff.get("why_now") or []),
+                    json.dumps(handoff.get("latest_reply")),
+                    json.dumps(handoff.get("behavior_summary")),
+                    json.dumps(handoff.get("campaign_context")),
+                    json.dumps(handoff.get("conversation_summary")),
                     "open",
                 ),
             )
