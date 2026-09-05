@@ -10,64 +10,25 @@
 - self-hosted runtime design
 - self-hosted edge/rate-limit policy
 - static Nginx and Compose validation
+- fail-closed production gate harness and automated tests
 
-## Still required
+## Remaining production-only gates
 
-### 1. Metrics and alerts
-Implement a local structured operational telemetry path for the self-hosted laptop. Minimum signals:
-- worker health/restarts
-- queue depth/backlog
-- provider failures
-- database connectivity
-- HTTP 4xx/5xx
-- rate-limit rejections
-- release/version
-- safety-control state changes
+These cannot be honestly marked complete by GitHub CI alone because they require an isolated runtime/database/provider environment:
 
-Do not invent domain thresholds. Mail/Tracking owners provide domain-specific thresholds.
-
-### 2. Deployment adapter
-
-Initial deployment and rollback scripts are now implemented under `scripts/selfhosted/`.
-Create a reproducible self-hosted deployment command/path that:
-- validates configuration;
-- builds/pulls an immutable release;
-- applies the approved Compose configuration;
-- performs readiness checks;
-- records deployed commit/version;
-- fails without enabling real email.
-
-### 3. Rollback / restore drills
-
-Reproducible drill specifications are documented; execution remains staging-dependent.
-Create reproducible staging procedures for:
-- application rollback;
-- host reboot recovery;
-- network interruption;
-- database backup verification;
-- isolated restore;
-- post-recovery queue reconciliation.
-
-### 4. Production control plane
-Implement the operational safety state model and administrative boundary for:
-- global outbound kill switch;
-- production-send enable gate;
-- maintenance mode;
-- campaign/mailbox pause overrides;
-- auditable state changes.
-
-Operations supplies the control mechanism; domain systems retain domain policy.
-
-### 5. Behavioral edge tests
-After Tracking HTTP is authoritative, validate:
-- normal traffic;
-- rate limiting;
-- concurrent connections;
-- oversized requests;
-- upstream failure;
-- restart/recovery;
-- non-leaking logs.
+1. Authenticated Operations control-state mutation/audit exercise.
+2. Mail pre-send enforcement of the Operations control state.
+3. Local structured metrics/alerts connected to runtime signals.
+4. Behavioral self-hosted Tracking edge/load test.
+5. Deployment/readiness/rollback/reboot/network/restore drills.
+6. Campaign → Mail → Tracking → Conversation synthetic E2E.
+7. Controlled real-provider SMTP smoke test, DNS and mailbox readiness.
+8. Final production activation review.
 
 ## Completion rule
 
-Operations is complete only when these items are implemented or explicitly blocked by an external dependency, tested, documented, and represented in the handoff. Real outbound production remains disabled until the final system-wide production gate passes.
+Operations is complete only when the repository gates are green and the production-only gates above have recorded evidence. Real outbound email remains disabled until that evidence exists and explicit human approval is recorded.
+
+## Authority
+
+Platform owns shared contracts. Campaign, Mail, Tracking, and Conversation own domain behavior. Operations owns deployment, telemetry, safety controls, networking, recovery, and CI/CD.
