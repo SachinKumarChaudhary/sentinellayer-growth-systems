@@ -211,9 +211,7 @@ class IdempotentSendRepo:
 
 
 @pytest.mark.asyncio
-async def test_mock_provider_boundary_preserves_headers_and_idempotent_enqueue():
-    from sentinellayer_growth_engine.engine import DueSend
-    from sentinellayer_growth_engine.providers import MockMailProvider
+async def test_mock_provider_boundary_preserves_headers_and_idempotent_enqueue():    from sentinellayer_growth_engine.providers import MockMailProvider
 
     request = CampaignMailHandoff().build_send_request(
         treatment={**T, "headers": {"X-Campaign-Test": "true"}, "reply_to": "replies@example.com"},
