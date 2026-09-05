@@ -40,6 +40,7 @@ class TrackingService:
         ip_hash: str | None = None,
         session_id: str | None = None,
         occurred_at: datetime | None = None,
+        idempotency_key: str | None = None,
     ) -> IngestionResult:
         target = self.repository.resolve_trackable_link(public_token, now=occurred_at)
         if target is None:
@@ -84,7 +85,7 @@ class TrackingService:
             automation_classification=traffic.classification,
             automation_reason=traffic.reason,
             source_event_id=None,
-            ingest_key=f"link:{target.token}:{correlation_id}:{event_time.isoformat()}",
+            ingest_key=(f"link:{target.token}:{idempotency_key}" if idempotency_key else None),
         )
 
         if session_id:
@@ -92,8 +93,8 @@ class TrackingService:
                 session_id=session_id,
                 person_id=target.person_id,
                 account_id=target.account_id,
-                campaign_id=UUID(target.campaign_id) if target.campaign_id else None,
-                send_id=UUID(target.send_id) if target.send_id else None,
+                campaign_id=target.campaign_id,
+                send_id=target.send_id,
                 occurred_at=event_time,
                 metadata={"last_link_type": target.link_type},
             )
@@ -142,8 +143,8 @@ class TrackingService:
                 session_id=session_id,
                 person_id=int(person_id) if person_id and person_id.isdigit() else None,
                 account_id=account_id,
-                campaign_id=UUID(campaign_id) if campaign_id else None,
-                send_id=UUID(send_id) if send_id else None,
+                campaign_id=campaign_id,
+                send_id=send_id,
                 occurred_at=occurred_at,
             )
         return IngestionResult(inserted, event.event_id, traffic.classification)
