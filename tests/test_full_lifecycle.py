@@ -123,7 +123,7 @@ async def test_campaign_mail_tracking_conversation_sales_lifecycle() -> None:
     tracking = build_tracking_event(
         event_type="link_clicked",
         source_system="tracking",
-        environment="test",
+        environment="development",
         correlation_id="corr-e2e-1",
         account_id="account-1",
         person_id="person-1",
