@@ -78,6 +78,6 @@ class CampaignExecutionOrchestrator:
                 mailbox_id=mailbox_id,
                 scheduled_at=scheduled_at,
             )
-        except (CampaignExecutionError, CampaignMailHandoffError, Exception):
+        except Exception:
             self.campaign_db.release_step(enrollment_id, token)
             raise
