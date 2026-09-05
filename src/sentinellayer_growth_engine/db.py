@@ -76,7 +76,7 @@ class Database:
             thread_row = cur.fetchone()
             if thread_row is None:
                 raise RuntimeError("conversation thread upsert returned no row")
-            durable_conversation_id = str(thread_row[0])
+            durable_conversation_id = str(thread_row["conversation_id"])
 
             cur.execute(
                 """
@@ -119,13 +119,13 @@ class Database:
                     raise RuntimeError("conversation reply dedupe lookup returned no row")
                 return {
                     "conversation_id": durable_conversation_id,
-                    "reply_id": str(reply_row[0]),
+                    "reply_id": str(reply_row["reply_id"]),
                     "status": "duplicate",
                 }
 
         return {
             "conversation_id": durable_conversation_id,
-            "reply_id": str(reply_row[0]),
+            "reply_id": str(reply_row["reply_id"]),
             "status": "stored",
         }
 
