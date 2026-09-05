@@ -23,5 +23,10 @@ CREATE TABLE IF NOT EXISTS operations.control_audit (
 ALTER TABLE operations.control_state ENABLE ROW LEVEL SECURITY;
 ALTER TABLE operations.control_audit ENABLE ROW LEVEL SECURITY;
 
--- No permissive client policies are created here. Administrative mutations
--- must occur through an approved server-side/admin boundary.
+-- Fail closed by default: initialize a single DISABLED row for each deployment
+-- only when no state exists. The service role/admin boundary owns mutations.
+INSERT INTO operations.control_state (
+  environment, outbound_state, maintenance_mode, updated_by
+)
+VALUES ('development', 'DISABLED', true, 'migration')
+ON CONFLICT (singleton) DO NOTHING;
