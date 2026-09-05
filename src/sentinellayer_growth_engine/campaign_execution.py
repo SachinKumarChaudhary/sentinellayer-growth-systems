@@ -3,10 +3,9 @@ from __future__ import annotations
 from collections.abc import Mapping
 from datetime import datetime
 from typing import Any
-from uuid import UUID
 
-from .campaign_db import CampaignDatabase
 from .campaign import RenderContext, TreatmentRenderer
+from .campaign_db import CampaignDatabase
 from .mail_handoff import CampaignMailHandoff
 
 
@@ -61,7 +60,7 @@ class CampaignExecutionOrchestrator:
                 cta_version_id=str(claim["cta_version_id"]),
                 sequence_version_id=str(claim["sequence_version_id"]),
                 recipient_email=str(claim["recipient_email"]),
-                personalization=personalization,
+                personalization={**personalization, **evidence},
                 evidence=evidence,
                 asset=asset,
                 experiment_id=experiment_id,
