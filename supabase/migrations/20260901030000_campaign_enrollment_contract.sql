@@ -21,7 +21,7 @@ alter table public.campaign_enrollments
   alter column account_id set not null,
   alter column priority_at_enrollment set not null;
 
-do $
+do $ci$
 begin
   if not exists (
     select 1
@@ -34,7 +34,7 @@ begin
       check (priority_at_enrollment in ('P1','P2','P3','P4'));
   end if;
 end
-$;
+$ci$;
 
 create index if not exists campaign_enrollments_account_idx
   on public.campaign_enrollments(account_id, enrolled_at desc);
