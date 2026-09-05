@@ -51,6 +51,7 @@ def make_handler(
         def connection_factory() -> psycopg.Connection:
             return psycopg.connect(database_url)
         service = TrackingService(TrackingRepository(connection_factory))
+    tracking_service = service
 
     class TrackingHandler(BaseHTTPRequestHandler):
         server_version = "SentinelLayerTracking/1"
@@ -110,7 +111,7 @@ def make_handler(
             # The token itself is the only client-controlled identity. All
             # account/person/campaign/send identifiers are resolved server-side.
             try:
-                result = service.ingest_link_request(
+                result = tracking_service.ingest_link_request(
                     public_token=token,
                     environment=environment,
                     source_system="tracking_http",
