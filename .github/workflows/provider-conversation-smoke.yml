@@ -22,10 +22,6 @@ jobs:
     environment: staging-mail
     env:
       SL_REAL_EMAIL_ENABLED: "false"
-      SMTP_HOST: ${{ secrets.SL_SMTP_HOST }}
-      SMTP_PORT: ${{ secrets.SL_SMTP_PORT }}
-      SMTP_USERNAME: ${{ secrets.SL_SMTP_USERNAME }}
-      SMTP_PASSWORD: ${{ secrets.SL_SMTP_PASSWORD }}
       IMAP_HOST: ${{ secrets.SL_IMAP_HOST }}
       IMAP_PORT: ${{ secrets.SL_IMAP_PORT }}
       IMAP_USERNAME: ${{ secrets.SL_IMAP_USERNAME }}
@@ -54,6 +50,7 @@ jobs:
         if: ${{ inputs.process_reply }}
         run: |
           python - <<'PY'
+          import hashlib
           import imaplib
           import os
           import time
@@ -68,7 +65,6 @@ jobs:
           from sentinellayer_growth_engine.imap_inbound import parse_message
 
           THREAD_MARKER = "sentinellayer-provider-smoke"
-          SUBJECT = "Sentinel Layer staging smoke test"
           ACCOUNT_ID = "staging-provider-smoke"
           DEADLINE_SECONDS = 120
 
@@ -89,8 +85,9 @@ jobs:
                       return message
               return None
 
+          deadline = time.monotonic() + DEADLINE_SECONDS
           message = None
-          while time.monotonic() < time.monotonic() + DEADLINE_SECONDS:
+          while time.monotonic() < deadline:
               client = imaplib.IMAP4_SSL(os.environ["IMAP_HOST"], int(os.environ["IMAP_PORT"]), timeout=15)
               try:
                   client.login(os.environ["IMAP_USERNAME"], os.environ["IMAP_PASSWORD"])
@@ -123,17 +120,33 @@ jobs:
               cur.execute("select id from public.people where lower(trim(email))=%s order by id limit 1", (message.sender_email,))
               row = cur.fetchone()
               if row is None:
-                  person_id = abs(hash(message.sender_email)) % 8_000_000_000 + 1
+                  candidate = 10_000_000_000 + int.from_bytes(
+                      hashlib.sha256(message.sender_email.encode("utf-8")).digest()[:6], "big"
+                  )
+                  while True:
+                      cur.execute("select email from public.people where id=%s", (candidate,))
+                      occupied = cur.fetchone()
+                      if occupied is None or str(occupied["email"]).strip().lower() == message.sender_email:
+                          break
+                      candidate += 1
                   cur.execute(
                       """
                       insert into public.people (id, full_name, email, email_source, notes)
                       values (%s, 'Sentinel Layer provider smoke contact', %s, 'provider_smoke', 'Controlled staging provider conversation smoke contact')
-                      on conflict (id) do update set email=excluded.email, notes=excluded.notes
+                      on conflict (id) do nothing
                       returning id
                       """,
-                      (person_id, message.sender_email),
+                      (candidate, message.sender_email),
                   )
-                  person_id = int(cur.fetchone()["id"])
+                  inserted = cur.fetchone()
+                  if inserted is not None:
+                      person_id = int(inserted["id"])
+                  else:
+                      cur.execute("select id from public.people where lower(trim(email))=%s order by id limit 1", (message.sender_email,))
+                      existing = cur.fetchone()
+                      if existing is None:
+                          raise SystemExit("Could not establish staging person identity")
+                      person_id = int(existing["id"])
               else:
                   person_id = int(row["id"])
 
@@ -188,7 +201,7 @@ jobs:
           classification = outcome["handoff"]["classification"]
           if classification not in {"interested", "question"}:
               raise SystemExit(f"Expected positive/question classification, got {classification!r}")
-          if not outcome["persisted"].get("status") in {"stored", "duplicate"}:
+          if outcome["persisted"].get("status") not in {"stored", "duplicate"}:
               raise SystemExit("Conversation persistence did not report stored/duplicate")
           if outcome["sales"] is None:
               raise SystemExit("Conversation did not create/update a Sales task")
