@@ -1,4 +1,5 @@
--- Explicit typed entrypoint for retention maintenance.
+-- Compatibility wrapper: expose the retention primitive under the exact signature
+-- used by the Supabase integration gate.
 create or replace function tracking.purge_expired_behavioral_data(p_retention_days integer)
 returns table (
   behavioral_deleted bigint,
