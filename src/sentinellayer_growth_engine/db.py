@@ -37,6 +37,110 @@ class Database:
             raise RuntimeError("operations control state is missing")
         return dict(row)
 
+    def upsert_open_task(self, handoff: dict[str, object]) -> dict[str, object]:
+        """SalesTaskStore-compatible alias for the Conversation→Sales bridge."""
+        return self.upsert_open_sales_task(handoff)
+
+    def persist_handoff(
+        self,
+        *,
+        handoff: dict[str, object],
+        sender_email: str,
+        subject: str,
+        body_text: str,
+        provider_message_id: str,
+        thread_key: str,
+        received_at: datetime,
+    ) -> dict[str, object]:
+        """Persist a normalized Conversation handoff idempotently."""
+        conversation_id = str(handoff["conversation_id"])
+        person_id = str(handoff["person_id"])
+        account_id = str(handoff["account_id"])
+        classification = str(handoff["classification"])
+
+        with self.connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                insert into conversation.threads (
+                    conversation_id, account_id, person_id, thread_key,
+                    state, last_message_at, updated_at
+                ) values (%s,%s,%s,%s,'action_selected',%s,now())
+                on conflict (thread_key) do update
+                set state='action_selected',
+                    last_message_at=greatest(conversation.threads.last_message_at, excluded.last_message_at),
+                    updated_at=now()
+                returning conversation_id
+                """,
+                (conversation_id, account_id, person_id, thread_key, received_at),
+            )
+            thread_row = cur.fetchone()
+            if thread_row is None:
+                raise RuntimeError("conversation thread upsert returned no row")
+            durable_conversation_id = str(thread_row["conversation_id"])
+
+            cur.execute(
+                """
+                insert into conversation.replies (
+                    reply_id, conversation_id, provider_message_id, account_id,
+                    person_id, source_send_id, sender_email, subject, body_text,
+                    classification, received_at
+                ) values (
+                    %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s
+                )
+                on conflict (provider_message_id) do nothing
+                returning reply_id
+                """,
+                (
+                    handoff["reply_id"],
+                    durable_conversation_id,
+                    provider_message_id,
+                    account_id,
+                    person_id,
+                    handoff.get("source_send_id"),
+                    sender_email,
+                    subject,
+                    body_text,
+                    classification,
+                    received_at,
+                ),
+            )
+            reply_row = cur.fetchone()
+            if reply_row is None:
+                cur.execute(
+                    """
+                    select reply_id
+                    from conversation.replies
+                    where provider_message_id=%s
+                    """,
+                    (provider_message_id,),
+                )
+                reply_row = cur.fetchone()
+                if reply_row is None:
+                    raise RuntimeError("conversation reply dedupe lookup returned no row")
+                return {
+                    "conversation_id": durable_conversation_id,
+                    "reply_id": str(reply_row["reply_id"]),
+                    "status": "duplicate",
+                }
+
+        return {
+            "conversation_id": durable_conversation_id,
+            "reply_id": str(reply_row["reply_id"]),
+            "status": "stored",
+        }
+
+    def cancel_future_sends_for_person(self, *, person_id: int, reason: str) -> None:
+        """Cancel future queued campaign sends for a person."""
+        if person_id <= 0:
+            raise ValueError("person_id must be positive")
+        if not reason.strip():
+            raise ValueError("reason must not be empty")
+        with self.connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                "select public.cancel_future_sends_for_person(%s, %s)",
+                (person_id, reason),
+            )
+
     def upsert_open_sales_task(self, handoff: dict[str, object]) -> dict[str, object]:
         required = ("sales_task_id", "account_id", "person_id", "trigger_type", "priority", "recommended_action")
         missing = [key for key in required if not handoff.get(key)]

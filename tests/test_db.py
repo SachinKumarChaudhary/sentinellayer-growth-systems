@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from typing import Self
 
 import pytest
@@ -110,3 +111,54 @@ def test_upsert_open_sales_task_uses_idempotent_conflict(monkeypatch: pytest.Mon
     assert out["status"] == "open"
     assert connection.last_cursor is not None
     assert "on conflict (account_id, person_id, trigger_type)" in (connection.last_cursor.query or "")
+
+
+def test_upsert_open_task_aliases_sales_store(monkeypatch: pytest.MonkeyPatch) -> None:
+    db = Database("postgresql://invalid")
+    sentinel = {"sales_task_id": "x"}
+    monkeypatch.setattr(db, "upsert_open_sales_task", lambda handoff: sentinel)
+    assert db.upsert_open_task({"sales_task_id": "x"}) is sentinel
+
+
+def test_persist_handoff_dedupes_provider_message_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    db = Database("postgresql://invalid")
+
+    class ConversationCursor(FakeCursor):
+        def execute(self, query: str, params=()):
+            super().execute(query, params)
+
+        def fetchone(self):
+            query = (self.query or "").lower()
+            if "conversation.threads" in query:
+                return {"conversation_id": "11111111-1111-4111-8111-111111111111"}
+            if "insert into conversation.replies" in query:
+                return None
+            if "select reply_id" in query:
+                return {"reply_id": "22222222-2222-4222-8222-222222222222"}
+            return super().fetchone()
+
+    class ConversationConnection(FakeConnection):
+        def cursor(self):
+            self.last_cursor = ConversationCursor(self.rows)
+            return self.last_cursor
+
+    connection = ConversationConnection([])
+    monkeypatch.setattr(db, "connection", lambda: connection)
+    out = db.persist_handoff(
+        handoff={
+            "conversation_id": "11111111-1111-4111-8111-111111111111",
+            "reply_id": "22222222-2222-4222-8222-222222222222",
+            "account_id": "account-1",
+            "person_id": "person-1",
+            "classification": "interested",
+            "source_send_id": None,
+        },
+        sender_email="buyer@example.com",
+        subject="Re: hello",
+        body_text="Interested",
+        provider_message_id="<provider-1@example.com>",
+        thread_key="<thread-1>",
+        received_at=datetime(2026, 9, 5, 12, tzinfo=UTC),
+    )
+    assert out["status"] == "duplicate"
+    assert out["reply_id"] == "22222222-2222-4222-8222-222222222222"
