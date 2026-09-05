@@ -1,66 +1,52 @@
 # Operations Handoff
 
-**Status:** IN_PROGRESS  
-**Owner:** operations  
+**Status:** ACTIVE / IN PROGRESS
+**Owner:** operations
 **Protocol:** `docs/architecture/MULTI_AGENT_OPERATING_PROTOCOL.md`
+**Target:** self-hosted laptop production runtime
 
-## Current status
+## Implemented
 
-Operations CI/CD and runtime baseline are implemented. The production target is now explicitly self-hosted on an owner-controlled laptop. Remaining work is runtime validation, observability/recovery drills, and production-gate validation.
-
-## Completed
-
-- CI safety gate
+- CI safety gate and environment checks
+- dependency auditing
 - lint/type/unit/contract gates
-- dependency audit
-- Docker build gate
-- non-root container assertion
-- CI concurrency control
-- runtime health/readiness probe
-- Docker healthcheck
-- tag-based immutable release workflow
-- release manifest/artifact
-- incident runbook
-- operations machine-readable manifest
-- repository secret scanning workflow
-- self-hosted laptop runtime contract
-- self-hosted Docker Compose worker baseline
-
-## Operations-owned paths
-
-- `.github/workflows/*`
-- `scripts/ci-gate.sh`
-- `src/sentinellayer_growth_engine/health.py`
-- `tests/test_health.py`
-- `Dockerfile`
-- `docs/operations/*`
-- `systems/operations.yaml`
-
-## Dependencies
-
-Operations depends on Platform for shared contracts and integration boundaries, and on domain systems for domain-owned health signals and safety policies.
+- Docker build and non-root validation
+- runtime health/readiness
+- graceful worker shutdown
+- immutable release workflow baseline
+- self-hosted runtime and edge policies
+- static Nginx/Compose validation
+- self-hosted deployment/rollback scripts
+- durable Operations control-state migration with RLS enabled and no permissive client policies
+- metrics/alerting specification
+- execution-status and remaining-work documentation
 
 ## Remaining
 
-1. Verify secret scanning passes in CI.
-2. Validate the security workflow in CI.
-3. Add migration validation once the repository's Supabase migration layout/CLI configuration is authoritative.
-4. Add the self-hosted reverse-proxy/Tracking edge once Tracking's HTTP contract is merged.
-5. Select and wire centralized/local metrics and logs for the laptop runtime.
-6. Configure operational alert thresholds with domain owners.
-7. Execute backup/restore, reboot, network-interruption, and rollback drills in staging.
-8. Complete the production-readiness gate after Campaign, Tracking, Mail, and shared contracts are complete.
+1. Implement authenticated administrative control endpoint and audit flow.
+2. Integrate Mail execution with durable production control state; fail closed on control-state failure.
+3. Implement runtime telemetry collection/alert routing.
+4. Execute self-hosted staging deployment, rollback, reboot, network-interruption, and restore drills.
+5. Execute behavioral edge/load tests after Tracking HTTP contract is authoritative.
+6. Verify CI evidence and close Operations-owned issues only after acceptance criteria are evidenced.
 
-## Blockers
+## Ownership
 
-No current implementation blocker for the worker runtime. Tracking edge integration depends on Tracking PR #6; migration validation depends on the authoritative Supabase migration layout.
+- Operations owns runtime, deployment, observability, control mechanisms, and recovery.
+- Platform owns shared schemas/contracts and cross-system tests.
+- Mail/Campaign/Tracking retain domain policy and implementation ownership.
 
-## Risks
+## Safety
 
-- Domain systems may introduce shared contract changes; those changes must go through Platform.
-- Operations must not invent domain thresholds.
-- Real outbound sending remains disabled until explicit production approval.
+Real outbound mail remains disabled until all production gates pass and explicit human approval is recorded.
+
+## Known cross-system blockers
+
+- Platform issue #10: RenderedSendTreatment schema/fixture reconciliation.
+- Tracking PR #6: first-party HTTP boundary remains unmerged/draft.
+- Tracking issue #8: semantic replay/idempotency decision.
+- Operations issue #9: behavioral self-hosted edge/load tests.
 
 ## Next action
 
-Validate CI/security, then implement the self-hosted HTTP edge against the merged Tracking contract. Do not modify shared domain contracts without Platform review.
+Complete the Operations control API/enforcement integration only through explicit producer/consumer contracts. Do not modify shared domain schemas from Operations.
