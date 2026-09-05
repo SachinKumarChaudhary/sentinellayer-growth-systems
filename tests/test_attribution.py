@@ -2,7 +2,11 @@ from datetime import UTC, datetime
 
 import pytest
 
-from sentinellayer_growth_engine.attribution import AttributionError, build_attribution_context, build_sales_attribution_event
+from sentinellayer_growth_engine.attribution import (
+    AttributionError,
+    build_attribution_context,
+    build_sales_attribution_event,
+)
 
 
 def test_context_preserves_campaign_lineage():
