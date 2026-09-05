@@ -50,7 +50,6 @@ jobs:
         if: ${{ inputs.process_reply }}
         run: |
           python - <<'PY'
-          import hashlib
           import imaplib
           import os
           import time
@@ -120,33 +119,18 @@ jobs:
               cur.execute("select id from public.people where lower(trim(email))=%s order by id limit 1", (message.sender_email,))
               row = cur.fetchone()
               if row is None:
-                  candidate = 10_000_000_000 + int.from_bytes(
-                      hashlib.sha256(message.sender_email.encode("utf-8")).digest()[:6], "big"
-                  )
-                  while True:
-                      cur.execute("select email from public.people where id=%s", (candidate,))
-                      occupied = cur.fetchone()
-                      if occupied is None or str(occupied["email"]).strip().lower() == message.sender_email:
-                          break
-                      candidate += 1
                   cur.execute(
                       """
-                      insert into public.people (id, full_name, email, email_source, notes)
-                      values (%s, 'Sentinel Layer provider smoke contact', %s, 'provider_smoke', 'Controlled staging provider conversation smoke contact')
-                      on conflict (id) do nothing
+                      insert into public.people (full_name, email, email_source, notes)
+                      values ('Sentinel Layer provider smoke contact', %s, 'provider_smoke', 'Controlled staging provider conversation smoke contact')
                       returning id
                       """,
-                      (candidate, message.sender_email),
+                      (message.sender_email,),
                   )
                   inserted = cur.fetchone()
-                  if inserted is not None:
-                      person_id = int(inserted["id"])
-                  else:
-                      cur.execute("select id from public.people where lower(trim(email))=%s order by id limit 1", (message.sender_email,))
-                      existing = cur.fetchone()
-                      if existing is None:
-                          raise SystemExit("Could not establish staging person identity")
-                      person_id = int(existing["id"])
+                  if inserted is None:
+                      raise SystemExit("Could not establish staging person identity")
+                  person_id = int(inserted["id"])
               else:
                   person_id = int(row["id"])
 
