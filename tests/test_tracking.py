@@ -1,9 +1,8 @@
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime
 from uuid import UUID
-
-import re
 
 import pytest
 
@@ -247,7 +246,7 @@ def test_confidence_boundary_values_are_valid(confidence: float) -> None:
 
 
 def test_tracking_event_cannot_use_unknown_environment() -> None:
-    with pytest.raises(Exception):
+    with pytest.raises(ContractValidationError):
         build_tracking_event(
             event_type="link_clicked",
             source_system="tracking",
