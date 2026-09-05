@@ -75,9 +75,14 @@ def _text_from_message(message: Message) -> str:
             if "attachment" in disposition:
                 continue
             content_type = part.get_content_type()
-            payload = part.get_payload(decode=True) or b""
+            payload = part.get_payload(decode=True)
             charset = part.get_content_charset() or "utf-8"
-            text = payload.decode(charset, errors="replace")
+            if isinstance(payload, bytes):
+                text = payload.decode(charset, errors="replace")
+            elif isinstance(payload, str):
+                text = payload
+            else:
+                continue
             if content_type == "text/plain":
                 plain_parts.append(text)
             elif content_type == "text/html":
@@ -158,7 +163,7 @@ class ImapInboundProvider:
             status, _ = client.select(self.mailbox, readonly=not mark_seen)
             if status != "OK":
                 raise RuntimeError(f"IMAP select failed for mailbox {self.mailbox!r}")
-            status, data = client.uid("SEARCH", None, "UNSEEN")
+            status, data = client.uid("SEARCH", "UNSEEN")
             if status != "OK":
                 raise RuntimeError("IMAP UNSEEN search failed")
             uids = (data[0] or b"").split()
