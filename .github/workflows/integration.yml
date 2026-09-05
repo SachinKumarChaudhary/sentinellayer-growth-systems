@@ -68,6 +68,10 @@ jobs:
               print(f"PostgreSQL connection failed: type={error_type}, reason={reason}")
               raise SystemExit(1)
           PY
+      - name: Apply Supabase migrations
+        env:
+          SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+        run: python scripts/apply_supabase_migrations.py
       - name: Supabase concurrency integration test
         env:
           SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
