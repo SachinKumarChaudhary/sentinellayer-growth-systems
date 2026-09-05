@@ -28,26 +28,13 @@ fi
 # Example templates are safe to track; real environment/credential files are not.
 tracked_sensitive="$(
   git ls-files |
-    grep -Ei '(^|/)(\.env|\.env\..*|.*\.pem|.*\.key)
-
-python -m pip check
-
-echo "CI safety gate: PASS"
-echo "Environment: ${SL_ENVIRONMENT}"
-echo "Real email: disabled"
- |
-    grep -Eiv '(^|/)\.env(\.example|\.test\.example)
-
-python -m pip check
-
-echo "CI safety gate: PASS"
-echo "Environment: ${SL_ENVIRONMENT}"
-echo "Real email: disabled"
- || true
+    grep -Ei '(^|/)(\.env|\.env\..*|.*\.pem|.*\.key)$' |
+    grep -Eiv '(^|/)\.env(\.example|\.test\.example)$' ||
+    true
 )"
-if [[ -n "$tracked_sensitive" ]]; then
+if [[ -n "${tracked_sensitive}" ]]; then
   echo "FAIL: tracked environment/credential file detected."
-  printf '%s\n' "$tracked_sensitive"
+  printf '%s\n' "${tracked_sensitive}"
   exit 1
 fi
 
