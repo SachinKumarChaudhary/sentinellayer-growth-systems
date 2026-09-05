@@ -73,3 +73,30 @@ def test_claim_maps_database_rows(monkeypatch: pytest.MonkeyPatch) -> None:
     assert claimed[0].attempt_count == 2
     assert connection.last_cursor is not None
     assert connection.last_cursor.params == (5, "worker-test")
+
+
+def test_upsert_open_sales_task_uses_idempotent_conflict(monkeypatch: pytest.MonkeyPatch) -> None:
+    db = Database("postgresql://invalid")
+    connection = FakeConnection([{
+        "sales_task_id": "11111111-1111-4111-8111-111111111111",
+        "account_id": "account-1",
+        "person_id": "person-1",
+        "trigger_type": "interested",
+        "priority": "P1",
+        "recommended_action": "human_follow_up",
+        "status": "open",
+    }])
+    monkeypatch.setattr(db, "connection", lambda: connection)
+    handoff = {
+        "sales_task_id": "11111111-1111-4111-8111-111111111111",
+        "account_id": "account-1",
+        "person_id": "person-1",
+        "trigger_type": "interested",
+        "priority": "P1",
+        "recommended_action": "human_follow_up",
+        "why_now": ["positive reply"],
+    }
+    out = db.upsert_open_sales_task(handoff)
+    assert out["status"] == "open"
+    assert connection.last_cursor is not None
+    assert "on conflict (account_id, person_id, trigger_type)" in (connection.last_cursor.query or "")
