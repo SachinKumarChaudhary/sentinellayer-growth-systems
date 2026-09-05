@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from collections.abc import Mapping
 from typing import Any, Protocol
 from uuid import UUID, uuid4
 
@@ -225,7 +225,7 @@ class TrackingRepository:
             return str(row[0])
 
     def resolve_trackable_link(self, token: str, *, now: datetime | None = None) -> TrackableTarget | None:
-        now_utc = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+        now_utc = (now or datetime.now(UTC)).astimezone(UTC)
         with self._connection_factory() as conn, conn.cursor(row_factory=dict_row) as cur:
             cur.execute(
                 """
