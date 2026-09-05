@@ -79,7 +79,7 @@ class CampaignDatabase:
 
         with self._connection() as conn, conn.cursor() as cur:
             cur.execute(
-                "select * from mail.enqueue_campaign_send(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                "select * from mail.enqueue_campaign_send(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
                 (
                     request["send_id"],
                     request["idempotency_key"],
@@ -88,7 +88,6 @@ class CampaignDatabase:
                     request["sequence_step_id"],
                     request["mailbox_id"],
                     request["scheduled_at"],
-                    request["treatment"].get("sender_email", request["treatment"]["recipient_email"]),
                     request["treatment"]["recipient_email"],
                     request["treatment"]["subject"],
                     request["treatment"]["body_text"],
