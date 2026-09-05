@@ -129,6 +129,65 @@ class Database:
             "status": "stored",
         }
 
+    def resolve_inbound_identity(
+        self,
+        *,
+        sender_email: str,
+        thread_key: str,
+    ) -> tuple[str, str] | None:
+        """Resolve inbound sender/thread to canonical account/person IDs."""
+        email = sender_email.strip().lower()
+        thread = thread_key.strip()
+        if not email or "@" not in email or not thread:
+            return None
+        with self.connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                select account_id, person_id::text
+                from conversation.threads
+                where thread_key = %s
+                limit 1
+                """,
+                (thread,),
+            )
+            row = cur.fetchone()
+            if row is not None:
+                return str(row["account_id"]), str(row["person_id"])
+
+            cur.execute(
+                """
+                select ce.account_id, ce.person_id::text
+                from public.campaign_enrollments ce
+                join public.people p on p.id=ce.person_id
+                where lower(trim(p.email))=%s
+                order by ce.enrolled_at desc
+                limit 1
+                """,
+                (email,),
+            )
+            row = cur.fetchone()
+            if row is None:
+                return None
+            return str(row["account_id"]), str(row["person_id"])
+
+    def add_suppression(self, *, email: str, reason: str) -> None:
+        """Permanently suppress an email address after a deterministic stop signal."""
+        normalized = email.strip().lower()
+        if not normalized or "@" not in normalized:
+            raise ValueError("email must be valid")
+        if not reason.strip():
+            raise ValueError("reason must not be empty")
+        with self.connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                insert into public.suppression (email, reason, added_at)
+                values (%s, %s, now())
+                on conflict (email) do update
+                set reason=excluded.reason, added_at=excluded.added_at
+                """,
+                (normalized, reason),
+            )
+
     def cancel_future_sends_for_person(self, *, person_id: int, reason: str) -> None:
         """Cancel future queued campaign sends for a person."""
         if person_id <= 0:

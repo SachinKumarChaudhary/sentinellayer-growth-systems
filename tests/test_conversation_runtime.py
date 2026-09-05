@@ -7,6 +7,7 @@ class Store:
     def __init__(self):
         self.persisted = []
         self.cancelled = []
+        self.suppressed = []
 
     def persist_handoff(self, **kwargs):
         self.persisted.append(kwargs)
@@ -14,6 +15,9 @@ class Store:
 
     def cancel_future_sends_for_person(self, *, person_id: int, reason: str) -> None:
         self.cancelled.append((person_id, reason))
+
+    def add_suppression(self, *, email: str, reason: str) -> None:
+        self.suppressed.append((email, reason))
 
 
 def test_unsubscribe_persists_and_stops_future_sends():
@@ -31,6 +35,7 @@ def test_unsubscribe_persists_and_stops_future_sends():
     assert out["persisted"]["status"] == "stored"
     assert out["stop_sequence"] is True
     assert store.cancelled == [(42, "suppress_contact")]
+    assert store.suppressed == [("buyer@example.com", "inbound_unsubscribe")]
 
 
 def test_interest_can_trigger_sales_bridge():
