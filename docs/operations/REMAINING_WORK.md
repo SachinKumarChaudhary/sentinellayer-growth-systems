@@ -27,6 +27,8 @@ Implement a local structured operational telemetry path for the self-hosted lapt
 Do not invent domain thresholds. Mail/Tracking owners provide domain-specific thresholds.
 
 ### 2. Deployment adapter
+
+Initial deployment and rollback scripts are now implemented under `scripts/selfhosted/`.
 Create a reproducible self-hosted deployment command/path that:
 - validates configuration;
 - builds/pulls an immutable release;
@@ -36,6 +38,8 @@ Create a reproducible self-hosted deployment command/path that:
 - fails without enabling real email.
 
 ### 3. Rollback / restore drills
+
+Reproducible drill specifications are documented; execution remains staging-dependent.
 Create reproducible staging procedures for:
 - application rollback;
 - host reboot recovery;
