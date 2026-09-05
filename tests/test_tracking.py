@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import UUID
 
+import re
+
 import pytest
 
 from sentinellayer_growth_engine.contracts import ContractValidationError
@@ -210,6 +212,45 @@ def test_repeated_same_event_id_is_safe_to_replay() -> None:
 )
 def test_malformed_tokens_do_not_get_treated_as_valid_identity(token: str) -> None:
     # Mirror the HTTP boundary: tokens must be 20-128 URL-safe characters.
-    import re
-
     assert re.fullmatch(r"[A-Za-z0-9_-]{20,128}", token) is None
+
+
+@pytest.mark.parametrize(
+    "user_agent",
+    [
+        None,
+        "",
+        "Mozilla/5.0",
+        "Mozilla/5.0 Safari/537.36",
+    ],
+)
+def test_ambiguous_browser_signals_do_not_promote_to_human_candidate(user_agent: str | None) -> None:
+    result = classify_traffic(
+        user_agent=user_agent,
+        accept="text/html",
+        sec_ch_ua=None,
+        sec_fetch_mode=None,
+    )
+    assert result.classification == "unknown"
+
+
+@pytest.mark.parametrize("confidence", [0.0, 1.0])
+def test_confidence_boundary_values_are_valid(confidence: float) -> None:
+    event = build_tracking_event(
+        event_type="link_clicked",
+        source_system="tracking",
+        environment="development",
+        correlation_id="corr-boundary",
+        confidence=confidence,
+    )
+    assert event.confidence == confidence
+
+
+def test_tracking_event_cannot_use_unknown_environment() -> None:
+    with pytest.raises(Exception):
+        build_tracking_event(
+            event_type="link_clicked",
+            source_system="tracking",
+            environment="production-unknown",
+            correlation_id="corr-env",
+        )
