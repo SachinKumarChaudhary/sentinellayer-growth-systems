@@ -27,7 +27,8 @@ T = {
     "recipient_email": "buyer@example.com",
     "subject": "Sentinel Layer",
     "body_text": "A deterministic pilot message.",
-    "headers": {},
+    "headers": {"X-Test-Header": "preserved"},
+    "reply_to": "replies@example.com",
     "rendered_at": "2026-09-05T12:00:00+00:00",
 }
 
@@ -42,6 +43,8 @@ class SendRepo:
             "body_text": T["body_text"],
             "message_id": "<send-1@example.com>",
             "attempt_count": 1,
+            "headers": T["headers"],
+            "reply_to": T["reply_to"],
         }]
         self.marked_sent = []
 
@@ -55,6 +58,8 @@ class SendRepo:
                 body_text=row["body_text"],
                 message_id=row["message_id"],
                 attempt_count=row["attempt_count"],
+                headers=row.get("headers"),
+                reply_to=row.get("reply_to"),
             )
             for row in self.sends
         ]
@@ -119,6 +124,8 @@ async def test_campaign_mail_tracking_conversation_sales_lifecycle() -> None:
     assert repo.marked_sent[0]["provider_message_id"] == "<send-1@example.com>"
     assert provider.sent[0].subject == T["subject"]
     assert provider.sent[0].body_text == T["body_text"]
+    assert provider.sent[0].headers["X-Test-Header"] == "preserved"
+    assert provider.sent[0].headers["Reply-To"] == "replies@example.com"
 
     tracking = build_tracking_event(
         event_type="link_clicked",
