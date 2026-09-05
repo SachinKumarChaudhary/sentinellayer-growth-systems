@@ -12,6 +12,11 @@ on:
         required: true
         default: false
         type: boolean
+      receive_reply:
+        description: "Poll IMAP for a reply to the controlled smoke message"
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -131,4 +136,61 @@ jobs:
               print("Controlled SMTP send: ACCEPTED")
 
           asyncio.run(main())
+          PY
+      - name: Receive controlled reply
+        if: ${{ inputs.receive_reply }}
+        run: |
+          python - <<'PY'
+          import imaplib
+          import os
+          import time
+          from sentinellayer_growth_engine.imap_inbound import parse_message
+
+          expected_reference = "sentinellayer-provider-smoke"
+          deadline = time.monotonic() + 120
+
+          def fetch_reply(client: imaplib.IMAP4_SSL):
+              status, data = client.uid("SEARCH", None, 'SUBJECT', '"Sentinel Layer staging smoke test"')
+              if status != "OK":
+                  raise RuntimeError("IMAP subject search failed")
+              for uid_bytes in reversed((data[0] or b"").split()):
+                  uid = uid_bytes.decode("ascii", errors="strict")
+                  status, fetched = client.uid("FETCH", uid, "(RFC822)")
+                  if status != "OK":
+                      continue
+                  raw = next((item[1] for item in fetched if isinstance(item, tuple) and len(item) == 2), None)
+                  if not isinstance(raw, bytes):
+                      continue
+                  message = parse_message(uid, raw)
+                  if message.subject.lower().startswith("re:") and expected_reference in message.thread_key:
+                      return message
+              return None
+
+          while time.monotonic() < deadline:
+              client = imaplib.IMAP4_SSL(os.environ["IMAP_HOST"], int(os.environ["IMAP_PORT"]), timeout=15)
+              try:
+                  client.login(os.environ["IMAP_USERNAME"], os.environ["IMAP_PASSWORD"])
+                  status, _ = client.select(os.environ["IMAP_MAILBOX"], readonly=True)
+                  if status != "OK":
+                      raise RuntimeError("IMAP mailbox selection failed")
+                  message = fetch_reply(client)
+                  if message is not None:
+                      print("Inbound IMAP reply: FOUND")
+                      print(f"Inbound sender: {message.sender_email}")
+                      print(f"Inbound subject: {message.subject}")
+                      print(f"Thread key: {message.thread_key}")
+                      print(f"Provider message id: {message.provider_message_id}")
+                      if expected_reference not in message.thread_key:
+                          raise SystemExit("Reply did not correlate to the controlled smoke message")
+                      if not message.body_text.strip():
+                          raise SystemExit("Reply body is empty")
+                      break
+              finally:
+                  try:
+                      client.logout()
+                  except OSError:
+                      pass
+              time.sleep(10)
+          else:
+              raise SystemExit("Timed out waiting for the controlled IMAP reply")
           PY
