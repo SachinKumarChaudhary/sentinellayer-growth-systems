@@ -20,10 +20,10 @@ def check() -> int:
         settings = Settings(database_url=dsn)
         settings.assert_safe()
         with psycopg.connect(dsn, connect_timeout=3) as conn, conn.cursor() as cur:
-                cur.execute("select 1")
-                if cur.fetchone() != (1,):
-                    print("NOT_READY: database probe returned an unexpected result")
-                    return 1
+            cur.execute("select 1")
+            if cur.fetchone() != (1,):
+                print("NOT_READY: database probe returned an unexpected result")
+                return 1
         print(f"READY: host={socket.gethostname()} environment={settings.environment}")
         return 0
     except (OSError, psycopg.Error, ValueError):
