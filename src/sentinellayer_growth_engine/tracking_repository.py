@@ -4,7 +4,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Protocol
-from uuid import UUID, uuid4
+from uuid import UUID
 
 import psycopg
 from psycopg.rows import dict_row
