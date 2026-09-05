@@ -15,7 +15,6 @@ create or replace function mail.enqueue_campaign_send(
   p_sequence_step_id uuid,
   p_mailbox_id uuid,
   p_scheduled_at timestamptz,
-  p_sender text,
   p_recipient text,
   p_subject text,
   p_body_text text,
@@ -33,7 +32,7 @@ declare
   v_row public.sends;
 begin
   if nullif(trim(p_idempotency_key), '') is null then raise exception 'idempotency_key is required'; end if;
-  if nullif(trim(p_sender), '') is null then raise exception 'sender is required'; end if;
+  if not exists (select 1 from mail.mailboxes m where m.id=p_mailbox_id and m.status='active' and nullif(trim(m.email),'') is not null) then raise exception 'mailbox is not active'; end if;
   if nullif(trim(p_recipient), '') is null then raise exception 'recipient is required'; end if;
   if nullif(trim(p_subject), '') is null then raise exception 'subject is required'; end if;
   if nullif(trim(p_body_text), '') is null then raise exception 'body_text is required'; end if;
@@ -66,15 +65,15 @@ begin
   ) values (
     p_send_id, p_person_id, p_campaign_id, p_sequence_step_id, p_mailbox_id,
     p_idempotency_key, p_scheduled_at, 'queued', 0,
-    p_sender, p_recipient, p_subject, p_body_text,
+    (select m.email from mail.mailboxes m where m.id=p_mailbox_id), p_recipient, p_subject, p_body_text,
     coalesce(p_headers, '{}'::jsonb), p_reply_to, coalesce(p_metadata, '{}'::jsonb)
   ) returning * into v_row;
   return v_row;
 end;
 $function$;
 
-revoke all on function mail.enqueue_campaign_send(uuid,text,uuid,bigint,uuid,uuid,timestamptz,text,text,text,text,jsonb,text,jsonb) from public;
-grant execute on function mail.enqueue_campaign_send(uuid,text,uuid,bigint,uuid,uuid,timestamptz,text,text,text,text,jsonb,text,jsonb) to service_role;
+revoke all on function mail.enqueue_campaign_send(uuid,text,uuid,bigint,uuid,uuid,timestamptz,text,text,text,jsonb,text,jsonb) from public;
+grant execute on function mail.enqueue_campaign_send(uuid,text,uuid,bigint,uuid,uuid,timestamptz,text,text,text,jsonb,text,jsonb) to service_role;
 
 create or replace function public.claim_due_sends(
   p_batch_size integer default 20,
