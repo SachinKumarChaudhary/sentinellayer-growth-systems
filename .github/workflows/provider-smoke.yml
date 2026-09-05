@@ -144,10 +144,8 @@ jobs:
           import imaplib
           import os
           import time
-          from email.message import Message
           from sentinellayer_growth_engine.imap_inbound import parse_message
 
-          expected_subject = "Sentinel Layer staging smoke test"
           expected_reference = "sentinellayer-provider-smoke"
           deadline = time.monotonic() + 120
 
