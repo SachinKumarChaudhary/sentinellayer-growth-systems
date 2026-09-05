@@ -14,6 +14,12 @@ class Settings(BaseSettings):
     smtp_username: str | None = Field(default=None)
     smtp_password: str | None = Field(default=None)
     smtp_timeout_seconds: float = Field(default=30.0, gt=0)
+    imap_host: str | None = Field(default=None)
+    imap_port: int = Field(default=993, ge=1, le=65535)
+    imap_username: str | None = Field(default=None)
+    imap_password: str | None = Field(default=None)
+    imap_mailbox: str = Field(default="INBOX")
+    imap_timeout_seconds: float = Field(default=30.0, gt=0)
     scheduler_tick_seconds: int = Field(default=30, ge=1)
 
     model_config = SettingsConfigDict(

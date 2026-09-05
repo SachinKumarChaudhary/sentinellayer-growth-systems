@@ -1,0 +1,132 @@
+name: provider-smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      recipient:
+        description: "Single allowlisted staging recipient"
+        required: true
+        type: string
+      send_test_message:
+        description: "Actually send the controlled staging message"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: provider-smoke-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    environment: staging-mail
+    env:
+      SL_ENVIRONMENT: staging
+      SL_REAL_EMAIL_ENABLED: "false"
+      SMTP_HOST: ${{ secrets.SL_SMTP_HOST }}
+      SMTP_PORT: ${{ secrets.SL_SMTP_PORT }}
+      SMTP_USERNAME: ${{ secrets.SL_SMTP_USERNAME }}
+      SMTP_PASSWORD: ${{ secrets.SL_SMTP_PASSWORD }}
+      IMAP_HOST: ${{ secrets.SL_IMAP_HOST }}
+      IMAP_PORT: ${{ secrets.SL_IMAP_PORT }}
+      IMAP_USERNAME: ${{ secrets.SL_IMAP_USERNAME }}
+      IMAP_PASSWORD: ${{ secrets.SL_IMAP_PASSWORD }}
+      IMAP_MAILBOX: ${{ secrets.SL_IMAP_MAILBOX }}
+      TEST_RECIPIENT: ${{ github.event.inputs.recipient }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Validate required configuration
+        run: |
+          set -euo pipefail
+          for name in SMTP_HOST SMTP_PORT SMTP_USERNAME SMTP_PASSWORD IMAP_HOST IMAP_PORT IMAP_USERNAME IMAP_PASSWORD IMAP_MAILBOX; do
+            test -n "${!name}" || { echo "Missing $name"; exit 1; }
+          done
+          python - <<'PY'
+          import os
+          recipient = os.environ["TEST_RECIPIENT"].strip().lower()
+          allowed = os.environ["ALLOWED_RECIPIENT"].strip().lower()
+          if "@" not in recipient or recipient.startswith("@") or recipient.endswith("@"):
+              raise SystemExit("Invalid test recipient")
+          if not allowed or recipient != allowed:
+              raise SystemExit("Recipient is not the configured staging allowlist target")
+          if os.environ["SL_REAL_EMAIL_ENABLED"].lower() != "false":
+              raise SystemExit("Real email must remain disabled for provider smoke")
+          if os.environ["SMTP_PORT"] not in {"465", "587"}:
+              raise SystemExit("SMTP port must be 465 or 587")
+          if os.environ["IMAP_PORT"] != "993":
+              raise SystemExit("IMAP must use TLS port 993")
+          PY
+      - name: Install
+        run: python -m pip install -e .
+      - name: SMTP authentication check
+        run: |
+          python - <<'PY'
+          import os
+          import smtplib
+          host, port = os.environ["SMTP_HOST"], int(os.environ["SMTP_PORT"])
+          if port == 465:
+              server = smtplib.SMTP_SSL(host, port, timeout=15)
+          else:
+              server = smtplib.SMTP(host, port, timeout=15)
+              server.ehlo()
+              server.starttls()
+              server.ehlo()
+          try:
+              server.login(os.environ["SMTP_USERNAME"], os.environ["SMTP_PASSWORD"])
+              print("SMTP authentication: OK")
+          finally:
+              server.quit()
+          PY
+      - name: IMAP authentication check
+        run: |
+          python - <<'PY'
+          import imaplib
+          import os
+          client = imaplib.IMAP4_SSL(os.environ["IMAP_HOST"], int(os.environ["IMAP_PORT"]), timeout=15)
+          try:
+              client.login(os.environ["IMAP_USERNAME"], os.environ["IMAP_PASSWORD"])
+              status, _ = client.select(os.environ["IMAP_MAILBOX"], readonly=True)
+              if status != "OK":
+                  raise SystemExit("IMAP mailbox selection failed")
+              print("IMAP authentication and mailbox selection: OK")
+          finally:
+              client.logout()
+          PY
+      - name: Controlled send
+        if: ${{ inputs.send_test_message }}
+        run: |
+          python - <<'PY'
+          import asyncio
+          import os
+          from sentinellayer_growth_engine.providers import OutboundMessage
+          from sentinellayer_growth_engine.smtp import SmtpMailProvider
+
+          async def main():
+              provider = SmtpMailProvider(
+                  host=os.environ["SMTP_HOST"],
+                  port=int(os.environ["SMTP_PORT"]),
+                  username=os.environ["SMTP_USERNAME"],
+                  password=os.environ["SMTP_PASSWORD"],
+              )
+              result = await provider.send(
+                  OutboundMessage(
+                      sender=os.environ["SMTP_USERNAME"],
+                      recipient=os.environ["TEST_RECIPIENT"],
+                      subject="Sentinel Layer staging smoke test",
+                      body_text="Controlled provider smoke test. No campaign enrollment is involved.",
+                      message_id="<sentinellayer-provider-smoke@example.invalid>",
+                  )
+              )
+              if not result.accepted:
+                  raise SystemExit(f"Controlled send failed: {result.error}")
+              print("Controlled SMTP send: ACCEPTED")
+
+          asyncio.run(main())
+          PY
