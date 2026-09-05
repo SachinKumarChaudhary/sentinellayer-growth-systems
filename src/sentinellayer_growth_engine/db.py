@@ -109,6 +109,8 @@ class Database:
                 body_text=str(row["body_text"]),
                 message_id=str(row["message_id"]),
                 attempt_count=int(row["attempt_count"]),
+                headers={str(k): str(v) for k, v in dict(row.get("rendered_headers") or {}).items()},
+                reply_to=str(row["reply_to"]) if row.get("reply_to") else None,
             )
             for row in rows
         ]
