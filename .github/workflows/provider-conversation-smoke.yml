@@ -1,0 +1,262 @@
+name: provider-conversation-smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      process_reply:
+        description: "Process the controlled IMAP reply through identity, Conversation, and Sales"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: provider-conversation-smoke-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    environment: staging-mail
+    env:
+      SL_REAL_EMAIL_ENABLED: "false"
+      SMTP_HOST: ${{ secrets.SL_SMTP_HOST }}
+      SMTP_PORT: ${{ secrets.SL_SMTP_PORT }}
+      SMTP_USERNAME: ${{ secrets.SL_SMTP_USERNAME }}
+      SMTP_PASSWORD: ${{ secrets.SL_SMTP_PASSWORD }}
+      IMAP_HOST: ${{ secrets.SL_IMAP_HOST }}
+      IMAP_PORT: ${{ secrets.SL_IMAP_PORT }}
+      IMAP_USERNAME: ${{ secrets.SL_IMAP_USERNAME }}
+      IMAP_PASSWORD: ${{ secrets.SL_IMAP_PASSWORD }}
+      IMAP_MAILBOX: ${{ secrets.SL_IMAP_MAILBOX }}
+      SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Validate required configuration
+        if: ${{ inputs.process_reply }}
+        run: |
+          set -euo pipefail
+          for name in IMAP_HOST IMAP_PORT IMAP_USERNAME IMAP_PASSWORD IMAP_MAILBOX SUPABASE_DATABASE_URL; do
+            test -n "${!name}" || { echo "Missing $name"; exit 1; }
+          done
+          test "$IMAP_PORT" = "993" || { echo "IMAP must use TLS port 993"; exit 1; }
+          test "$SL_REAL_EMAIL_ENABLED" = "false" || { echo "Real email must remain disabled"; exit 1; }
+          echo "Required provider and database configuration: present"
+      - name: Install
+        if: ${{ inputs.process_reply }}
+        run: python -m pip install -e .
+      - name: Process controlled reply through Conversation and Sales
+        if: ${{ inputs.process_reply }}
+        run: |
+          python - <<'PY'
+          import imaplib
+          import os
+          import time
+          from uuid import uuid4
+
+          import psycopg
+          from psycopg.rows import dict_row
+
+          from sentinellayer_growth_engine.conversation_runtime import ConversationRuntime
+          from sentinellayer_growth_engine.conversation_sales import ConversationSalesBridge
+          from sentinellayer_growth_engine.db import Database
+          from sentinellayer_growth_engine.imap_inbound import parse_message
+
+          THREAD_MARKER = "sentinellayer-provider-smoke"
+          SUBJECT = "Sentinel Layer staging smoke test"
+          ACCOUNT_ID = "staging-provider-smoke"
+          DEADLINE_SECONDS = 120
+
+          def find_reply(client):
+              status, data = client.uid("SEARCH", None, "SUBJECT", '"Sentinel Layer staging smoke test"')
+              if status != "OK":
+                  raise RuntimeError("IMAP subject search failed")
+              for uid_bytes in reversed((data[0] or b"").split()):
+                  uid = uid_bytes.decode("ascii", errors="strict")
+                  status, fetched = client.uid("FETCH", uid, "(RFC822)")
+                  if status != "OK":
+                      continue
+                  raw = next((item[1] for item in fetched if isinstance(item, tuple) and len(item) == 2), None)
+                  if not isinstance(raw, bytes):
+                      continue
+                  message = parse_message(uid, raw)
+                  if message.subject.lower().startswith("re:") and THREAD_MARKER in message.thread_key:
+                      return message
+              return None
+
+          message = None
+          while time.monotonic() < time.monotonic() + DEADLINE_SECONDS:
+              client = imaplib.IMAP4_SSL(os.environ["IMAP_HOST"], int(os.environ["IMAP_PORT"]), timeout=15)
+              try:
+                  client.login(os.environ["IMAP_USERNAME"], os.environ["IMAP_PASSWORD"])
+                  status, _ = client.select(os.environ["IMAP_MAILBOX"], readonly=True)
+                  if status != "OK":
+                      raise RuntimeError("IMAP mailbox selection failed")
+                  message = find_reply(client)
+                  if message is not None:
+                      break
+              finally:
+                  try:
+                      client.logout()
+                  except OSError:
+                      pass
+              time.sleep(10)
+
+          if message is None:
+              raise SystemExit("Timed out waiting for the controlled IMAP reply")
+          if not message.body_text.strip():
+              raise SystemExit("Controlled reply body is empty")
+
+          print("Controlled reply parsed: OK")
+          print(f"Inbound subject: {message.subject}")
+          print(f"Thread key: {message.thread_key}")
+          print(f"Provider message id: {message.provider_message_id}")
+          print("Inbound sender: [redacted]")
+
+          dsn = os.environ["SUPABASE_DATABASE_URL"]
+          with psycopg.connect(dsn, sslmode="require", row_factory=dict_row) as conn, conn.cursor() as cur:
+              cur.execute("select id from public.people where lower(trim(email))=%s order by id limit 1", (message.sender_email,))
+              row = cur.fetchone()
+              if row is None:
+                  person_id = abs(hash(message.sender_email)) % 8_000_000_000 + 1
+                  cur.execute(
+                      """
+                      insert into public.people (id, full_name, email, email_source, notes)
+                      values (%s, 'Sentinel Layer provider smoke contact', %s, 'provider_smoke', 'Controlled staging provider conversation smoke contact')
+                      on conflict (id) do update set email=excluded.email, notes=excluded.notes
+                      returning id
+                      """,
+                      (person_id, message.sender_email),
+                  )
+                  person_id = int(cur.fetchone()["id"])
+              else:
+                  person_id = int(row["id"])
+
+              cur.execute(
+                  """
+                  select conversation_id, person_id
+                  from conversation.threads
+                  where thread_key=%s
+                  """,
+                  (message.thread_key,),
+              )
+              thread = cur.fetchone()
+              if thread is None:
+                  conversation_id = str(uuid4())
+                  cur.execute(
+                      """
+                      insert into conversation.threads
+                        (conversation_id, account_id, person_id, thread_key, state, last_message_at, updated_at)
+                      values (%s,%s,%s,%s,'thread_matched',now(),now())
+                      """,
+                      (conversation_id, ACCOUNT_ID, str(person_id), message.thread_key),
+                  )
+              else:
+                  conversation_id = str(thread["conversation_id"])
+                  if str(thread["person_id"]) != str(person_id):
+                      raise SystemExit("Controlled thread is associated with a different person")
+              conn.commit()
+
+          db = Database(dsn, worker_id="provider-conversation-smoke")
+          identity = db.resolve_inbound_identity(
+              sender_email=message.sender_email,
+              thread_key=message.thread_key,
+          )
+          if identity is None:
+              raise SystemExit("Inbound identity resolution failed")
+          account_id, resolved_person_id = identity
+          if account_id != ACCOUNT_ID or resolved_person_id != str(person_id):
+              raise SystemExit("Resolved identity does not match the controlled staging identity")
+          print("Inbound identity resolution: OK")
+
+          runtime = ConversationRuntime(db, sales_bridge=ConversationSalesBridge(db))
+          outcome = runtime.handle_inbound(
+              account_id=account_id,
+              person_id=resolved_person_id,
+              sender_email=message.sender_email,
+              subject=message.subject,
+              body_text=message.body_text,
+              provider_message_id=message.provider_message_id,
+              thread_key=message.thread_key,
+              source_send_id=message.source_send_id,
+          )
+          classification = outcome["handoff"]["classification"]
+          if classification not in {"interested", "question"}:
+              raise SystemExit(f"Expected positive/question classification, got {classification!r}")
+          if not outcome["persisted"].get("status") in {"stored", "duplicate"}:
+              raise SystemExit("Conversation persistence did not report stored/duplicate")
+          if outcome["sales"] is None:
+              raise SystemExit("Conversation did not create/update a Sales task")
+          print(f"Conversation classification: {classification}")
+          print(f"Conversation persistence: {outcome['persisted']['status']}")
+          print(f"Sales task status: {outcome['sales']['status']}")
+
+          duplicate = runtime.handle_inbound(
+              account_id=account_id,
+              person_id=resolved_person_id,
+              sender_email=message.sender_email,
+              subject=message.subject,
+              body_text=message.body_text,
+              provider_message_id=message.provider_message_id,
+              thread_key=message.thread_key,
+              source_send_id=message.source_send_id,
+          )
+          if duplicate["persisted"].get("status") != "duplicate":
+              raise SystemExit("Duplicate inbound processing was not idempotent")
+          print("Duplicate inbound processing: idempotent")
+
+          with psycopg.connect(dsn, sslmode="require", row_factory=dict_row) as conn, conn.cursor() as cur:
+              cur.execute(
+                  """
+                  select r.classification, r.provider_message_id, t.state
+                  from conversation.replies r
+                  join conversation.threads t on t.conversation_id=r.conversation_id
+                  where r.provider_message_id=%s
+                  """,
+                  (message.provider_message_id,),
+              )
+              persisted = cur.fetchone()
+              if persisted is None:
+                  raise SystemExit("Persisted conversation reply not found")
+              cur.execute(
+                  """
+                  select sales_task_id, trigger_type, status
+                  from sales.tasks
+                  where account_id=%s and person_id=%s and trigger_type=%s
+                    and status in ('open','claimed')
+                  order by updated_at desc limit 1
+                  """,
+                  (ACCOUNT_ID, str(person_id), classification),
+              )
+              sales = cur.fetchone()
+              if sales is None:
+                  raise SystemExit("Durable Sales task not found")
+
+          print("Durable Conversation persistence: VERIFIED")
+          print(f"Persisted classification: {persisted['classification']}")
+          print(f"Conversation thread state: {persisted['state']}")
+          print(f"Durable Sales trigger: {sales['trigger_type']}")
+          print(f"Durable Sales status: {sales['status']}")
+
+          # Mark Seen only after the complete runtime path succeeds.
+          client = imaplib.IMAP4_SSL(os.environ["IMAP_HOST"], int(os.environ["IMAP_PORT"]), timeout=15)
+          try:
+              client.login(os.environ["IMAP_USERNAME"], os.environ["IMAP_PASSWORD"])
+              status, _ = client.select(os.environ["IMAP_MAILBOX"], readonly=False)
+              if status != "OK":
+                  raise SystemExit("IMAP mailbox selection for final Seen update failed")
+              status, _ = client.uid("STORE", message.uid, "+FLAGS", "(\\Seen)")
+              if status != "OK":
+                  raise SystemExit("Failed to mark controlled reply Seen")
+          finally:
+              try:
+                  client.logout()
+              except OSError:
+                  pass
+          print("Mailbox acknowledgement: Seen after successful runtime")
+          PY
