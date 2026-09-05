@@ -156,3 +156,39 @@ async def test_engine_keeps_unknown_uncertain() -> None:
     )
     assert status == DeliveryStatus.UNKNOWN
     assert repo.resolved == []
+
+
+class BlockingGate:
+    def __init__(self, *, block: bool) -> None:
+        self.block = block
+        self.calls = 0
+
+    def assert_send_allowed(self, *, environment: str) -> None:
+        self.calls += 1
+        if self.block:
+            from sentinellayer_growth_engine.operations_gate import OutboundBlocked
+            raise OutboundBlocked("blocked")
+
+
+async def test_engine_blocks_before_claim_when_operations_gate_rejects() -> None:
+    repo = FakeRepository()
+    gate = BlockingGate(block=True)
+    engine = SendEngine(repo, MockMailProvider(), control_gate=gate, environment="production")
+    from sentinellayer_growth_engine.operations_gate import OutboundBlocked
+    try:
+        await engine.process_due(worker_id="worker-1", now=datetime.now(UTC))
+    except OutboundBlocked:
+        pass
+    else:
+        raise AssertionError("expected OutboundBlocked")
+    assert gate.calls == 1
+
+
+async def test_engine_allows_claim_when_operations_gate_allows() -> None:
+    repo = FakeRepository()
+    gate = BlockingGate(block=False)
+    engine = SendEngine(repo, MockMailProvider(), control_gate=gate, environment="production")
+    count = await engine.process_due(worker_id="worker-1", now=datetime.now(UTC))
+    assert count == 1
+    assert repo.sent == ["send-1"]
+    assert gate.calls == 1
