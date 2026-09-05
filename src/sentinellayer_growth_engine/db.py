@@ -129,6 +129,47 @@ class Database:
             "status": "stored",
         }
 
+    def resolve_inbound_identity(
+        self,
+        *,
+        sender_email: str,
+        thread_key: str,
+    ) -> tuple[str, str] | None:
+        """Resolve inbound sender/thread to canonical account/person IDs."""
+        email = sender_email.strip().lower()
+        thread = thread_key.strip()
+        if not email or "@" not in email or not thread:
+            return None
+        with self.connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                select account_id, person_id::text
+                from conversation.threads
+                where thread_key = %s
+                limit 1
+                """,
+                (thread,),
+            )
+            row = cur.fetchone()
+            if row is not None:
+                return str(row["account_id"]), str(row["person_id"])
+
+            cur.execute(
+                """
+                select ce.account_id, ce.person_id::text
+                from public.campaign_enrollments ce
+                join public.people p on p.id=ce.person_id
+                where lower(trim(p.email))=%s
+                order by ce.enrolled_at desc
+                limit 1
+                """,
+                (email,),
+            )
+            row = cur.fetchone()
+            if row is None:
+                return None
+            return str(row["account_id"]), str(row["person_id"])
+
     def add_suppression(self, *, email: str, reason: str) -> None:
         """Permanently suppress an email address after a deterministic stop signal."""
         normalized = email.strip().lower()
