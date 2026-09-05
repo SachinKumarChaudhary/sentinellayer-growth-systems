@@ -24,6 +24,9 @@ class ConversationStore(Protocol):
     def cancel_future_sends_for_person(self, *, person_id: int, reason: str) -> None:
         ...
 
+    def add_suppression(self, *, email: str, reason: str) -> None:
+        ...
+
 
 class ConversationRuntime:
     """Persist inbound replies, enforce deterministic stop rules, and trigger Sales."""
@@ -84,6 +87,11 @@ class ConversationRuntime:
                 self.store.cancel_future_sends_for_person(
                     person_id=numeric_person_id,
                     reason=handoff["recommended_action"],
+                )
+            if classification == "unsubscribe":
+                self.store.add_suppression(
+                    email=sender_email,
+                    reason="inbound_unsubscribe",
                 )
 
         sales = None
