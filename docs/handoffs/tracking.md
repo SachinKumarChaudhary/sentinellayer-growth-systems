@@ -1,7 +1,7 @@
 # Tracking / Behavioral Intelligence Handoff
 
 ## Status
-ACTIVE — foundation implemented; first-party HTTP link-tracking boundary implemented on this isolated branch. Production hardening and Operations runtime integration remain.
+ACTIVE — Tracking-owned implementation, privacy controls, adversarial coverage, and accepted replay semantics implemented. Remaining production gates are CI, Operations runtime/rate-limit/scheduling validation, real-Supabase retention verification, and cross-system E2E.
 
 ## Branch
 `tracking/behavior-runtime-and-hardening`
@@ -60,9 +60,9 @@ TrackingEvent + durable link event
 ## Open issues
 - #1 Operations CI safety-gate blocker.
 - #3 first-party HTTP tracking boundary.
-- #4 retention/privacy/deletion controls.
-- #5 adversarial/evidence-quality tests.
-- #8 semantic replay/idempotency contract for GET link events — contract proposed; public-header trust issue resolved; Platform compatibility review pending.
+- #4 retention/privacy/deletion controls — Tracking policy and database purge primitive implemented; Operations owns scheduling and production execution.
+- #5 adversarial/evidence-quality tests — expanded scanner, ambiguity, confidence-boundary, token, and malformed-input coverage.
+- #8 semantic replay/idempotency contract for GET link events — accepted public GET semantics; trusted producer idempotency deferred to a future authenticated/internal boundary.
 
 Issue #3 is now implemented at the code boundary but remains open until runtime integration and endpoint tests pass through CI.
 
