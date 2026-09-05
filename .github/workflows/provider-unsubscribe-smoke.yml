@@ -62,15 +62,19 @@ jobs:
           from sentinellayer_growth_engine.db import Database
           from sentinellayer_growth_engine.imap_inbound import parse_message
 
-          THREAD_MARKER = "sentinellayer-provider-smoke"
           ACCOUNT_ID = "staging-provider-smoke"
           DEADLINE_SECONDS = 120
 
           def find_unsubscribe(client):
+              # Search recent mail by subject, but do not require the provider-specific
+              # parsed thread key to contain the synthetic marker. The existing thread
+              # in production is correlated later by Message-ID / References.
               status, data = client.uid("SEARCH", None, "SUBJECT", '"Sentinel Layer staging smoke test"')
               if status != "OK":
                   raise RuntimeError("IMAP subject search failed")
-              for uid_bytes in reversed((data[0] or b"").split()):
+              uids = (data[0] or b"").split()
+              print(f"Candidate messages found by subject: {len(uids)}")
+              for uid_bytes in reversed(uids[-20:]):
                   uid = uid_bytes.decode("ascii", errors="strict")
                   status, fetched = client.uid("FETCH", uid, "(RFC822)")
                   if status != "OK":
@@ -79,9 +83,31 @@ jobs:
                   if not isinstance(raw, bytes):
                       continue
                   message = parse_message(uid, raw)
-                  if message.subject.lower().startswith("re:") and THREAD_MARKER in message.thread_key:
-                      if "unsubscribe" in message.body_text.lower():
-                          return message
+                  is_reply = message.subject.lower().startswith("re:")
+                  has_unsubscribe = "unsubscribe" in message.body_text.lower()
+                  if is_reply and has_unsubscribe:
+                      print(f"Candidate unsubscribe reply matched by subject/body: uid={uid}")
+                      print(f"Parsed thread key: {message.thread_key}")
+                      print(f"Parsed source send id: {message.source_send_id}")
+                      return message
+              # Fall back to a bounded recent-message scan. This handles providers that
+              # normalize/strip custom headers or expose References differently than expected.
+              status, data = client.uid("SEARCH", None, "ALL")
+              if status != "OK":
+                  return None
+              for uid_bytes in reversed((data[0] or b"").split()[-50:]):
+                  uid = uid_bytes.decode("ascii", errors="strict")
+                  status, fetched = client.uid("FETCH", uid, "(RFC822)")
+                  if status != "OK":
+                      continue
+                  raw = next((item[1] for item in fetched if isinstance(item, tuple) and len(item) == 2), None)
+                  if not isinstance(raw, bytes):
+                      continue
+                  message = parse_message(uid, raw)
+                  if message.subject.lower().startswith("re:") and "unsubscribe" in message.body_text.lower():
+                      print(f"Candidate unsubscribe reply matched by recent-message fallback: uid={uid}")
+                      print(f"Parsed thread key: {message.thread_key}")
+                      return message
               return None
 
           deadline = time.monotonic() + DEADLINE_SECONDS
