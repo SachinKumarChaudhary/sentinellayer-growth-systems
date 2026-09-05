@@ -7,7 +7,7 @@ import pytest
 
 from sentinellayer_growth_engine.conversation_runtime import ConversationRuntime
 from sentinellayer_growth_engine.conversation_sales import ConversationSalesBridge
-from sentinellayer_growth_engine.engine import SendEngine
+from sentinellayer_growth_engine.engine import DueSend, SendEngine
 from sentinellayer_growth_engine.mail_handoff import CampaignMailHandoff
 from sentinellayer_growth_engine.providers import MockMailProvider
 from sentinellayer_growth_engine.tracking import build_tracking_event
@@ -46,7 +46,18 @@ class SendRepo:
         self.marked_sent = []
 
     def claim_due(self, **_kwargs):
-        return list(self.sends)
+        return [
+            DueSend(
+                send_id=row["send_id"],
+                sender=row["sender"],
+                recipient=row["recipient"],
+                subject=row["subject"],
+                body_text=row["body_text"],
+                message_id=row["message_id"],
+                attempt_count=row["attempt_count"],
+            )
+            for row in self.sends
+        ]
 
     def mark_sent(self, **kwargs):
         self.marked_sent.append(kwargs)
