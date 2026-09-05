@@ -165,3 +165,7 @@ from tracking.link_events le;
 alter table tracking.trackable_links enable row level security;
 alter table tracking.asset_tokens enable row level security;
 alter table tracking.sessions enable row level security;
+
+-- Tracking data is only reachable through the server-side service role boundary.
+-- RLS is enabled on durable tracking tables; no anonymous/authenticated policies
+-- are added by Tracking, preventing direct browser reads/writes by default.
