@@ -60,6 +60,51 @@ class CampaignDatabase:
             row = cur.fetchone()
             return bool(row[0]) if row else False
 
+    def enqueue_send_request(self, request: dict[str, Any]) -> dict[str, Any]:
+        """Persist a validated Campaign SendRequest exactly once by idempotency key."""
+        required = (
+            "send_id", "idempotency_key", "campaign_id", "person_id",
+            "sequence_step_id", "mailbox_id", "scheduled_at", "treatment",
+        )
+        missing = [key for key in required if key not in request]
+        if missing:
+            raise ValueError("send request missing: " + ", ".join(missing))
+
+        treatment = request["treatment"]
+        if not isinstance(treatment, dict):
+            raise ValueError("send request treatment must be an object")
+        for key in ("recipient_email", "subject", "body_text", "headers"):
+            if key not in treatment:
+                raise ValueError(f"rendered treatment missing: {key}")
+
+        with self._connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                "select * from mail.enqueue_campaign_send(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                (
+                    request["send_id"],
+                    request["idempotency_key"],
+                    request["campaign_id"],
+                    int(request["treatment"]["person_id"]),
+                    request["sequence_step_id"],
+                    request["mailbox_id"],
+                    request["scheduled_at"],
+                    request["treatment"].get("sender_email", request["treatment"]["recipient_email"]),
+                    request["treatment"]["recipient_email"],
+                    request["treatment"]["subject"],
+                    request["treatment"]["body_text"],
+                    request["treatment"].get("headers") or {},
+                    request["treatment"].get("reply_to"),
+                    {
+                        "campaign_request": request,
+                        "rendered_treatment": request["treatment"],
+                    },
+                ),
+            )
+            row = cur.fetchone()
+            if row is None:
+                raise RuntimeError("Campaign SendRequest enqueue returned no row")
+            return dict(row)
+
     def complete_step(
         self,
         enrollment_id: str,
