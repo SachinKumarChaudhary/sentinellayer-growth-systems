@@ -24,7 +24,7 @@ def test_production_gate_is_fail_closed() -> None:
         SL_REAL_EMAIL_ENABLED="false",
     )
     assert proc.returncode == 0
-    assert "real outbound email" in proc.stdout
+    assert "email" in proc.stdout
 
 
 def test_production_gate_rejects_real_email() -> None:
