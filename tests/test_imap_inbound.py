@@ -21,6 +21,18 @@ def test_parse_message_extracts_thread_and_source_send_id():
     assert parsed.body_text == "Interested, let's talk."
 
 
+def test_parse_message_preserves_root_thread_for_multiturn_replies():
+    msg = EmailMessage()
+    msg["Message-ID"] = "<unsubscribe@example.com>"
+    msg["From"] = "Buyer <buyer@example.com>"
+    msg["Subject"] = "Re: Sentinel"
+    msg["In-Reply-To"] = "<intermediate@gmail.com>"
+    msg["References"] = "<send@example.com> <intermediate@gmail.com>"
+    msg.set_content("Unsubscribe")
+    parsed = parse_message("43", msg.as_bytes())
+    assert parsed.thread_key == "<send@example.com>"
+
+
 def test_imap_requires_tls_port():
     with pytest.raises(ValueError):
         ImapInboundProvider(host="imap.example.com", username="u", password="p", port=143)
