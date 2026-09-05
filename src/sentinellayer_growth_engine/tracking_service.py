@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Any, Mapping
+from datetime import UTC, datetime
+from collections.abc import Mapping
+from typing import Any
 from uuid import UUID
 
 from .tracking import build_tracking_event, classify_traffic, default_confidence
@@ -52,7 +53,7 @@ class TrackingService:
             sec_ch_ua=sec_ch_ua,
             sec_fetch_mode=sec_fetch_mode,
         )
-        event_time = (occurred_at or datetime.now(timezone.utc)).astimezone(timezone.utc)
+        event_time = (occurred_at or datetime.now(UTC)).astimezone(timezone.utc)
         confidence = default_confidence(traffic.classification)
 
         event = build_tracking_event(
