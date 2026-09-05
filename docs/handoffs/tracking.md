@@ -1,151 +1,93 @@
 # Tracking / Behavioral Intelligence Handoff
 
 ## Status
-ACTIVE — foundation implemented; runtime exposure and production hardening remain.
+ACTIVE — Tracking-owned implementation, privacy controls, adversarial coverage, and accepted replay semantics implemented. Remaining production gates are CI, Operations runtime/rate-limit/scheduling validation, real-Supabase retention verification, and cross-system E2E.
 
-## Current branch
+## Branch
 `tracking/behavior-runtime-and-hardening`
 
-No pull request has been opened yet. This branch is the isolated workspace for the next Tracking changes under the Multi-Agent Operating Protocol.
+## Completed
+- Tracking event construction and schema validation.
+- Conservative traffic classification and evidence confidence.
+- Opaque tracking-token generation.
+- HTTPS-only destination validation.
+- Keyed IP hashing.
+- Durable PostgreSQL tracking repository.
+- Idempotent behavioral/link event persistence.
+- Trackable-link and asset-token persistence/resolution.
+- Session persistence.
+- Supabase tracking foundation and RLS.
+- Unit tests for tracking behavior.
+- First-party HTTP link boundary in `src/sentinellayer_growth_engine/tracking_http.py`.
+- Endpoint liveness/readiness responses.
+- Fail-closed token validation.
+- Server-side identity resolution; client cannot supply account/person/campaign/send identity for link redirects.
+- Security response headers and bounded request metadata.
+- No database/runtime error details returned to clients.
 
-## Completed work
+## Current HTTP boundary
+```
+GET /t/<opaque-token>
+        ↓
+server-side token resolution
+        ↓
+TrackingService.ingest_link_request()
+        ↓
+TrackingEvent + durable link event
+        ↓
+302 validated HTTPS destination
+```
 
-### Code
+`/a/<token>` is intentionally not exposed yet because asset view/click/byte-serving semantics must be fixed by the shared contract before implementation.
+
+## Exact files on this branch
 - `src/sentinellayer_growth_engine/tracking.py`
-  - canonical tracking event construction
-  - opaque token generation
-  - HTTPS destination validation
-  - keyed IP hashing
-  - conservative traffic classification
-  - evidence confidence
 - `src/sentinellayer_growth_engine/tracking_repository.py`
-  - durable tracking persistence
-  - trackable-link resolution
-  - asset-token resolution
-  - session persistence
 - `src/sentinellayer_growth_engine/tracking_service.py`
-  - link-request ingestion
-  - behavioral-event ingestion
-  - identity/correlation propagation
+- `src/sentinellayer_growth_engine/tracking_http.py`
+- `tests/test_tracking.py`
+- `tests/test_tracking_http.py`
+- `supabase/migrations/20260901144317_tracking_behavior_foundation.sql`
+- `schemas/tracking-event.schema.json`
 
-### Database
-Migration:
-`supabase/migrations/20260901144317_tracking_behavior_foundation.sql`
+## Dependencies / ownership
+- Operations owns deployment/runtime integration, CI/CD, production networking, rate limiting infrastructure, and operational controls.
+- Platform owns shared contract compatibility and cross-system integration tests.
+- Mail provides send/provider identity; Tracking does not send mail.
+- Campaign provides campaign/treatment context; Tracking does not implement campaign strategy.
+- Intent/Conversation consume behavioral evidence; Tracking does not assign commercial intent.
 
-Tracking structures include:
-- `tracking.behavioral_events`
-- `tracking.link_events`
-- `tracking.trackable_links`
-- `tracking.asset_tokens`
-- `tracking.sessions`
+## Open issues
+- #1 Operations CI safety-gate blocker.
+- #3 first-party HTTP tracking boundary.
+- #4 retention/privacy/deletion controls — Tracking policy and database purge primitive implemented; Operations owns scheduling and production execution.
+- #5 adversarial/evidence-quality tests — expanded scanner, ambiguity, confidence-boundary, token, and malformed-input coverage.
+- #8 semantic replay/idempotency contract for GET link events — accepted public GET semantics; trusted producer idempotency deferred to a future authenticated/internal boundary.
 
-The migration adds confidence/automation classification, correlation/idempotency fields, indexes, behavioral views, and RLS enablement for new tracking tables.
-
-### Contract
-Machine contract:
-`schemas/tracking-event.schema.json`
-
-Python validation is performed through the repository contract validator.
-
-### Tests
-`tests/test_tracking.py` covers:
-- opaque token uniqueness
-- HTTPS-only destinations
-- keyed IP hashing
-- scanner classification
-- browser-signal classification
-- conservative unknown classification
-- confidence behavior
-- TrackingEvent identity preservation
-- closed event taxonomy at the Python boundary
-- fail-closed invalid event/confidence handling
-
-## Open coordination issues
-
-- #1 — Operations: CI safety gate incorrectly rejects example environment files.
-- #2 — Deliverability → Platform boundary readiness/dependencies.
-- #3 — Tracking: implement first-party HTTP ingestion boundary.
-- #4 — Tracking: define retention, privacy and deletion controls.
-- #5 — Tracking: expand adversarial and evidence-quality tests.
-
-Tracking must not bypass Issue #1 or weaken Operations-owned security gates.
-
-## Dependencies
-
-### Operations
-Required for the approved runtime/deployment boundary for the first-party tracking endpoint. Tracking must integrate into the existing runtime rather than creating a competing deployment model.
-
-### Platform
-Required for:
-- shared contract compatibility
-- cross-system integration fixtures
-- Campaign → Mail → Tracking lifecycle tests
-- canonical event/correlation conventions where they are not already frozen
-
-### Mail / Deliverability
-Provides send/provider identity and canonical delivery outcomes. Tracking consumes those outcomes/events; it does not own delivery.
-
-### Campaign
-Produces the version-pinned treatment and eventually the tracked links/assets associated with a send.
-
-### Conversation / Intent
-Consume tracking evidence. Tracking does not assign commercial intent or sales outcomes.
-
-## Contract boundary
-
-```
-Mail / Campaign
-      ↓
-send identity + tracking token
-      ↓
-First-party tracking endpoint
-      ↓
-TrackingService
-      ↓
-TrackingEvent
-      ↓
-Supabase
-      ↓
-Intent / Conversation / Analytics
-```
-
-Tracking provides evidence, not business conclusions.
+Issue #3 is now implemented at the code boundary but remains open until runtime integration and endpoint tests pass through CI.
 
 ## Known risks
-
-1. TrackingService is not yet exposed through a production-approved HTTP runtime.
-2. Scanner/bot classification is heuristic and must never be treated as proof of human identity.
-3. Open/link events are noisy evidence and must not independently trigger strong intent.
-4. Retention/deletion policy is not yet finalized.
-5. Runtime abuse controls/rate limiting remain to be implemented.
-6. Final Campaign → Mail → Tracking/Conversation E2E is pending.
-7. CI currently has an Operations-owned safety-gate blocker.
+1. The standard-library HTTP server is an application boundary, not a deployment decision. Operations must integrate it into the approved production runtime.
+2. Rate limiting/abuse controls are not yet implemented.
+3. Scanner/bot classification is heuristic and never proves human identity.
+4. Open/link behavior remains weak evidence.
+5. Retention/deletion policy is not finalized.
+6. Asset-token semantics are intentionally gated.
+7. Full Campaign → Mail → Tracking → Conversation E2E is pending.
+8. CI has an Operations-owned safety-gate blocker.
 
 ## Next actions
-
-1. Implement the first-party HTTP ingestion boundary on this branch after confirming the existing runtime contract.
-2. Add endpoint-level tests for invalid, expired, revoked, duplicated and malformed requests.
-3. Add retention/privacy/deletion policy and corresponding Supabase tests.
-4. Expand adversarial traffic tests.
-5. Run the complete Tracking unit + contract + integration suite.
-6. Coordinate with Platform for the final cross-system event test.
-7. Open a PR when the branch is reviewable.
-
-## Handoff rule
-
-The receiving agent must fetch the current branch/repository state before modifying files. Shared contracts or Operations-owned runtime files must not be silently changed. Use an Issue/PR for boundary changes.
+1. Run CI against this branch and fix only Tracking-owned failures.
+2. Add endpoint tests using an isolated fake repository/service boundary; do not require a production database for unit tests.
+3. Add retention/privacy/deletion controls and real-Supabase tests.
+4. Add adversarial request/replay/scanner tests.
+5. Coordinate with Operations for deployment/runtime integration.
+6. Coordinate with Platform for the final TrackingEvent and cross-system integration fixtures.
+7. Close #3 only after runtime integration and CI are green.
+8. Open a review PR when the branch is ready.
 
 ## Definition of Done
+Tracking is production-ready only when endpoint/runtime integration, security/RLS, retention/deletion, token expiry/revocation, idempotency, conservative evidence classification, unit/contract/integration/adversarial tests, cross-system tests, CI, and documentation all pass without violating subsystem ownership.
 
-Tracking is production-ready only when:
-- endpoint is deployed through the approved runtime;
-- events are validated and durably persisted;
-- token expiry/revocation works;
-- duplicate ingestion is controlled;
-- scanner/automation evidence is conservative;
-- privacy/retention controls are implemented;
-- RLS/security requirements pass;
-- unit, contract, integration and adversarial tests pass;
-- Campaign/Mail/Tracking boundary tests pass;
-- CI passes;
-- documentation is updated.
+## Multi-agent rule
+Receiving agents must fetch current repository state before editing. Shared contracts and Operations-owned runtime files must not be changed silently. Cross-system changes use Issues/PRs and Platform compatibility review.
