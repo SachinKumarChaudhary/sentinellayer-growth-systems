@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, Protocol
 
 from .conversation import ConversationProcessor
@@ -71,7 +71,7 @@ class ConversationRuntime:
             body_text=body_text,
             provider_message_id=provider_message_id,
             thread_key=thread_key,
-            received_at=received_at or datetime.now(handoff_received_tz(handoff)),
+            received_at=received_at or datetime.now(UTC),
         )
 
         classification = handoff["classification"]
@@ -97,10 +97,3 @@ class ConversationRuntime:
             "stop_sequence": classification in {"unsubscribe", "negative"},
         }
 
-
-def handoff_received_tz(handoff: dict[str, Any]):
-    from datetime import timezone
-    value = handoff.get("created_at")
-    if value:
-        return timezone.utc
-    return timezone.utc
