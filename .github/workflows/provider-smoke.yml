@@ -123,6 +123,7 @@ jobs:
                       subject="Sentinel Layer staging smoke test",
                       body_text="Controlled provider smoke test. No campaign enrollment is involved.",
                       message_id="<sentinellayer-provider-smoke@example.invalid>",
+                      headers={"X-SL-Smoke-Test": "true"},
                   )
               )
               if not result.accepted:
