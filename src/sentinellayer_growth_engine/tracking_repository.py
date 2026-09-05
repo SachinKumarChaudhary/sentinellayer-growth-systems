@@ -4,7 +4,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Protocol
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import psycopg
 from psycopg.rows import dict_row
@@ -169,8 +169,8 @@ class TrackingRepository:
         session_id: str,
         person_id: int | None,
         account_id: str | None,
-        campaign_id: str | UUID | None,
-        send_id: str | UUID | None,
+        campaign_id: str | None,
+        send_id: str | None,
         occurred_at: datetime | None = None,
         metadata: Mapping[str, Any] | None = None,
     ) -> None:
