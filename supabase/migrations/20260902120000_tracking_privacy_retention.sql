@@ -88,3 +88,6 @@ end;
 $$;
 
 revoke all on function tracking.purge_expired_behavioral_data(integer) from public;
+
+-- Deterministic retention test hook: callers can execute the function inside a
+-- transaction and roll back after verifying row counts in integration tests.
