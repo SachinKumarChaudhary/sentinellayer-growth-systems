@@ -134,7 +134,7 @@ def test_persist_handoff_dedupes_provider_message_id(monkeypatch: pytest.MonkeyP
             if "insert into conversation.replies" in query:
                 return None
             if "select reply_id" in query:
-                return ("22222222-2222-4222-8222-222222222222",)
+                return {"reply_id": "22222222-2222-4222-8222-222222222222"}
             return super().fetchone()
 
     class ConversationConnection(FakeConnection):
