@@ -15,7 +15,13 @@ class ConversationSalesBridge:
     def __init__(self, store: SalesTaskStore) -> None:
         self.store = store
 
-    def handle(self, conversation_handoff: dict[str, Any], *, priority: str, trigger_type: str | None = None) -> dict[str, Any]:
+    def handle(
+        self,
+        conversation_handoff: dict[str, Any],
+        *,
+        priority: str,
+        trigger_type: str | None = None,
+    ) -> dict[str, Any]:
         classification = conversation_handoff.get("classification", "unclassified")
         action = conversation_handoff.get("recommended_action", "human_review")
         if classification not in {"interested", "question"}:
@@ -28,7 +34,10 @@ class ConversationSalesBridge:
             priority=priority,
             recommended_action=action,
             why_now=conversation_handoff.get("evidence", []),
-            latest_reply={"classification": classification, "conversation_id": conversation_handoff["conversation_id"]},
+            latest_reply={
+                "classification": classification,
+                "conversation_id": conversation_handoff["conversation_id"],
+            },
             conversation_summary={
                 "conversation_id": conversation_handoff["conversation_id"],
                 "state": conversation_handoff.get("conversation_state"),
