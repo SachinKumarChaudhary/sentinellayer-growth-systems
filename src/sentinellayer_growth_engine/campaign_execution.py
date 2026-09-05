@@ -14,7 +14,7 @@ class CampaignExecutionError(ValueError):
 
 
 class CampaignExecutionOrchestrator:
-    """Claim -> render -> hand off a campaign step without delivery side effects."""
+    """Claim -> render -> persist a campaign step without delivery side effects."""
 
     def __init__(
         self,
@@ -26,7 +26,7 @@ class CampaignExecutionOrchestrator:
         self.renderer = renderer or TreatmentRenderer()
         self.mail_handoff = mail_handoff or CampaignMailHandoff()
 
-    def build_send_request(
+    def _claim_and_build(
         self,
         *,
         enrollment_id: str,
@@ -37,16 +37,17 @@ class CampaignExecutionOrchestrator:
         cta_version: Mapping[str, Any],
         personalization: Mapping[str, Any],
         evidence: Mapping[str, Any],
-        asset: Mapping[str, Any] | None = None,
-        experiment_id: str | None = None,
-        experiment_variant_id: str | None = None,
-        reply_to: str | None = None,
-    ) -> dict[str, Any]:
+        asset: Mapping[str, Any] | None,
+        experiment_id: str | None,
+        experiment_variant_id: str | None,
+        reply_to: str | None,
+    ) -> tuple[dict[str, Any], str, int, datetime]:
         claim = self.campaign_db.claim_step(enrollment_id, worker_id)
         if claim is None:
             raise CampaignExecutionError("campaign step is not currently claimable")
 
         token = str(claim["step_claim_token"])
+        step_no = int(claim["step_no"])
         try:
             context = RenderContext(
                 enrollment_id=str(claim["enrollment_id"]),
@@ -72,11 +73,97 @@ class CampaignExecutionOrchestrator:
                 message_version=message_version,
                 cta_version=cta_version,
             )
-            return self.mail_handoff.build_send_request(
+            request = self.mail_handoff.build_send_request(
                 treatment=treatment,
                 mailbox_id=mailbox_id,
                 scheduled_at=scheduled_at,
             )
+            return request, token, step_no, scheduled_at
         except Exception:
+            self.campaign_db.release_step(enrollment_id, token)
+            raise
+
+    def build_send_request(
+        self,
+        *,
+        enrollment_id: str,
+        worker_id: str,
+        mailbox_id: str,
+        scheduled_at: datetime,
+        message_version: Mapping[str, Any],
+        cta_version: Mapping[str, Any],
+        personalization: Mapping[str, Any],
+        evidence: Mapping[str, Any],
+        asset: Mapping[str, Any] | None = None,
+        experiment_id: str | None = None,
+        experiment_variant_id: str | None = None,
+        reply_to: str | None = None,
+    ) -> dict[str, Any]:
+        request, _token, _step_no, _scheduled_at = self._claim_and_build(
+            enrollment_id=enrollment_id,
+            worker_id=worker_id,
+            mailbox_id=mailbox_id,
+            scheduled_at=scheduled_at,
+            message_version=message_version,
+            cta_version=cta_version,
+            personalization=personalization,
+            evidence=evidence,
+            asset=asset,
+            experiment_id=experiment_id,
+            experiment_variant_id=experiment_variant_id,
+            reply_to=reply_to,
+        )
+        return request
+
+    def execute(
+        self,
+        *,
+        enrollment_id: str,
+        worker_id: str,
+        mailbox_id: str,
+        scheduled_at: datetime,
+        message_version: Mapping[str, Any],
+        cta_version: Mapping[str, Any],
+        personalization: Mapping[str, Any],
+        evidence: Mapping[str, Any],
+        asset: Mapping[str, Any] | None = None,
+        experiment_id: str | None = None,
+        experiment_variant_id: str | None = None,
+        reply_to: str | None = None,
+    ) -> dict[str, Any]:
+        """Claim, render, persist exactly once, then advance the Campaign step.
+
+        Persistence is idempotent. If step completion fails after the send was
+        persisted, lease expiry allows a retry to recover the same send by key
+        and then advance the enrollment without creating a second send.
+        """
+        request, token, step_no, scheduled = self._claim_and_build(
+            enrollment_id=enrollment_id,
+            worker_id=worker_id,
+            mailbox_id=mailbox_id,
+            scheduled_at=scheduled_at,
+            message_version=message_version,
+            cta_version=cta_version,
+            personalization=personalization,
+            evidence=evidence,
+            asset=asset,
+            experiment_id=experiment_id,
+            experiment_variant_id=experiment_variant_id,
+            reply_to=reply_to,
+        )
+        try:
+            send = self.campaign_db.enqueue_send_request(request)
+            completed = self.campaign_db.complete_step(
+                enrollment_id=enrollment_id,
+                claim_token=token,
+                step_no=step_no,
+                next_action_at=scheduled,
+            )
+            if not completed:
+                raise CampaignExecutionError("campaign step completion failed after send persistence")
+            return {"send_request": request, "send": send, "status": "queued"}
+        except Exception:
+            # Once the SendRequest has been persisted, release is harmless if the
+            # lease is still owned; a retry is idempotent by send idempotency key.
             self.campaign_db.release_step(enrollment_id, token)
             raise
