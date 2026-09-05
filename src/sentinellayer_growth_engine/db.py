@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from typing import Any
 
@@ -34,6 +35,55 @@ class Database:
             row = cur.fetchone()
         if row is None:
             raise RuntimeError("operations control state is missing")
+        return dict(row)
+
+    def upsert_open_sales_task(self, handoff: dict[str, object]) -> dict[str, object]:
+        required = ("sales_task_id", "account_id", "person_id", "trigger_type", "priority", "recommended_action")
+        missing = [key for key in required if not handoff.get(key)]
+        if missing:
+            raise ValueError("sales handoff missing: " + ", ".join(missing))
+        with self.connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                insert into sales.tasks (
+                    sales_task_id, account_id, person_id, trigger_type, priority,
+                    recommended_action, why_now, latest_reply, behavior_summary,
+                    campaign_context, conversation_summary, status, updated_at
+                ) values (
+                    %s,%s,%s,%s,%s,%s,%s::jsonb,%s::jsonb,%s::jsonb,%s::jsonb,%s,%s,now()
+                )
+                on conflict (account_id, person_id, trigger_type)
+                where sales.tasks.status in ('open','claimed')
+                do update set
+                    priority = excluded.priority,
+                    recommended_action = excluded.recommended_action,
+                    why_now = excluded.why_now,
+                    latest_reply = excluded.latest_reply,
+                    behavior_summary = excluded.behavior_summary,
+                    campaign_context = excluded.campaign_context,
+                    conversation_summary = excluded.conversation_summary,
+                    updated_at = now()
+                returning sales_task_id, account_id, person_id, trigger_type,
+                          priority, recommended_action, status, created_at, updated_at
+                """,
+                (
+                    handoff["sales_task_id"],
+                    handoff["account_id"],
+                    handoff["person_id"],
+                    handoff["trigger_type"],
+                    handoff["priority"],
+                    handoff["recommended_action"],
+                    json.dumps(handoff.get("why_now") or []),
+                    json.dumps(handoff.get("latest_reply")),
+                    json.dumps(handoff.get("behavior_summary")),
+                    json.dumps(handoff.get("campaign_context")),
+                    json.dumps(handoff.get("conversation_summary")),
+                    "open",
+                ),
+            )
+            row = cur.fetchone()
+            if row is None:
+                raise RuntimeError("SalesTaskStore upsert returned no row")
         return dict(row)
 
     def claim_due(self, *, batch_size: int = 20, worker_id: str | None = None) -> list[DueSend]:
