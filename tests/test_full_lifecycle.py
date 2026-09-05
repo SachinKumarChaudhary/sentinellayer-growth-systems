@@ -178,3 +178,121 @@ def test_unsubscribe_path_is_terminal_for_future_outbound() -> None:
     assert store.cancelled == [
         {"person_id": 1, "reason": "suppress_contact"}
     ]
+
+
+class IdempotentSendRepo:
+    def __init__(self) -> None:
+        self.rows = {}
+        self.claim_count = 0
+        self.marked_sent = []
+
+    def enqueue(self, request):
+        key = request["idempotency_key"]
+        if key in self.rows:
+            return self.rows[key]
+        row = {"id": request["send_id"], "status": "queued"}
+        self.rows[key] = row
+        return row
+
+    def claim_due(self, **_kwargs):
+        return []
+
+    def mark_sent(self, **kwargs):
+        self.marked_sent.append(kwargs)
+
+    def mark_ambiguous(self, **_kwargs):
+        pass
+
+    def resolve_uncertain(self, **_kwargs):
+        pass
+
+    def mark_failed(self, **_kwargs):
+        pass
+
+
+@pytest.mark.asyncio
+async def test_mock_provider_boundary_preserves_headers_and_idempotent_enqueue():
+    from sentinellayer_growth_engine.engine import DueSend
+    from sentinellayer_growth_engine.providers import MockMailProvider
+
+    request = CampaignMailHandoff().build_send_request(
+        treatment={**T, "headers": {"X-Campaign-Test": "true"}, "reply_to": "replies@example.com"},
+        mailbox_id="33333333-3333-4333-8333-333333333333",
+        scheduled_at=datetime(2026, 9, 5, 12, tzinfo=UTC),
+        send_id="44444444-4444-4444-8444-444444444444",
+    )
+
+    repo = IdempotentSendRepo()
+    first = repo.enqueue(request)
+    second = repo.enqueue({**request, "send_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"})
+    assert first == second
+    assert len(repo.rows) == 1
+
+    due_repo = SendRepo()
+    due_repo.sends[0]["headers"] = {"X-Campaign-Test": "true"}
+    due_repo.sends[0]["reply_to"] = "replies@example.com"
+    provider = MockMailProvider()
+    processed = await SendEngine(due_repo, provider).process_due(
+        batch_size=1,
+        worker_id="synthetic-e2e",
+        now=datetime(2026, 9, 5, 12, tzinfo=UTC),
+    )
+    assert processed == 1
+    assert provider.sent[0].headers["X-Campaign-Test"] == "true"
+    assert provider.sent[0].headers["Reply-To"] == "replies@example.com"
+
+
+@pytest.mark.asyncio
+async def test_transient_provider_failure_uses_retry_policy_without_delivery():
+    class FailureRepo(SendRepo):
+        def __init__(self):
+            super().__init__()
+            self.failure = None
+
+        def mark_failed(self, **kwargs):
+            self.failure = kwargs
+
+    repo = FailureRepo()
+    provider = MockMailProvider(accept=False, transient=True, provider_code="TRY_AGAIN")
+    processed = await SendEngine(repo, provider).process_due(
+        batch_size=1,
+        worker_id="synthetic-retry",
+        now=datetime(2026, 9, 5, 12, tzinfo=UTC),
+    )
+    assert processed == 1
+    assert repo.failure is not None
+    assert repo.failure["transient"] is True
+    assert repo.failure["retry_at"] == datetime(2026, 9, 5, 12, 1, tzinfo=UTC)
+    assert repo.failure["provider_code"] == "TRY_AGAIN"
+
+
+@pytest.mark.asyncio
+async def test_ambiguous_provider_failure_never_auto_retries():
+    from sentinellayer_growth_engine.providers import (
+        MailProviderAmbiguousError,
+    )
+
+    class AmbiguousProvider:
+        async def send(self, _message):
+            raise MailProviderAmbiguousError("connection dropped after submission")
+
+        async def health_check(self):
+            return False
+
+    class AmbiguousRepo(SendRepo):
+        def __init__(self):
+            super().__init__()
+            self.ambiguous = None
+
+        def mark_ambiguous(self, **kwargs):
+            self.ambiguous = kwargs
+
+    repo = AmbiguousRepo()
+    processed = await SendEngine(repo, AmbiguousProvider()).process_due(
+        batch_size=1,
+        worker_id="synthetic-ambiguous",
+        now=datetime(2026, 9, 5, 12, tzinfo=UTC),
+    )
+    assert processed == 1
+    assert repo.ambiguous["send_id"] == "44444444-4444-4444-8444-444444444444"
+    assert "ambiguous provider outcome" in repo.ambiguous["error"]
