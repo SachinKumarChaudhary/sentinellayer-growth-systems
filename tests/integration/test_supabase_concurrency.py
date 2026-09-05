@@ -309,9 +309,7 @@ def test_tracking_retention_purge_removes_only_expired_records() -> None:
     if not dsn:
         pytest.skip("SUPABASE_DATABASE_URL is required for integration tests")
 
-    suffix = uuid4().hex
     event_id = uuid4()
-    link_id = uuid4()
     old_time = "2000-01-01T00:00:00+00:00"
     try:
         with psycopg.connect(dsn) as conn, conn.cursor() as cur:
