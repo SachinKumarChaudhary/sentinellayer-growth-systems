@@ -11,6 +11,9 @@
 - self-hosted edge/rate-limit policy
 - static Nginx and Compose validation
 - fail-closed production gate harness and automated tests
+- unified safe operator CLI (`slctl health`, `slctl status`)
+- dependency-free runtime metrics/event instrumentation boundary
+- controlled provider smoke-test procedure documented
 
 ## Remaining production-only gates
 
@@ -18,10 +21,10 @@ These cannot be honestly marked complete by GitHub CI alone because they require
 
 1. Authenticated Operations control-state mutation/audit exercise.
 2. Mail pre-send enforcement of the Operations control state.
-3. Local structured metrics/alerts connected to runtime signals.
+3. Connect runtime metrics to deployed alerting/export and record evidence.
 4. Behavioral self-hosted Tracking edge/load test.
 5. Deployment/readiness/rollback/reboot/network/restore drills.
-6. Campaign → Mail → Tracking → Conversation synthetic E2E.
+6. Campaign → Mail → Tracking → Conversation synthetic E2E. **Repository fixture gate complete; preserve evidence in CI.**
 7. Controlled real-provider SMTP smoke test, DNS and mailbox readiness.
 8. Final production activation review.
 
