@@ -7,7 +7,7 @@ from uuid import UUID
 
 from .campaign_db import CampaignDatabase
 from .campaign import RenderContext, TreatmentRenderer
-from .mail_handoff import CampaignMailHandoff, CampaignMailHandoffError
+from .mail_handoff import CampaignMailHandoff
 
 
 class CampaignExecutionError(ValueError):
