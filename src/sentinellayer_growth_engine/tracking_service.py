@@ -53,7 +53,7 @@ class TrackingService:
             sec_ch_ua=sec_ch_ua,
             sec_fetch_mode=sec_fetch_mode,
         )
-        event_time = (occurred_at or datetime.now(UTC)).astimezone(timezone.utc)
+        event_time = (occurred_at or datetime.now(UTC)).astimezone(UTC)
         confidence = default_confidence(traffic.classification)
 
         event = build_tracking_event(
