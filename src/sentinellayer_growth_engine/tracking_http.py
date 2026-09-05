@@ -4,8 +4,8 @@ import json
 import logging
 import os
 import re
+from collections.abc import Callable
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Callable
 from urllib.parse import unquote, urlparse
 
 import psycopg
@@ -140,8 +140,7 @@ def make_handler(
                 return
             if parsed.path == "/readyz":
                 try:
-                    with psycopg.connect(database_url) as conn:
-                        with conn.cursor() as cur:
+                    with psycopg.connect(database_url) as conn, conn.cursor() as cur:
                             cur.execute("select 1")
                             cur.fetchone()
                     self._json(200, {"status": "ready"})
