@@ -141,8 +141,8 @@ def make_handler(
             if parsed.path == "/readyz":
                 try:
                     with psycopg.connect(database_url) as conn, conn.cursor() as cur:
-                            cur.execute("select 1")
-                            cur.fetchone()
+                        cur.execute("select 1")
+                        cur.fetchone()
                     self._json(200, {"status": "ready"})
                 except psycopg.Error:
                     self._json(503, {"status": "not_ready"})
@@ -156,10 +156,9 @@ def make_handler(
                 return
             if parsed.path == "/readyz":
                 try:
-                    with psycopg.connect(database_url) as conn:
-                        with conn.cursor() as cur:
-                            cur.execute("select 1")
-                            cur.fetchone()
+                    with psycopg.connect(database_url) as conn, conn.cursor() as cur:
+                        cur.execute("select 1")
+                        cur.fetchone()
                     self._json(200, {"status": "ready"})
                 except psycopg.Error:
                     self._json(503, {"status": "not_ready"})
