@@ -5,6 +5,8 @@ import json
 import os
 import sys
 
+import psycopg
+
 from .config import Settings
 from .db import Database
 from .health import check as health_check
@@ -26,7 +28,7 @@ def cmd_status(_: argparse.Namespace) -> int:
     db = Database(settings.database_url)
     try:
         state = db.get_control_state()
-    except Exception as exc:
+    except (psycopg.Error, RuntimeError) as exc:
         print(f"ERROR: cannot read Operations control state: {exc}", file=sys.stderr)
         return 1
     output = {
