@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from .campaign import RenderContext, TreatmentRenderer
@@ -41,7 +41,7 @@ class CampaignExecutionOrchestrator:
         experiment_id: str | None,
         experiment_variant_id: str | None,
         reply_to: str | None,
-    ) -> tuple[dict[str, Any], str, int, datetime]:
+    ) -> tuple[dict[str, Any], str, int, int, datetime]:
         claim = self.campaign_db.claim_step(enrollment_id, worker_id)
         if claim is None:
             raise CampaignExecutionError("campaign step is not currently claimable")
@@ -78,7 +78,7 @@ class CampaignExecutionOrchestrator:
                 mailbox_id=mailbox_id,
                 scheduled_at=scheduled_at,
             )
-            return request, token, step_no, scheduled_at
+            return request, token, step_no, int(claim.get("delay_days", 0)), scheduled_at
         except Exception:
             self.campaign_db.release_step(enrollment_id, token)
             raise
@@ -99,7 +99,7 @@ class CampaignExecutionOrchestrator:
         experiment_variant_id: str | None = None,
         reply_to: str | None = None,
     ) -> dict[str, Any]:
-        request, _token, _step_no, _scheduled_at = self._claim_and_build(
+        request, _token, _step_no, _delay_days, _scheduled_at = self._claim_and_build(
             enrollment_id=enrollment_id,
             worker_id=worker_id,
             mailbox_id=mailbox_id,
@@ -137,7 +137,7 @@ class CampaignExecutionOrchestrator:
         persisted, lease expiry allows a retry to recover the same send by key
         and then advance the enrollment without creating a second send.
         """
-        request, token, step_no, scheduled = self._claim_and_build(
+        request, token, step_no, delay_days, scheduled = self._claim_and_build(
             enrollment_id=enrollment_id,
             worker_id=worker_id,
             mailbox_id=mailbox_id,
@@ -157,7 +157,7 @@ class CampaignExecutionOrchestrator:
                 enrollment_id=enrollment_id,
                 claim_token=token,
                 step_no=step_no,
-                next_action_at=scheduled,
+                next_action_at=scheduled + timedelta(days=delay_days),
             )
             if not completed:
                 raise CampaignExecutionError("campaign step completion failed after send persistence")
