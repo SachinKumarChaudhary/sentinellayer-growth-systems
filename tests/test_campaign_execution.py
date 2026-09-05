@@ -116,3 +116,57 @@ def test_unclaimable_step_fails():
             personalization={"first_name": "Jane"},
             evidence={"signal": "security hiring"},
         )
+
+
+class ExecutableCampaignDB(FakeCampaignDB):
+    def __init__(self, claim=None):
+        super().__init__(claim)
+        self.enqueued = []
+        self.completed = []
+
+    def enqueue_send_request(self, request):
+        self.enqueued.append(request)
+        return {"id": request["send_id"], "status": "queued"}
+
+    def complete_step(self, enrollment_id, claim_token, step_no, next_action_at):
+        self.completed.append((enrollment_id, claim_token, step_no, next_action_at))
+        return True
+
+
+def test_execute_persists_send_and_advances_after_sequence_delay():
+    db = ExecutableCampaignDB(claim())
+    out = CampaignExecutionOrchestrator(db).execute(
+        enrollment_id=U["enrollment_id"],
+        worker_id="worker-1",
+        mailbox_id=U["mailbox"],
+        scheduled_at=datetime(2026, 9, 5, 12, tzinfo=UTC),
+        message_version=MESSAGE,
+        cta_version=CTA,
+        personalization={"first_name": "Jane"},
+        evidence={"signal": "security hiring"},
+    )
+    assert out["status"] == "queued"
+    assert len(db.enqueued) == 1
+    assert len(db.completed) == 1
+    assert db.completed[0][2] == 1
+    assert db.completed[0][3] == datetime(2026, 9, 7, 12, tzinfo=UTC)
+
+
+def test_execute_releases_claim_when_enqueue_fails():
+    class FailingDB(ExecutableCampaignDB):
+        def enqueue_send_request(self, request):
+            raise RuntimeError("queue unavailable")
+
+    db = FailingDB(claim())
+    with pytest.raises(RuntimeError, match="queue unavailable"):
+        CampaignExecutionOrchestrator(db).execute(
+            enrollment_id=U["enrollment_id"],
+            worker_id="worker-1",
+            mailbox_id=U["mailbox"],
+            scheduled_at=datetime(2026, 9, 5, 12, tzinfo=UTC),
+            message_version=MESSAGE,
+            cta_version=CTA,
+            personalization={"first_name": "Jane"},
+            evidence={"signal": "security hiring"},
+        )
+    assert db.released == [(U["enrollment_id"], "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")]
