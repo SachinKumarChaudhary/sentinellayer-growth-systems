@@ -1,5 +1,3 @@
--- Compatibility migration intentionally contains no replacement.
--- The canonical retention function is defined by
--- 20260902120000_tracking_privacy_retention.sql. A later repair migration
--- ensures the function exists on legacy integration databases whose migration
--- history predates the function.
+-- Legacy compatibility marker.
+-- Canonical retention purge is defined in 20260902120000_tracking_privacy_retention.sql.
+-- A later repair migration ensures legacy databases contain the canonical function.
