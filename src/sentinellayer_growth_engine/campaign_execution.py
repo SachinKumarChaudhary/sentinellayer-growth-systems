@@ -60,7 +60,7 @@ class CampaignExecutionOrchestrator:
                 cta_version_id=str(claim["cta_version_id"]),
                 sequence_version_id=str(claim["sequence_version_id"]),
                 recipient_email=str(claim["recipient_email"]),
-                personalization=personalization,
+                personalization={**personalization, **evidence},
                 evidence=evidence,
                 asset=asset,
                 experiment_id=experiment_id,
