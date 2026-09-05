@@ -13,6 +13,7 @@ from sentinellayer_growth_engine.providers import MockMailProvider
 from sentinellayer_growth_engine.tracking import build_tracking_event
 
 
+
 T = {
     "schema_version": "1.0",
     "enrollment_id": "55555555-5555-4555-8555-555555555555",
