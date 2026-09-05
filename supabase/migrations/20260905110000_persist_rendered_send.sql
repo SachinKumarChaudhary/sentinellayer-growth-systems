@@ -82,7 +82,8 @@ create or replace function public.claim_due_sends(
 returns table(
   send_id uuid, person_id bigint, campaign_id uuid, sequence_step_id uuid,
   mailbox_id uuid, scheduled_at timestamptz, attempt_count integer,
-  sender text, recipient text, subject text, body_text text, message_id text
+  sender text, recipient text, subject text, body_text text, message_id text,
+  rendered_headers jsonb, reply_to text
 )
 language plpgsql security definer set search_path to 'public','mail'
 as $function$
@@ -125,11 +126,12 @@ begin
     from candidates c where s.id=c.id
     returning s.id,s.person_id,s.campaign_id,s.sequence_step_id,s.mailbox_id,s.scheduled_at,
               s.attempt_count,s.message_id,s.rendered_sender,s.rendered_recipient,
-              s.rendered_subject,s.rendered_body_text
+              s.rendered_subject,s.rendered_body_text,s.rendered_headers,s.reply_to
   )
   select cl.id,cl.person_id,cl.campaign_id,cl.sequence_step_id,cl.mailbox_id,cl.scheduled_at,
          cl.attempt_count,coalesce(cl.rendered_sender,m.email),coalesce(cl.rendered_recipient,p.email),
-         coalesce(cl.rendered_subject,ss.subject_template),coalesce(cl.rendered_body_text,ss.body_template),cl.message_id
+         coalesce(cl.rendered_subject,ss.subject_template),coalesce(cl.rendered_body_text,ss.body_template),
+         cl.message_id,coalesce(cl.rendered_headers,'{}'::jsonb),cl.reply_to
   from claimed cl join public.people p on p.id=cl.person_id
   join public.sequence_steps ss on ss.id=cl.sequence_step_id
   join mail.mailboxes m on m.id=cl.mailbox_id;
