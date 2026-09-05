@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from datetime import datetime
 from typing import Any
+
 from .campaign import RenderContext, TreatmentRenderer
 from .campaign_db import CampaignDatabase
 from .mail_handoff import CampaignMailHandoff
