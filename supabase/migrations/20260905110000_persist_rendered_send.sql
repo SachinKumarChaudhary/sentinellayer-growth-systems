@@ -38,7 +38,8 @@ begin
   if nullif(trim(p_body_text), '') is null then raise exception 'body_text is required'; end if;
   if p_scheduled_at is null then raise exception 'scheduled_at is required'; end if;
   if public.is_suppressed(p_recipient) then raise exception 'recipient is suppressed'; end if;
-  if exists (select 1 from public.replies r where r.person_id = p_person_id) then
+  if exists (select 1 from public.replies r where r.person_id = p_person_id)
+     or exists (select 1 from conversation.replies r where r.person_id = p_person_id) then
     raise exception 'person has an inbound reply; future cold sends are blocked';
   end if;
 
@@ -105,6 +106,7 @@ begin
       and nullif(trim(coalesce(s.rendered_recipient,p.email)),'') is not null
       and not public.is_suppressed(coalesce(s.rendered_recipient,p.email))
       and not exists (select 1 from public.replies r where r.person_id=s.person_id)
+      and not exists (select 1 from conversation.replies r where r.person_id=s.person_id)
       and (c.sending_window_start is null or c.sending_window_end is null
            or ((now() at time zone coalesce(nullif(m.timezone,''),c.timezone))::time)
               between c.sending_window_start and c.sending_window_end)
