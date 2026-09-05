@@ -93,8 +93,8 @@ class TrackingService:
                 session_id=session_id,
                 person_id=target.person_id,
                 account_id=target.account_id,
-                campaign_id=UUID(target.campaign_id) if target.campaign_id else None,
-                send_id=UUID(target.send_id) if target.send_id else None,
+                campaign_id=target.campaign_id,
+                send_id=target.send_id,
                 occurred_at=event_time,
                 metadata={"last_link_type": target.link_type},
             )
@@ -143,8 +143,8 @@ class TrackingService:
                 session_id=session_id,
                 person_id=int(person_id) if person_id and person_id.isdigit() else None,
                 account_id=account_id,
-                campaign_id=UUID(campaign_id) if campaign_id else None,
-                send_id=UUID(send_id) if send_id else None,
+                campaign_id=campaign_id,
+                send_id=send_id,
                 occurred_at=occurred_at,
             )
         return IngestionResult(inserted, event.event_id, traffic.classification)
