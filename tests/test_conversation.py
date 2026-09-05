@@ -3,8 +3,8 @@ from uuid import UUID
 
 import pytest
 
-from sentinellayer_growth_engine.conversation import ConversationProcessor, classify_reply
 from sentinellayer_growth_engine.contracts import ContractValidationError
+from sentinellayer_growth_engine.conversation import ConversationProcessor, classify_reply
 
 
 def test_unsubscribe_is_deterministic():
