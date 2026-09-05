@@ -4,8 +4,6 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
-from uuid import UUID
-
 from .tracking import build_tracking_event, classify_traffic, default_confidence
 from .tracking_repository import TrackingRepository
 
