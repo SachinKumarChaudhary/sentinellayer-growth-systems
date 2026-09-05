@@ -1,8 +1,8 @@
 """Apply repository Supabase migrations to the isolated integration database.
 
-The integration workflow must validate the schema and functions that the tests
-exercise. This script is intentionally deterministic and fail-closed: any
-migration error aborts the job. Production databases are never targeted by CI.
+CI runs against a persistent Supabase integration database. Migrations are
+tracked by a repository-local table so already-applied migrations are skipped
+without swallowing genuine SQL errors.
 """
 
 from __future__ import annotations
@@ -26,13 +26,34 @@ def main() -> None:
         raise SystemExit("no Supabase migrations found")
 
     with psycopg.connect(dsn, autocommit=True) as conn:
-        for path in files:
-            print(f"Applying migration: {path.name}")
-            sql = path.read_text(encoding="utf-8")
-            with conn.cursor() as cur:
-                cur.execute(sql)
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                create table if not exists public._ci_migration_history (
+                    filename text primary key,
+                    applied_at timestamptz not null default now()
+                )
+                """
+            )
 
-    print(f"Applied {len(files)} migration files.")
+        for path in files:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "select 1 from public._ci_migration_history where filename = %s",
+                    (path.name,),
+                )
+                if cur.fetchone():
+                    print(f"Skipping applied migration: {path.name}")
+                    continue
+
+                print(f"Applying migration: {path.name}")
+                cur.execute(path.read_text(encoding="utf-8"))
+                cur.execute(
+                    "insert into public._ci_migration_history(filename) values (%s)",
+                    (path.name,),
+                )
+
+    print(f"Processed {len(files)} migration files.")
 
 
 if __name__ == "__main__":
