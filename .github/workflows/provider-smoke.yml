@@ -125,9 +125,9 @@ jobs:
                   OutboundMessage(
                       sender=os.environ["SMTP_USERNAME"],
                       recipient=os.environ["TEST_RECIPIENT"],
-                      subject="Sentinel Layer staging smoke test",
+                      subject=f"Sentinel Layer staging smoke test [{run_id}]",
                       body_text="Controlled provider smoke test. No campaign enrollment is involved.",
-                      message_id="<sentinellayer-provider-smoke@example.invalid>",
+                      message_id=f"<{run_id}@sentinellayer.in>",
                       headers={"X-SL-Smoke-Test": "true"},
                   )
               )
@@ -144,9 +144,11 @@ jobs:
           import imaplib
           import os
           import time
+          import uuid
           from sentinellayer_growth_engine.imap_inbound import parse_message
 
-          expected_reference = "sentinellayer-provider-smoke"
+          run_id = f"{time.time_ns()}-{uuid.uuid4().hex[:10]}"
+          expected_reference = f"sentinellayer-provider-smoke-{run_id}"
           deadline = time.monotonic() + 120
 
           def fetch_reply(client: imaplib.IMAP4_SSL):
