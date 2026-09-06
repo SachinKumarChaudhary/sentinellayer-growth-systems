@@ -53,3 +53,12 @@ def test_invalid_source_send_id_rejected():
             thread_key="t",
             source_send_id="not-a-uuid",
         )
+
+
+def test_unsubscribe_overrides_positive_interest_signal():
+    classification, reason = classify_reply(
+        "Re: Sentinel Layer",
+        "Great, this is interesting. I am interested, but please unsubscribe me from future emails.",
+    )
+    assert classification == "unsubscribe"
+    assert reason == "explicit_unsubscribe"
