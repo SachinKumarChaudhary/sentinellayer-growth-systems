@@ -76,3 +76,32 @@ def test_non_numeric_person_id_fails_closed_without_cancel():
     )
     assert out["stop_sequence"] is True
     assert store.cancelled == []
+
+
+def test_mixed_interest_and_unsubscribe_stops_and_does_not_create_sales_task():
+    class Bridge:
+        def __init__(self):
+            self.calls = []
+
+        def bridge(self, conversation, *, priority):
+            self.calls.append((conversation, priority))
+            return {"status": "task_created"}
+
+    store = Store()
+    bridge = Bridge()
+    out = ConversationRuntime(store, sales_bridge=bridge).handle_inbound(
+        account_id="account-1",
+        person_id="42",
+        sender_email="buyer@example.com",
+        subject="Re: Sentinel Layer",
+        body_text="Great, interested. Please unsubscribe me from future emails.",
+        provider_message_id="<reply-mixed@example.com>",
+        thread_key="<send-mixed@example.com>",
+        received_at=datetime(2026, 9, 6, 10, 0, tzinfo=UTC),
+    )
+    assert out["handoff"]["classification"] == "unsubscribe"
+    assert out["stop_sequence"] is True
+    assert out["sales"] is None
+    assert store.cancelled == [(42, "suppress_contact")]
+    assert store.suppressed == [("buyer@example.com", "inbound_unsubscribe")]
+    assert bridge.calls == []
