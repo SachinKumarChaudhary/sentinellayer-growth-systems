@@ -43,6 +43,7 @@ jobs:
       IMAP_MAILBOX: ${{ secrets.SL_IMAP_MAILBOX }}
       ALLOWED_RECIPIENT: ${{ secrets.SL_STAGING_RECIPIENT }}
       TEST_RECIPIENT: ${{ github.event.inputs.recipient }}
+      SMOKE_RUN_ID: ${{ github.run_id }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -68,6 +69,7 @@ jobs:
               raise SystemExit("SMTP port must be 465 or 587")
           if os.environ["IMAP_PORT"] != "993":
               raise SystemExit("IMAP must use TLS port 993")
+          print(f"Smoke run id: {os.environ['SMOKE_RUN_ID']}")
           PY
       - name: Install
         run: python -m pip install -e .
@@ -121,19 +123,22 @@ jobs:
                   username=os.environ["SMTP_USERNAME"],
                   password=os.environ["SMTP_PASSWORD"],
               )
+              run_id = os.environ["SMOKE_RUN_ID"]
+              expected_reference = f"sentinellayer-provider-smoke-{run_id}"
               result = await provider.send(
                   OutboundMessage(
                       sender=os.environ["SMTP_USERNAME"],
                       recipient=os.environ["TEST_RECIPIENT"],
                       subject=f"Sentinel Layer staging smoke test [{run_id}]",
                       body_text="Controlled provider smoke test. No campaign enrollment is involved.",
-                      message_id=f"<{run_id}@sentinellayer.in>",
-                      headers={"X-SL-Smoke-Test": "true"},
+                      message_id=f"<{expected_reference}@sentinellayer.in>",
+                      headers={"X-SL-Smoke-Test": "true", "X-SL-Smoke-Run": run_id},
                   )
               )
               if not result.accepted:
                   raise SystemExit(f"Controlled send failed: {result.error}")
               print("Controlled SMTP send: ACCEPTED")
+              print(f"Smoke reference: {expected_reference}")
 
           asyncio.run(main())
           PY
@@ -144,15 +149,15 @@ jobs:
           import imaplib
           import os
           import time
-          import uuid
           from sentinellayer_growth_engine.imap_inbound import parse_message
 
-          run_id = f"{time.time_ns()}-{uuid.uuid4().hex[:10]}"
+          run_id = os.environ["SMOKE_RUN_ID"]
           expected_reference = f"sentinellayer-provider-smoke-{run_id}"
+          expected_subject = f"Sentinel Layer staging smoke test [{run_id}]"
           deadline = time.monotonic() + 120
 
           def fetch_reply(client: imaplib.IMAP4_SSL):
-              status, data = client.uid("SEARCH", None, 'SUBJECT', '"Sentinel Layer staging smoke test"')
+              status, data = client.uid("SEARCH", None, "SUBJECT", f'"{expected_subject}"')
               if status != "OK":
                   raise RuntimeError("IMAP subject search failed")
               for uid_bytes in reversed((data[0] or b"").split()):
