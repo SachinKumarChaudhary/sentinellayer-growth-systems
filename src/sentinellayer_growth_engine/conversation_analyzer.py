@@ -135,7 +135,7 @@ class GroqAnalyzer:
                         parts.append(f"{key}={str(value)[:300]}")
                 return "; ".join(parts) or "provider returned a structured error"
             return raw[:500] or "provider returned an empty error body"
-        except Exception:
+        except (OSError, UnicodeError, ValueError, TypeError):
             return "provider returned an unreadable error body"
 
     @staticmethod
