@@ -1,3 +1,4 @@
+from io import BytesIO
 from unittest.mock import patch
 
 import pytest
@@ -114,3 +115,31 @@ def test_groq_analyzer_does_not_retry_non_retryable_http_error():
             body_text="Hello",
         )
     sleeper.assert_not_called()
+
+
+def test_groq_analyzer_surfaces_sanitized_provider_error_detail():
+    from urllib.error import HTTPError
+
+    error = HTTPError(
+        url="https://api.groq.com/openai/v1/chat/completions",
+        code=403,
+        msg="forbidden",
+        hdrs=None,
+        fp=BytesIO(
+            b'{"error":{"message":"The model is blocked at the project level.",'
+            b'"type":"permissions_error","code":"model_permission_blocked_project"}}'
+        ),
+    )
+
+    with (
+        patch(
+            "sentinellayer_growth_engine.conversation_analyzer.urlopen",
+            side_effect=error,
+        ),
+        pytest.raises(
+            ConversationAnalysisError,
+            match="HTTP 403: type=permissions_error; code=model_permission_blocked_project; "
+            "message=The model is blocked at the project level.",
+        ),
+    ):
+        GroqAnalyzer(api_key="test").analyze(subject="Hi", body_text="Hello")
