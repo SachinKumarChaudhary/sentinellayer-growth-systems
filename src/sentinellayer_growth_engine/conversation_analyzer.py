@@ -104,8 +104,9 @@ class GroqAnalyzer:
             except HTTPError as exc:
                 last_error = exc
                 if not self._retryable_status(exc.code):
+                    detail = self._http_error_detail(exc)
                     raise ConversationAnalysisError(
-                        f"Groq analysis rejected with HTTP {exc.code}"
+                        f"Groq analysis rejected with HTTP {exc.code}: {detail}"
                     ) from exc
             except (URLError, TimeoutError, OSError, KeyError, IndexError, TypeError, ValueError) as exc:
                 last_error = exc
@@ -119,6 +120,23 @@ class GroqAnalyzer:
     @staticmethod
     def _retryable_status(status: int) -> bool:
         return status == 408 or status == 409 or status == 429 or status >= 500
+
+    @staticmethod
+    def _http_error_detail(exc: HTTPError) -> str:
+        try:
+            raw = exc.read().decode("utf-8", errors="replace")
+            data = json.loads(raw)
+            if isinstance(data, dict) and isinstance(data.get("error"), dict):
+                error = data["error"]
+                parts = []
+                for key in ("type", "code", "message"):
+                    value = error.get(key)
+                    if value:
+                        parts.append(f"{key}={str(value)[:300]}")
+                return "; ".join(parts) or "provider returned a structured error"
+            return raw[:500] or "provider returned an empty error body"
+        except Exception:
+            return "provider returned an unreadable error body"
 
     @staticmethod
     def _schema() -> dict[str, Any]:
