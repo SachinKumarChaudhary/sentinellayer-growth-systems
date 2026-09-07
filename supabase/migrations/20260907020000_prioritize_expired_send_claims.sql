@@ -1,6 +1,8 @@
 -- Prefer abandoned claims over fresh queued work during lease recovery.
 -- This makes worker recovery deterministic when a shared queue contains other due sends.
-create or replace function public.claim_due_sends(
+drop function if exists public.claim_due_sends(integer, text);
+
+create function public.claim_due_sends(
   p_batch_size integer default 20,
   p_worker_id text default 'worker'
 )
