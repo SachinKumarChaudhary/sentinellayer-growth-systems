@@ -68,13 +68,15 @@ def test_groq_analyzer_parses_and_validates_structured_output():
         def __exit__(self, *_args):
             return None
 
-    with patch(
-        "sentinellayer_growth_engine.conversation_analyzer.urllib.request.urlopen",
-        return_value=Response(),
-    ):
-        with patch(
+    with (
+        patch(
+            "sentinellayer_growth_engine.conversation_analyzer.urllib.request.urlopen",
+            return_value=Response(),
+        ),
+        patch(
             "sentinellayer_growth_engine.conversation_analyzer.time.sleep"
-        ) as sleeper:
+        ) as sleeper,
+    ):
             result = GroqAnalyzer(api_key="test").analyze(
                 subject="Re: pricing",
                 body_text="We already use another platform.",
@@ -97,13 +99,15 @@ def test_groq_analyzer_does_not_retry_non_retryable_http_error():
         fp=None,
     )
 
-    with patch(
-        "sentinellayer_growth_engine.conversation_analyzer.urllib.request.urlopen",
-        side_effect=error,
-    ):
-        with patch(
+    with (
+        patch(
+            "sentinellayer_growth_engine.conversation_analyzer.urllib.request.urlopen",
+            side_effect=error,
+        ),
+        patch(
             "sentinellayer_growth_engine.conversation_analyzer.time.sleep"
-        ) as sleeper:
+        ) as sleeper,
+    ):
             with pytest.raises(ConversationAnalysisError, match="bounded retries"):
                 GroqAnalyzer(api_key="bad", max_attempts=4).analyze(
                     subject="Hi",
