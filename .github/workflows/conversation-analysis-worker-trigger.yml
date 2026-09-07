@@ -19,6 +19,34 @@ jobs:
       GROQ_MODEL: openai/gpt-oss-20b
       BATCH_SIZE: "10"
     steps:
+      - name: Validate Groq authorization
+        run: |
+          set -euo pipefail
+          response_file="$(mktemp)"
+          status="$(curl -sS -o "$response_file" -w "%{http_code}" \
+            -H "Authorization: Bearer $GROQ_API_KEY" \
+            -H "Content-Type: application/json" \
+            https://api.groq.com/openai/v1/models)"
+          echo "Groq models endpoint HTTP status: $status"
+          if [ "$status" -ge 400 ]; then
+            echo "Groq authorization response:"
+            python - "$response_file" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+          p=Path(sys.argv[1])
+          try:
+              data=json.loads(p.read_text())
+              if isinstance(data, dict) and isinstance(data.get("error"), dict):
+                  print(json.dumps({"error": data["error"]}, sort_keys=True))
+              else:
+                  print("Groq returned an error without a standard error object")
+          except Exception:
+              print("Groq returned a non-JSON error response")
+          PY
+            exit 1
+          fi
+          echo "Groq authorization: OK"
       - name: Validate required secrets
         run: |
           set -euo pipefail
