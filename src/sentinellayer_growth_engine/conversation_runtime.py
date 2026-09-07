@@ -86,7 +86,7 @@ class ConversationRuntime:
             try:
                 self.analysis_queue.enqueue(str(persisted["reply_id"]))
                 analysis_enqueued = True
-            except Exception as exc:
+            except (RuntimeError, ValueError) as exc:
                 # The raw inbound reply is already durable. Never turn a semantic
                 # provider/queue outage into dropped inbound mail or unsafe sends.
                 analysis_enqueue_error = str(exc)
