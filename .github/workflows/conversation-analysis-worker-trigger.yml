@@ -64,6 +64,40 @@ jobs:
         run: python -m pip install --upgrade pip && pip install -e '.[dev]'
       - name: Apply Supabase migrations
         run: python scripts/apply_supabase_migrations.py
+      - name: Diagnose Groq chat completion
+        run: |
+          set -euo pipefail
+          response_file="$(mktemp)"
+          status="$(curl -sS -o "$response_file" -w "%{http_code}" \
+            -H "Authorization: Bearer $GROQ_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{"model":"openai/gpt-oss-20b","messages":[{"role":"user","content":"Reply with the word OK."}],"temperature":0,"max_tokens":8}' \
+            https://api.groq.com/openai/v1/chat/completions)"
+          echo "Groq minimal chat completion HTTP status: $status"
+          python - "$response_file" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+          p = Path(sys.argv[1])
+          try:
+              data = json.loads(p.read_text())
+              if isinstance(data, dict) and isinstance(data.get("error"), dict):
+                  error = data["error"]
+                  print(json.dumps({"error": {
+                      "type": error.get("type"),
+                      "code": error.get("code"),
+                      "message": str(error.get("message", ""))[:500],
+                  }}, sort_keys=True))
+              elif isinstance(data, dict):
+                  print(json.dumps({"choices_present": bool(data.get("choices"))}, sort_keys=True))
+              else:
+                  print("Groq returned a non-object response")
+          except Exception:
+              print("Groq returned a non-JSON response")
+          PY
+          if [ "$status" -ge 400 ]; then
+            exit 1
+          fi
       - name: Process analysis queue
         run: |
           python - <<'PY'
