@@ -3,10 +3,10 @@ from __future__ import annotations
 import json
 import random
 import time
-import urllib.error
-import urllib.request
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 from .contracts import validate_contract
 
@@ -26,14 +26,8 @@ class ConversationAnalyzer(Protocol):
         ...
 
 
-@dataclass
+@dataclass(frozen=True)
 class GroqAnalyzer:
-    """Groq-backed semantic analyzer with bounded retries and fail-closed output.
-
-    The API key is supplied at call time so secrets remain outside application
-    objects and can come from the runtime environment/secret manager.
-    """
-
     api_key: str
     model: str = "openai/gpt-oss-20b"
     endpoint: str = "https://api.groq.com/openai/v1/chat/completions"
@@ -49,11 +43,11 @@ class GroqAnalyzer:
         conversation_context: str = "",
     ) -> dict[str, Any]:
         if not self.api_key.strip():
-            raise ConversationAnalysisError("Groq API key is required")
-        if not body_text.strip() and not subject.strip():
-            raise ConversationAnalysisError("message content is required")
+            raise ValueError("api_key must not be empty")
+        if not (subject.strip() or body_text.strip()):
+            raise ValueError("subject or body_text must not be empty")
         if self.max_attempts < 1:
-            raise ValueError("max_attempts must be >= 1")
+            raise ValueError("max_attempts must be positive")
 
         payload = {
             "model": self.model,
@@ -62,18 +56,18 @@ class GroqAnalyzer:
                 {
                     "role": "system",
                     "content": (
-                        "Analyze the full inbound sales conversation. Return only JSON matching "
-                        "the supplied JSON schema. Extract semantic intent, objections, timing, "
-                        "questions, and evidence from the original message. Never invent evidence. "
-                        "Explicit opt-out language must set explicit_opt_out=true."
+                        "Analyze the inbound conversation semantically. Determine the primary intent, "
+                        "secondary intents, objections, timing, questions, and evidence. Use the full "
+                        "message and supplied context. Never invent evidence. Set explicit_opt_out true "
+                        "only when the message explicitly asks to stop or unsubscribe. Return only the "
+                        "requested structured object."
                     ),
                 },
                 {
                     "role": "user",
                     "content": (
-                        f"Subject:\n{subject}\n\n"
-                        f"Full inbound message:\n{body_text}\n\n"
-                        f"Relevant conversation context:\n{conversation_context}"
+                        f"Subject:\n{subject}\n\nBody:\n{body_text}\n\n"
+                        f"Conversation context:\n{conversation_context}"
                     ),
                 },
             ],
@@ -86,33 +80,35 @@ class GroqAnalyzer:
                 },
             },
         }
-
-        request = urllib.request.Request(
-            self.endpoint,
-            data=json.dumps(payload).encode("utf-8"),
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json",
-            },
-            method="POST",
-        )
-
+        data = json.dumps(payload).encode("utf-8")
         last_error: Exception | None = None
+
         for attempt in range(self.max_attempts):
+            request = Request(
+                self.endpoint,
+                data=data,
+                method="POST",
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json",
+                },
+            )
             try:
-                with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
-                    raw = response.read()
-                decoded = json.loads(raw.decode("utf-8"))
-                content = decoded["choices"][0]["message"]["content"]
+                with urlopen(request, timeout=self.timeout_seconds) as response:
+                    raw = response.read().decode("utf-8")
+                envelope = json.loads(raw)
+                content = envelope["choices"][0]["message"]["content"]
                 analysis = json.loads(content)
-                return validate_contract("conversation_analysis", analysis)
-            except urllib.error.HTTPError as exc:
+                validate_contract("conversation_analysis", analysis)
+                return cast(dict[str, Any], analysis)
+            except HTTPError as exc:
                 last_error = exc
                 if not self._retryable_status(exc.code):
-                    break
-            except (urllib.error.URLError, TimeoutError, OSError, KeyError, IndexError, TypeError, ValueError) as exc:
+                    raise ConversationAnalysisError(
+                        f"Groq analysis rejected with HTTP {exc.code}"
+                    ) from exc
+            except (URLError, TimeoutError, OSError, KeyError, IndexError, TypeError, ValueError) as exc:
                 last_error = exc
-
             if attempt + 1 < self.max_attempts:
                 delay = self.base_backoff_seconds * (2**attempt)
                 delay *= 0.8 + random.random() * 0.4
@@ -129,4 +125,4 @@ class GroqAnalyzer:
         from pathlib import Path
 
         path = Path(__file__).resolve().parents[2] / "schemas" / "conversation-analysis.schema.json"
-        return json.loads(path.read_text(encoding="utf-8"))
+        return cast(dict[str, Any], json.loads(path.read_text(encoding="utf-8")))
