@@ -7,7 +7,7 @@ from typing import Any
 import psycopg
 from psycopg.rows import dict_row
 
-from .conversation_analyzer import ConversationAnalyzer
+from .conversation_analyzer import ConversationAnalysisError, ConversationAnalyzer
 
 
 @dataclass(frozen=True)
@@ -183,7 +183,7 @@ class ConversationAnalysisWorker:
                     provider="groq",
                     model=getattr(self._analyzer, "model", "unknown"),
                 )
-            except Exception as exc:
+            except (ConversationAnalysisError, OSError, TimeoutError, ValueError, RuntimeError) as exc:
                 self._queue.fail(analysis_id=job.analysis_id, error=str(exc))
             processed += 1
         return processed
