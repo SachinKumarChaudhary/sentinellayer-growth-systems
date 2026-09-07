@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinellayer.in/schemas/conversation-analysis.schema.json",
+  "title": "ConversationAnalysis",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "primary_intent",
+    "secondary_intents",
+    "objections",
+    "explicit_opt_out",
+    "timing_signal",
+    "questions",
+    "evidence",
+    "confidence"
+  ],
+  "properties": {
+    "schema_version": {"type": "string", "const": "1.0"},
+    "primary_intent": {
+      "type": "string",
+      "enum": ["interested", "question", "objection", "negative", "not_now", "ooo", "unsubscribe", "other"]
+    },
+    "secondary_intents": {
+      "type": "array", "items": {"type": "string"},
+      "maxItems": 5, "uniqueItems": true
+    },
+    "objections": {
+      "type": "array",
+      "maxItems": 5,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["type", "evidence", "confidence"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "price_budget", "timing", "already_have_solution", "no_need",
+              "not_priority", "competitor", "security_compliance",
+              "integration", "trust_credibility", "authority",
+              "complexity", "internal_approval", "information_request",
+              "communication_frequency", "other"
+            ]
+          },
+          "evidence": {"type": "string", "minLength": 1},
+          "confidence": {"type": "number", "minimum": 0, "maximum": 1}
+        }
+      }
+    },
+    "explicit_opt_out": {"type": "boolean"},
+    "timing_signal": {
+      "type": "string",
+      "enum": ["now", "later", "none", "unknown"]
+    },
+    "questions": {
+      "type": "array", "items": {"type": "string"},
+      "maxItems": 10
+    },
+    "evidence": {
+      "type": "array",
+      "maxItems": 10,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["text", "reason"],
+        "properties": {
+          "text": {"type": "string", "minLength": 1},
+          "reason": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "confidence": {"type": "number", "minimum": 0, "maximum": 1}
+  }
+}
