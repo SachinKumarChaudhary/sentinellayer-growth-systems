@@ -125,7 +125,7 @@ class ConversationAnalysisQueue:
                         select coalesce(
                             string_agg(
                                 format(
-                                    '[%s] %s\\nSubject: %s\\n%s',
+                                    '[%%s] %s\\nSubject: %s\\n%s',
                                     direction,
                                     occurred_at,
                                     subject,
