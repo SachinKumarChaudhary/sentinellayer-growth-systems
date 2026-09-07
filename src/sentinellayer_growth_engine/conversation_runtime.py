@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from typing import Any, Protocol
 
 from .conversation import ConversationProcessor
+from .conversation_analysis_queue import ConversationAnalysisQueue
 from .conversation_sales import ConversationSalesBridge
 
 
@@ -37,10 +38,12 @@ class ConversationRuntime:
         *,
         processor: ConversationProcessor | None = None,
         sales_bridge: ConversationSalesBridge | None = None,
+        analysis_queue: ConversationAnalysisQueue | None = None,
     ) -> None:
         self.store = store
         self.processor = processor or ConversationProcessor()
         self.sales_bridge = sales_bridge
+        self.analysis_queue = analysis_queue
 
     def handle_inbound(
         self,
@@ -77,6 +80,17 @@ class ConversationRuntime:
             received_at=received_at or datetime.now(UTC),
         )
 
+        analysis_enqueued = False
+        analysis_enqueue_error: str | None = None
+        if self.analysis_queue is not None:
+            try:
+                self.analysis_queue.enqueue(str(persisted["reply_id"]))
+                analysis_enqueued = True
+            except Exception as exc:
+                # The raw inbound reply is already durable. Never turn a semantic
+                # provider/queue outage into dropped inbound mail or unsafe sends.
+                analysis_enqueue_error = str(exc)
+
         classification = handoff["classification"]
         if classification in {"unsubscribe", "negative"}:
             try:
@@ -101,7 +115,8 @@ class ConversationRuntime:
         return {
             "handoff": handoff,
             "persisted": persisted,
+            "analysis_enqueued": analysis_enqueued,
+            "analysis_enqueue_error": analysis_enqueue_error,
             "sales": sales,
             "stop_sequence": classification in {"unsubscribe", "negative"},
         }
-
