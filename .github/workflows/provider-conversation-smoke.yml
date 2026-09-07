@@ -60,6 +60,7 @@ jobs:
 
           from sentinellayer_growth_engine.conversation_runtime import ConversationRuntime
           from sentinellayer_growth_engine.conversation_analysis_queue import ConversationAnalysisQueue
+          from sentinellayer_growth_engine.conversation_analysis_queue import ConversationAnalysisQueue
           from sentinellayer_growth_engine.conversation_sales import ConversationSalesBridge
           from sentinellayer_growth_engine.db import Database
           from sentinellayer_growth_engine.imap_inbound import parse_message
@@ -205,6 +206,9 @@ jobs:
           print(f"Conversation classification: {classification}")
           print(f"Conversation persistence: {outcome['persisted']['status']}")
           print(f"Sales task status: {outcome['sales']['status']}")
+          if not outcome["analysis_enqueued"]:
+              raise SystemExit(f"Conversation analysis was not enqueued: {outcome['analysis_enqueue_error']}")
+          print("Conversation analysis queue: ENQUEUED")
           print("Analysis queue: enqueued")
 
           duplicate = runtime.handle_inbound(
@@ -219,6 +223,8 @@ jobs:
           )
           if duplicate["persisted"].get("status") != "duplicate":
               raise SystemExit("Duplicate inbound processing was not idempotent")
+          if not duplicate["analysis_enqueued"]:
+              raise SystemExit("Duplicate inbound analysis queue lookup failed")
           print("Duplicate inbound processing: idempotent")
 
           with psycopg.connect(dsn, sslmode="require", row_factory=dict_row) as conn, conn.cursor() as cur:
