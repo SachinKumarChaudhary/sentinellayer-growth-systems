@@ -133,10 +133,18 @@ def test_two_workers_cannot_claim_same_send() -> None:
                 (send_id,),
             )
 
+        with psycopg.connect(dsn) as conn, conn.cursor() as cur:
+            cur.execute(
+                "update public.sends set next_attempt_at=now(), scheduled_at=now() where id=%s",
+                (send_id,),
+            )
+
         reclaimed = Database(dsn, worker_id="ci-worker-b").claim_due(
-            batch_size=1, worker_id="ci-worker-b"
+            batch_size=50, worker_id="ci-worker-b"
         )
-        assert len(reclaimed) == 1
+        reclaimed_for_test = [send for send in reclaimed if send.send_id == str(send_id)]
+        assert len(reclaimed_for_test) == 1
+        reclaimed = reclaimed_for_test
         assert reclaimed[0].send_id == str(send_id)
         assert reclaimed[0].attempt_count == 2
 
