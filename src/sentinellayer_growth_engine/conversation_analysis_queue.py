@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import psycopg
@@ -150,7 +149,8 @@ class ConversationAnalysisQueue:
             cur.execute(
                 """
                 update conversation.analysis_jobs
-                set status='pending', lease_owner=null, lease_until=null,
+                set status=case when attempt_count >= 5 then 'failed' else 'pending' end,
+                    lease_owner=null, lease_until=null,
                     error=%s, updated_at=now()
                 where analysis_id=%s and status='processing' and lease_owner=%s
                 """,
