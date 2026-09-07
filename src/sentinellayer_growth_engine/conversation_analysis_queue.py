@@ -93,14 +93,60 @@ class ConversationAnalysisQueue:
             for row in claimed:
                 cur.execute(
                     """
+                    with thread_messages as (
+                        select
+                            r.received_at as occurred_at,
+                            'INBOUND'::text as direction,
+                            r.reply_id::text as message_id,
+                            r.subject,
+                            r.body_text
+                        from conversation.replies r
+                        where r.conversation_id = (
+                            select conversation_id
+                            from conversation.replies
+                            where reply_id=%s
+                        )
+                        union all
+                        select
+                            coalesce(s.sent_at, s.attempted_at, s.created_at) as occurred_at,
+                            'OUTBOUND'::text as direction,
+                            s.id::text as message_id,
+                            coalesce(s.rendered_subject, '') as subject,
+                            coalesce(s.rendered_body_text, '') as body_text
+                        from public.sends s
+                        join conversation.replies r on r.source_send_id=s.id
+                        where r.conversation_id = (
+                            select conversation_id
+                            from conversation.replies
+                            where reply_id=%s
+                        )
+                    ),
+                    history as (
+                        select coalesce(
+                            string_agg(
+                                format(
+                                    '[%s] %s\\nSubject: %s\\n%s',
+                                    direction,
+                                    occurred_at,
+                                    subject,
+                                    body_text
+                                ),
+                                E'\\n\\n' order by occurred_at, direction, message_id
+                            ),
+                            ''
+                        ) as conversation_history
+                        from thread_messages
+                    )
                     select j.analysis_id, j.reply_id, r.subject, r.body_text,
-                           t.thread_key, t.state, r.classification
+                           t.thread_key, t.state, r.classification,
+                           h.conversation_history
                     from conversation.analysis_jobs j
                     join conversation.replies r on r.reply_id=j.reply_id
                     join conversation.threads t on t.conversation_id=r.conversation_id
+                    cross join history h
                     where j.analysis_id=%s
                     """,
-                    (row["analysis_id"],),
+                    (row["reply_id"], row["reply_id"], row["analysis_id"]),
                 )
                 detail = cur.fetchone()
                 if detail is None:
@@ -108,7 +154,9 @@ class ConversationAnalysisQueue:
                 context = (
                     f"thread_key={detail['thread_key']}\n"
                     f"conversation_state={detail['state']}\n"
-                    f"deterministic_classification={detail['classification']}"
+                    f"deterministic_classification={detail['classification']}\n\n"
+                    "conversation_history:\n"
+                    f"{detail['conversation_history']}"
                 )
                 jobs.append(
                     AnalysisJob(
