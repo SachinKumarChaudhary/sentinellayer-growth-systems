@@ -79,7 +79,7 @@ def test_two_workers_cannot_claim_same_send() -> None:
                 insert into public.sends
                     (id, person_id, campaign_id, sequence_step_id, mailbox_id,
                      idempotency_key, scheduled_at, status)
-                values (%s, %s, %s, %s, %s, %s, now(), 'queued')
+                values (%s, %s, %s, %s, %s, %s, '1970-01-01T00:00:00Z', 'queued')
                 """,
                 (
                     send_id,
