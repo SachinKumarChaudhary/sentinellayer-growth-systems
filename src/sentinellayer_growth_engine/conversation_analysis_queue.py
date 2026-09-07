@@ -146,7 +146,14 @@ class ConversationAnalysisQueue:
                     cross join history h
                     where j.analysis_id=%s
                     """,
-                    (row["reply_id"], row["reply_id"], row["analysis_id"]),
+                    (
+                        batch_size,
+                        self._worker_id,
+                        lease_seconds,
+                        row["reply_id"],
+                        row["reply_id"],
+                        row["analysis_id"],
+                    ),
                 )
                 detail = cur.fetchone()
                 if detail is None:
