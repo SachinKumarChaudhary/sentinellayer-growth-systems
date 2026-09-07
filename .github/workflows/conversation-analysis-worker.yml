@@ -47,6 +47,10 @@ jobs:
         run: |
           python - <<'PY'
           import os
+
+          import psycopg
+          from psycopg.rows import dict_row
+
           from sentinellayer_growth_engine.conversation_analysis_queue import (
               ConversationAnalysisQueue,
               ConversationAnalysisWorker,
@@ -59,8 +63,73 @@ jobs:
           if batch_size < 1 or batch_size > 100:
               raise SystemExit("BATCH_SIZE must be between 1 and 100")
 
-          queue = ConversationAnalysisQueue(dsn, worker_id=f"github-actions-{os.environ.get('GITHUB_RUN_ID', 'manual')}")
+          worker_id = f"github-actions-{os.environ.get('GITHUB_RUN_ID', 'manual')}"
+          queue = ConversationAnalysisQueue(dsn, worker_id=worker_id)
           analyzer = GroqAnalyzer(api_key=api_key, model=os.environ.get("GROQ_MODEL", "openai/gpt-oss-20b"))
+
+          with psycopg.connect(dsn, sslmode="require", row_factory=dict_row) as conn, conn.cursor() as cur:
+              cur.execute(
+                  """
+                  select analysis_id
+                  from conversation.analysis_jobs
+                  where status='pending'
+                     or (status='processing' and lease_until < now())
+                  order by created_at
+                  limit %s
+                  """,
+                  (batch_size,),
+              )
+              target_ids = [str(row["analysis_id"]) for row in cur.fetchall()]
+
+          print(f"Analysis jobs selected for verification: {len(target_ids)}")
+          for analysis_id in target_ids:
+              print(f"Target analysis id: {analysis_id}")
+
           processed = ConversationAnalysisWorker(queue, analyzer).run_once(batch_size=batch_size)
           print(f"Conversation analysis jobs processed: {processed}")
+
+          if processed != len(target_ids):
+              raise SystemExit(
+                  f"Worker processed {processed} jobs but {len(target_ids)} jobs were selected; "
+                  "queue state changed unexpectedly"
+              )
+
+          if not target_ids:
+              print("Analysis queue empty: nothing to process")
+              raise SystemExit(0)
+
+          with psycopg.connect(dsn, sslmode="require", row_factory=dict_row) as conn, conn.cursor() as cur:
+              cur.execute(
+                  """
+                  select analysis_id, status, provider, model, error
+                  from conversation.analysis_jobs
+                  where analysis_id = any(%s::uuid[])
+                  order by created_at
+                  """,
+                  (target_ids,),
+              )
+              rows = cur.fetchall()
+
+          observed = {str(row["analysis_id"]): row for row in rows}
+          missing = [analysis_id for analysis_id in target_ids if analysis_id not in observed]
+          if missing:
+              raise SystemExit(f"Analysis jobs disappeared after worker run: {missing}")
+
+          failed = [
+              (analysis_id, observed[analysis_id]["status"], observed[analysis_id]["error"])
+              for analysis_id in target_ids
+              if observed[analysis_id]["status"] != "completed"
+          ]
+          if failed:
+              raise SystemExit(f"Analysis worker did not complete all selected jobs: {failed}")
+
+          for analysis_id in target_ids:
+              row = observed[analysis_id]
+              if row["provider"] != "groq":
+                  raise SystemExit(f"Unexpected provider for {analysis_id}: {row['provider']!r}")
+              if row["model"] != os.environ.get("GROQ_MODEL", "openai/gpt-oss-20b"):
+                  raise SystemExit(f"Unexpected model for {analysis_id}: {row['model']!r}")
+
+          print("Durable analysis completion: VERIFIED")
+          print("Provider/model metadata: VERIFIED")
           PY
