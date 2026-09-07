@@ -1,0 +1,66 @@
+name: Conversation Analysis Worker
+
+on:
+  workflow_dispatch:
+    inputs:
+      batch_size:
+        description: "Maximum analysis jobs to process"
+        required: false
+        default: "10"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    environment: staging-mail
+    env:
+      SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      GROQ_MODEL: openai/gpt-oss-20b
+      BATCH_SIZE: ${{ inputs.batch_size }}
+    steps:
+      - name: Validate required secrets
+        run: |
+          test -n "$SUPABASE_DATABASE_URL" || { echo "Missing required GitHub Actions secret: SUPABASE_DATABASE_URL"; exit 1; }
+          test -n "$GROQ_API_KEY" || { echo "Missing required GitHub Actions secret: GROQ_API_KEY"; exit 1; }
+          echo "::add-mask::$SUPABASE_DATABASE_URL"
+          echo "::add-mask::$GROQ_API_KEY"
+
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install package
+        run: python -m pip install --upgrade pip && pip install -e '.[dev]'
+
+      - name: Apply Supabase migrations
+        run: python scripts/apply_supabase_migrations.py
+
+      - name: Process analysis queue
+        run: |
+          python - <<'PY'
+          import os
+          from sentinellayer_growth_engine.conversation_analysis_queue import (
+              ConversationAnalysisQueue,
+              ConversationAnalysisWorker,
+          )
+          from sentinellayer_growth_engine.conversation_analyzer import GroqAnalyzer
+
+          dsn = os.environ["SUPABASE_DATABASE_URL"]
+          api_key = os.environ["GROQ_API_KEY"]
+          batch_size = int(os.environ.get("BATCH_SIZE", "10"))
+          if batch_size < 1 or batch_size > 100:
+              raise SystemExit("BATCH_SIZE must be between 1 and 100")
+
+          queue = ConversationAnalysisQueue(dsn, worker_id=f"github-actions-{os.environ.get('GITHUB_RUN_ID', 'manual')}")
+          analyzer = GroqAnalyzer(api_key=api_key, model=os.environ.get("GROQ_MODEL", "openai/gpt-oss-20b"))
+          processed = ConversationAnalysisWorker(queue, analyzer).run_once(batch_size=batch_size)
+          print(f"Conversation analysis jobs processed: {processed}")
+          PY
