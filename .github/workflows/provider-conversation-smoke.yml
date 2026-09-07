@@ -58,7 +58,7 @@ jobs:
           import psycopg
           from psycopg.rows import dict_row
 
-          from sentinellayer_growth_engine.conversation_runtime import ConversationRuntime
+          from sentinellayer_growth_engine.conversation_runtime import ConversationRuntime\n          from sentinellayer_growth_engine.conversation_analysis_queue import ConversationAnalysisQueue
           from sentinellayer_growth_engine.conversation_sales import ConversationSalesBridge
           from sentinellayer_growth_engine.db import Database
           from sentinellayer_growth_engine.imap_inbound import parse_message
@@ -171,7 +171,15 @@ jobs:
               raise SystemExit("Resolved identity does not match the controlled staging identity")
           print("Inbound identity resolution: OK")
 
-          runtime = ConversationRuntime(db, sales_bridge=ConversationSalesBridge(db))
+          analysis_queue = ConversationAnalysisQueue(
+              dsn,
+              worker_id=f"provider-conversation-smoke-{os.environ.get('GITHUB_RUN_ID', 'manual')}-{os.environ.get('GITHUB_RUN_ATTEMPT', '1')}",
+          )
+          runtime = ConversationRuntime(
+              db,
+              sales_bridge=ConversationSalesBridge(db),
+              analysis_queue=analysis_queue,
+          )
           outcome = runtime.handle_inbound(
               account_id=account_id,
               person_id=resolved_person_id,
@@ -187,11 +195,16 @@ jobs:
               raise SystemExit(f"Expected positive/question classification, got {classification!r}")
           if outcome["persisted"].get("status") not in {"stored", "duplicate"}:
               raise SystemExit("Conversation persistence did not report stored/duplicate")
+          if outcome.get("analysis_enqueued") is not True:
+              raise SystemExit(f"Conversation analysis queue was not enqueued: {outcome.get('analysis_enqueue_error')!r}")
+          if outcome.get("analysis_enqueue_error") is not None:
+              raise SystemExit(f"Conversation analysis enqueue reported an error: {outcome['analysis_enqueue_error']!r}")
           if outcome["sales"] is None:
               raise SystemExit("Conversation did not create/update a Sales task")
           print(f"Conversation classification: {classification}")
           print(f"Conversation persistence: {outcome['persisted']['status']}")
           print(f"Sales task status: {outcome['sales']['status']}")
+          print("Analysis queue: enqueued")
 
           duplicate = runtime.handle_inbound(
               account_id=account_id,
@@ -222,6 +235,19 @@ jobs:
                   raise SystemExit("Persisted conversation reply not found")
               cur.execute(
                   """
+                  select analysis_id, reply_id, status, provider, model
+                  from conversation.analysis_jobs
+                  where reply_id=%s
+                  order by created_at desc limit 1
+                  """,
+                  (outcome["persisted"]["reply_id"],),
+              )
+              analysis = cur.fetchone()
+              if analysis is None or analysis["status"] != "pending":
+                  raise SystemExit(f"Expected pending analysis job, got {analysis!r}")
+
+              cur.execute(
+                  """
                   select sales_task_id, trigger_type, status
                   from sales.tasks
                   where account_id=%s and person_id=%s and trigger_type=%s
@@ -239,6 +265,8 @@ jobs:
           print(f"Conversation thread state: {persisted['state']}")
           print(f"Durable Sales trigger: {sales['trigger_type']}")
           print(f"Durable Sales status: {sales['status']}")
+          print("Durable Conversation analysis job: PENDING")
+          print(f"Analysis job id: {analysis['analysis_id']}")
 
           # Mark Seen only after the complete runtime path succeeds.
           client = imaplib.IMAP4_SSL(os.environ["IMAP_HOST"], int(os.environ["IMAP_PORT"]), timeout=15)
