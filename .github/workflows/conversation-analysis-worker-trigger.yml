@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   analyze:
-    if: startsWith(github.event.head_commit.message, "RUN-CONVERSATION-ANALYSIS")
+    if: startsWith(github.event.head_commit.message, 'RUN-CONVERSATION-ANALYSIS')
     runs-on: ubuntu-latest
     environment: staging-mail
     env:
