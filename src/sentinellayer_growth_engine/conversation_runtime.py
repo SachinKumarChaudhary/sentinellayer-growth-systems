@@ -5,6 +5,7 @@ from typing import Any, Protocol
 
 from .conversation import ConversationProcessor
 from .conversation_analysis_queue import ConversationAnalysisQueue
+from .conversation_policy import reconcile_conversation_analysis
 from .conversation_sales import ConversationSalesBridge
 
 
@@ -87,8 +88,6 @@ class ConversationRuntime:
                 self.analysis_queue.enqueue(str(persisted["reply_id"]))
                 analysis_enqueued = True
             except (RuntimeError, ValueError) as exc:
-                # The raw inbound reply is already durable. Never turn a semantic
-                # provider/queue outage into dropped inbound mail or unsafe sends.
                 analysis_enqueue_error = str(exc)
 
         classification = handoff["classification"]
@@ -112,11 +111,16 @@ class ConversationRuntime:
         if self.sales_bridge is not None and classification in {"interested", "question"}:
             sales = self.sales_bridge.bridge(handoff, priority=sales_priority)
 
+        policy = reconcile_conversation_analysis(
+            deterministic_classification=classification,
+            analysis=None,
+        )
         return {
             "handoff": handoff,
             "persisted": persisted,
             "analysis_enqueued": analysis_enqueued,
             "analysis_enqueue_error": analysis_enqueue_error,
             "sales": sales,
+            "policy": policy,
             "stop_sequence": classification in {"unsubscribe", "negative"},
         }
