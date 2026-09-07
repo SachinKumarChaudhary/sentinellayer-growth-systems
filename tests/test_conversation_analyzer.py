@@ -9,13 +9,13 @@ from sentinellayer_growth_engine.conversation_analyzer import (
 
 
 def test_groq_analyzer_requires_key():
-    with pytest.raises(ConversationAnalysisError, match="API key"):
+    with pytest.raises(ValueError, match="api_key must not be empty"):
         GroqAnalyzer(api_key="").analyze(subject="Hi", body_text="Interested")
 
 
 def test_groq_analyzer_rejects_empty_message():
     analyzer = GroqAnalyzer(api_key="test")
-    with pytest.raises(ConversationAnalysisError, match="message content"):
+    with pytest.raises(ValueError, match="subject or body_text must not be empty"):
         analyzer.analyze(subject=" ", body_text=" ")
 
 
@@ -70,7 +70,7 @@ def test_groq_analyzer_parses_and_validates_structured_output():
 
     with (
         patch(
-            "sentinellayer_growth_engine.conversation_analyzer.urllib.request.urlopen",
+            "sentinellayer_growth_engine.conversation_analyzer.urlopen",
             return_value=Response(),
         ),
         patch(
@@ -101,13 +101,13 @@ def test_groq_analyzer_does_not_retry_non_retryable_http_error():
 
     with (
         patch(
-            "sentinellayer_growth_engine.conversation_analyzer.urllib.request.urlopen",
+            "sentinellayer_growth_engine.conversation_analyzer.urlopen",
             side_effect=error,
         ),
         patch(
             "sentinellayer_growth_engine.conversation_analyzer.time.sleep"
         ) as sleeper,
-        pytest.raises(ConversationAnalysisError, match="bounded retries"),
+        pytest.raises(ConversationAnalysisError, match="rejected with HTTP 401"),
     ):
         GroqAnalyzer(api_key="bad", max_attempts=4).analyze(
             subject="Hi",
