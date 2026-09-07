@@ -1,3 +1,3 @@
 RUN-CONVERSATION-ANALYSIS
-fix=ca66eeb06a0dc6b66ff1a56ab03dbfd648985fdb
-diagnostic=minimal-chat-completion
+fix=fd296955e4214fb2450a1267401240d0db762cfe
+diagnostic=structured-output-minimal
