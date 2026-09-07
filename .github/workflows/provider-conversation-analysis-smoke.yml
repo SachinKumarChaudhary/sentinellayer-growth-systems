@@ -1,5 +1,7 @@
 name: provider-conversation-analysis-smoke
 
+run-name: provider-conversation-analysis-smoke / ${{ github.ref_name }} / ${{ github.sha }}
+
 on:
   workflow_dispatch:
     inputs:
@@ -35,6 +37,16 @@ jobs:
       EXPECTED_PROVIDER_MESSAGE_ID: ${{ inputs.provider_message_id }}
     steps:
       - uses: actions/checkout@v5
+      - name: Verify checkout provenance
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          echo "Expected workflow SHA: $GITHUB_SHA"
+          echo "Checked-out SHA:       $actual"
+          test "$actual" = "$GITHUB_SHA" || {
+            echo "ERROR: checked-out commit does not match workflow commit"
+            exit 1
+          }
       - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
@@ -122,6 +134,10 @@ jobs:
               thread = cur.fetchone()
               if thread is None or str(thread["person_id"]) != str(person_id):
                   raise SystemExit("Controlled inbound thread identity mismatch")
+
+              cur.execute("select reply_id from conversation.replies where provider_message_id=%s", (message.provider_message_id,))
+              if cur.fetchone() is not None:
+                  raise SystemExit("Fresh-reply invariant failed before runtime: provider Message-ID is already persisted")
 
           db = Database(dsn, worker_id=f"provider-conversation-analysis-smoke-{os.environ.get('GITHUB_RUN_ID', 'manual')}")
           identity = db.resolve_inbound_identity(sender_email=message.sender_email, thread_key=message.thread_key)
