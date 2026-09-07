@@ -8,6 +8,11 @@ on:
         required: false
         default: "10"
         type: string
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/analysis-worker.trigger"
 
 permissions:
   contents: read
@@ -20,7 +25,7 @@ jobs:
       SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
       GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
       GROQ_MODEL: openai/gpt-oss-20b
-      BATCH_SIZE: ${{ inputs.batch_size }}
+      BATCH_SIZE: ${{ inputs.batch_size || '10' }}
     steps:
       - name: Validate required secrets
         run: |
