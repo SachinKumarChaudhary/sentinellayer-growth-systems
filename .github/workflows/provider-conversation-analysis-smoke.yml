@@ -1,0 +1,220 @@
+name: provider-conversation-analysis-smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      provider_message_id:
+        description: "Exact provider Message-ID of a NEW controlled inbound reply"
+        required: true
+        type: string
+      process_reply:
+        description: "Process the fresh inbound reply through Conversation and enqueue analysis"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: provider-conversation-analysis-smoke-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    environment: staging-mail
+    env:
+      SL_REAL_EMAIL_ENABLED: "false"
+      IMAP_HOST: ${{ secrets.SL_IMAP_HOST }}
+      IMAP_PORT: ${{ secrets.SL_IMAP_PORT }}
+      IMAP_USERNAME: ${{ secrets.SL_IMAP_USERNAME }}
+      IMAP_PASSWORD: ${{ secrets.SL_IMAP_PASSWORD }}
+      IMAP_MAILBOX: ${{ secrets.SL_IMAP_MAILBOX }}
+      SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+      EXPECTED_PROVIDER_MESSAGE_ID: ${{ inputs.provider_message_id }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Validate required configuration
+        if: ${{ inputs.process_reply }}
+        run: |
+          set -euo pipefail
+          for name in IMAP_HOST IMAP_PORT IMAP_USERNAME IMAP_PASSWORD IMAP_MAILBOX SUPABASE_DATABASE_URL EXPECTED_PROVIDER_MESSAGE_ID; do
+            test -n "${!name}" || { echo "Missing $name"; exit 1; }
+          done
+          test "$IMAP_PORT" = "993" || { echo "IMAP must use TLS port 993"; exit 1; }
+          test "$SL_REAL_EMAIL_ENABLED" = "false" || { echo "Real email must remain disabled"; exit 1; }
+      - name: Install
+        if: ${{ inputs.process_reply }}
+        run: python -m pip install -e .
+      - name: Process fresh reply and enqueue analysis
+        if: ${{ inputs.process_reply }}
+        run: |
+          python - <<'PY'
+          import imaplib
+          import os
+
+          import psycopg
+          from psycopg.rows import dict_row
+
+          from sentinellayer_growth_engine.conversation_analysis_queue import ConversationAnalysisQueue
+          from sentinellayer_growth_engine.conversation_runtime import ConversationRuntime
+          from sentinellayer_growth_engine.conversation_sales import ConversationSalesBridge
+          from sentinellayer_growth_engine.db import Database
+          from sentinellayer_growth_engine.imap_inbound import parse_message
+
+          ACCOUNT_ID = "staging-provider-smoke"
+          expected_provider_message_id = os.environ["EXPECTED_PROVIDER_MESSAGE_ID"].strip()
+
+          client = imaplib.IMAP4_SSL(os.environ["IMAP_HOST"], int(os.environ["IMAP_PORT"]), timeout=15)
+          try:
+              client.login(os.environ["IMAP_USERNAME"], os.environ["IMAP_PASSWORD"])
+              status, _ = client.select(os.environ["IMAP_MAILBOX"], readonly=True)
+              if status != "OK":
+                  raise SystemExit("IMAP mailbox selection failed")
+
+              status, data = client.uid("SEARCH", None, "HEADER", "Message-ID", expected_provider_message_id)
+              if status != "OK":
+                  raise SystemExit("IMAP Message-ID search failed")
+              uids = (data[0] or b"").split()
+              if not uids:
+                  raise SystemExit("No IMAP message matched the supplied provider Message-ID")
+
+              message = None
+              for uid_bytes in reversed(uids):
+                  uid = uid_bytes.decode("ascii", errors="strict")
+                  status, fetched = client.uid("FETCH", uid, "(RFC822)")
+                  if status != "OK":
+                      continue
+                  raw = next((item[1] for item in fetched if isinstance(item, tuple) and len(item) == 2), None)
+                  if isinstance(raw, bytes):
+                      candidate = parse_message(uid, raw)
+                      if candidate.provider_message_id == expected_provider_message_id:
+                          message = candidate
+                          break
+          finally:
+              try:
+                  client.logout()
+              except OSError:
+                  pass
+
+          if message is None:
+              raise SystemExit("Matched IMAP message could not be parsed with the supplied provider Message-ID")
+
+          print("Controlled inbound reply parsed: OK")
+          print(f"Inbound subject: {message.subject}")
+          print(f"Thread key: {message.thread_key}")
+          print(f"Provider message id: {message.provider_message_id}")
+          print("Inbound sender: [redacted]")
+
+          dsn = os.environ["SUPABASE_DATABASE_URL"]
+          with psycopg.connect(dsn, sslmode="require", row_factory=dict_row) as conn, conn.cursor() as cur:
+              cur.execute("select id from public.people where lower(trim(email))=%s order by id limit 1", (message.sender_email,))
+              row = cur.fetchone()
+              if row is None:
+                  raise SystemExit("Controlled sender does not have a staging person identity")
+              person_id = int(row["id"])
+
+              cur.execute("select conversation_id, person_id from conversation.threads where thread_key=%s", (message.thread_key,))
+              thread = cur.fetchone()
+              if thread is None or str(thread["person_id"]) != str(person_id):
+                  raise SystemExit("Controlled inbound thread identity mismatch")
+
+          db = Database(dsn, worker_id=f"provider-conversation-analysis-smoke-{os.environ.get('GITHUB_RUN_ID', 'manual')}")
+          identity = db.resolve_inbound_identity(sender_email=message.sender_email, thread_key=message.thread_key)
+          if identity != (ACCOUNT_ID, str(person_id)):
+              raise SystemExit(f"Unexpected inbound identity: {identity!r}")
+          print("Inbound identity resolution: OK")
+
+          analysis_queue = ConversationAnalysisQueue(
+              dsn,
+              worker_id=f"provider-conversation-analysis-smoke-{os.environ.get('GITHUB_RUN_ID', 'manual')}",
+          )
+          runtime = ConversationRuntime(
+              db,
+              sales_bridge=ConversationSalesBridge(db),
+              analysis_queue=analysis_queue,
+          )
+
+          outcome = runtime.handle_inbound(
+              account_id=ACCOUNT_ID,
+              person_id=str(person_id),
+              sender_email=message.sender_email,
+              subject=message.subject,
+              body_text=message.body_text,
+              provider_message_id=message.provider_message_id,
+              thread_key=message.thread_key,
+              source_send_id=message.source_send_id,
+          )
+
+          persisted_status = outcome["persisted"].get("status")
+          if persisted_status != "stored":
+              raise SystemExit(
+                  f"Fresh-reply invariant failed: first processing returned {persisted_status!r}; "
+                  "the supplied provider Message-ID is already persisted or was not fresh"
+              )
+          if outcome.get("analysis_enqueued") is not True:
+              raise SystemExit(f"Analysis was not enqueued: {outcome.get('analysis_enqueue_error')!r}")
+          if outcome.get("analysis_enqueue_error") is not None:
+              raise SystemExit(f"Analysis enqueue reported an error: {outcome['analysis_enqueue_error']!r}")
+
+          classification = outcome["handoff"]["classification"]
+          print(f"Conversation classification: {classification}")
+          print("Conversation persistence: stored")
+          print("Analysis enqueue: OK")
+
+          with psycopg.connect(dsn, sslmode="require", row_factory=dict_row) as conn, conn.cursor() as cur:
+              cur.execute(
+                  """
+                  select r.reply_id, r.classification, j.analysis_id, j.status
+                  from conversation.replies r
+                  join conversation.analysis_jobs j on j.reply_id=r.reply_id
+                  where r.provider_message_id=%s
+                  order by j.created_at desc
+                  limit 1
+                  """,
+                  (message.provider_message_id,),
+              )
+              job = cur.fetchone()
+              if job is None:
+                  raise SystemExit("No durable analysis job exists for the fresh reply")
+              if job["status"] != "pending":
+                  raise SystemExit(f"Expected pending analysis job, got {job['status']!r}")
+
+          print("Durable analysis job: VERIFIED")
+          print(f"Analysis id: {job['analysis_id']}")
+          print(f"Analysis status: {job['status']}")
+
+          duplicate = runtime.handle_inbound(
+              account_id=ACCOUNT_ID,
+              person_id=str(person_id),
+              sender_email=message.sender_email,
+              subject=message.subject,
+              body_text=message.body_text,
+              provider_message_id=message.provider_message_id,
+              thread_key=message.thread_key,
+              source_send_id=message.source_send_id,
+          )
+          if duplicate["persisted"].get("status") != "duplicate":
+              raise SystemExit("Duplicate inbound processing was not idempotent")
+          print("Duplicate inbound processing: idempotent")
+
+          client = imaplib.IMAP4_SSL(os.environ["IMAP_HOST"], int(os.environ["IMAP_PORT"]), timeout=15)
+          try:
+              client.login(os.environ["IMAP_USERNAME"], os.environ["IMAP_PASSWORD"])
+              status, _ = client.select(os.environ["IMAP_MAILBOX"], readonly=False)
+              if status != "OK":
+                  raise SystemExit("IMAP mailbox selection for final Seen update failed")
+              status, _ = client.uid("STORE", message.uid, "+FLAGS", "(\\Seen)")
+              if status != "OK":
+                  raise SystemExit("Failed to mark controlled reply Seen")
+          finally:
+              try:
+                  client.logout()
+              except OSError:
+                  pass
+          print("Mailbox acknowledgement: Seen after successful runtime + queue verification")
+          PY
