@@ -77,7 +77,7 @@ def test_groq_analyzer_parses_and_validates_structured_output():
             "sentinellayer_growth_engine.conversation_analyzer.time.sleep"
         ) as sleeper,
     ):
-            result = GroqAnalyzer(api_key="test").analyze(
+        result = GroqAnalyzer(api_key="test").analyze(
                 subject="Re: pricing",
                 body_text="We already use another platform.",
                 conversation_context="Previous outbound described Sentinel Layer.",
@@ -108,7 +108,7 @@ def test_groq_analyzer_does_not_retry_non_retryable_http_error():
             "sentinellayer_growth_engine.conversation_analyzer.time.sleep"
         ) as sleeper,
     ):
-            with pytest.raises(ConversationAnalysisError, match="bounded retries"):
+        with pytest.raises(ConversationAnalysisError, match="bounded retries"):
                 GroqAnalyzer(api_key="bad", max_attempts=4).analyze(
                     subject="Hi",
                     body_text="Hello",
