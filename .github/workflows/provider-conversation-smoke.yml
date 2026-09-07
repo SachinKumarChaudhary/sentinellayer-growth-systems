@@ -60,7 +60,6 @@ jobs:
 
           from sentinellayer_growth_engine.conversation_runtime import ConversationRuntime
           from sentinellayer_growth_engine.conversation_analysis_queue import ConversationAnalysisQueue
-          from sentinellayer_growth_engine.conversation_analysis_queue import ConversationAnalysisQueue
           from sentinellayer_growth_engine.conversation_sales import ConversationSalesBridge
           from sentinellayer_growth_engine.db import Database
           from sentinellayer_growth_engine.imap_inbound import parse_message
