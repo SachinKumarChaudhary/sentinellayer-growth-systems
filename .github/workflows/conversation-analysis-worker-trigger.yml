@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - ".github/analysis-worker-trigger.txt"
+      - ".github/analysis-worker-trigger-v2.txt"
 
 permissions:
   contents: read
