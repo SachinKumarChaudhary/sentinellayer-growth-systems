@@ -3,12 +3,13 @@ from __future__ import annotations
 
 def pytest_collection_modifyitems(config, items) -> None:
     del config
-    modules = {
-        item.module
-        for item in items
-        if item.module.__name__ == "tests.contracts.test_contract_validation"
-    }
-    for module in modules:
+    for item in items:
+        module = item.module
+        if not hasattr(module, "contract_fixtures"):
+            continue
+        if getattr(module, "_conversation_analysis_fixture_patched", False):
+            continue
+
         original = module.contract_fixtures
 
         def contract_fixtures_with_conversation_analysis(original=original):
@@ -38,3 +39,4 @@ def pytest_collection_modifyitems(config, items) -> None:
             return fixtures
 
         module.contract_fixtures = contract_fixtures_with_conversation_analysis
+        module._conversation_analysis_fixture_patched = True
