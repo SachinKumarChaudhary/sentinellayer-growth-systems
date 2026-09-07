@@ -28,6 +28,8 @@ jobs:
       IMAP_PASSWORD: ${{ secrets.SL_IMAP_PASSWORD }}
       IMAP_MAILBOX: ${{ secrets.SL_IMAP_MAILBOX }}
       SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      GROQ_MODEL: openai/gpt-oss-20b
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -42,6 +44,7 @@ jobs:
           done
           test "$IMAP_PORT" = "993" || { echo "IMAP must use TLS port 993"; exit 1; }
           test "$SL_REAL_EMAIL_ENABLED" = "false" || { echo "Real email must remain disabled"; exit 1; }
+          test -n "$GROQ_API_KEY" || { echo "Missing GROQ_API_KEY"; exit 1; }
           echo "Required provider and database configuration: present"
       - name: Install
         if: ${{ inputs.process_reply }}
@@ -208,6 +211,22 @@ jobs:
           if not outcome["analysis_enqueued"]:
               raise SystemExit(f"Conversation analysis was not enqueued: {outcome['analysis_enqueue_error']}")
           print("Conversation analysis queue: ENQUEUED")
+          from sentinellayer_growth_engine.conversation_analysis_queue import ConversationAnalysisWorker
+          from sentinellayer_growth_engine.conversation_analyzer import GroqAnalyzer
+
+          analyzer = GroqAnalyzer(api_key=os.environ["GROQ_API_KEY"], model=os.environ["GROQ_MODEL"])
+          queue = ConversationAnalysisQueue(dsn, worker_id="provider-conversation-smoke-groq")
+          processed = ConversationAnalysisWorker(queue, analyzer).run_once(batch_size=10)
+          print(f"Conversation analysis worker processed: {processed}")
+          with psycopg.connect(dsn, sslmode="require", row_factory=dict_row) as conn, conn.cursor() as cur:
+              cur.execute("select status, provider, model, analysis from conversation.analysis_jobs where reply_id=%s", (outcome["persisted"]["reply_id"],))
+              analysis_row = cur.fetchone()
+          if analysis_row is None or analysis_row["status"] != "completed" or analysis_row["provider"] != "groq":
+              raise SystemExit("Groq conversation analysis did not complete for the controlled reply")
+          if not isinstance(analysis_row["analysis"], dict) or analysis_row["analysis"].get("schema_version") != "1.0":
+              raise SystemExit("Groq conversation analysis failed schema verification")
+          print(f"Groq analysis model: {analysis_row['model']}")
+          print("Groq structured analysis: VERIFIED")
           print("Analysis queue: enqueued")
 
           duplicate = runtime.handle_inbound(
