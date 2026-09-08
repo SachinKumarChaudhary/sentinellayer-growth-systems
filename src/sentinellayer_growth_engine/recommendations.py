@@ -1,24 +1,20 @@
 from __future__ import annotations
 
-Channel = str
+from dataclasses import dataclass
+from typing import Literal
 
 
+Channel = Literal["email", "linkedin", "instagram", "reddit", "social_content", "phone", "none"]
+
+
+@dataclass(frozen=True)
 class Recommendation:
-    def __init__(
-        self,
-        recommendation_type: str,
-        recommended_channel: Channel,
-        reason: str,
-        sequence: tuple[Channel, ...],
-        confidence: float = 0.75,
-        requires_approval: bool = True,
-    ) -> None:
-        self.recommendation_type = recommendation_type
-        self.recommended_channel = recommended_channel
-        self.reason = reason
-        self.sequence = sequence
-        self.confidence = confidence
-        self.requires_approval = requires_approval
+    recommendation_type: str
+    recommended_channel: Channel
+    reason: str
+    sequence: tuple[Channel, ...]
+    confidence: float = 0.75
+    requires_approval: bool = True
 
 
 def recommend_next_action(
