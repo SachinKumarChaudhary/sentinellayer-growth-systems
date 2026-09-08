@@ -4,16 +4,26 @@ import argparse
 import json
 import os
 import sys
+from pathlib import Path
 
 import psycopg
 
 from .config import Settings
 from .db import Database
+from .enrichment_contracts import EnrichmentBatch
+from .enrichment_repository import EnrichmentRepository
 from .health import check as health_check
 
 
 def _settings() -> Settings:
     return Settings(database_url=os.environ.get("SL_DATABASE_URL", ""))
+
+
+def _connection_factory() -> psycopg.Connection[object]:
+    settings = _settings()
+    if not settings.database_url:
+        raise RuntimeError("SL_DATABASE_URL is required")
+    return psycopg.connect(settings.database_url)
 
 
 def cmd_health(_: argparse.Namespace) -> int:
@@ -41,6 +51,26 @@ def cmd_status(_: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_enrichment_export(args: argparse.Namespace) -> int:
+    repository = EnrichmentRepository(_connection_factory)
+    rows = repository.next_companies(limit=args.limit)
+    print(json.dumps({"schema_version": "1.0", "companies": rows}, indent=2, default=str))
+    return 0
+
+
+def cmd_enrichment_import(args: argparse.Namespace) -> int:
+    try:
+        payload = json.loads(Path(args.file).read_text(encoding="utf-8"))
+        batch = EnrichmentBatch.model_validate(payload)
+        repository = EnrichmentRepository(_connection_factory)
+        result = repository.persist_batch(batch, provider=args.provider)
+    except (OSError, ValueError, json.JSONDecodeError, psycopg.Error, RuntimeError) as exc:
+        print(f"ERROR: enrichment import failed: {exc}", file=sys.stderr)
+        return 1
+    print(json.dumps(result, indent=2, default=str))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="slctl", description="SentinelLayer operator CLI")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -50,6 +80,19 @@ def build_parser() -> argparse.ArgumentParser:
 
     status = subparsers.add_parser("status", help="show runtime and Operations control state")
     status.set_defaults(func=cmd_status)
+
+    enrichment = subparsers.add_parser("enrichment", help="operator-assisted company enrichment")
+    enrichment_sub = enrichment.add_subparsers(dest="enrichment_command", required=True)
+
+    export_cmd = enrichment_sub.add_parser("export-next", help="print the next un-enriched 1-3 companies")
+    export_cmd.add_argument("--limit", type=int, default=3, choices=range(1, 4))
+    export_cmd.set_defaults(func=cmd_enrichment_export)
+
+    import_cmd = enrichment_sub.add_parser("import", help="persist a validated AI enrichment batch JSON")
+    import_cmd.add_argument("--file", required=True)
+    import_cmd.add_argument("--provider", default="manual_ai_research")
+    import_cmd.set_defaults(func=cmd_enrichment_import)
+
     return parser
 
 
