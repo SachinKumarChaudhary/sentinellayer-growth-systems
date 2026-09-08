@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Any, Protocol
 
 from .enrichment_contracts import EnrichmentBatch, EnrichmentPacket
 from .enrichment_repository import EnrichmentRepository
@@ -15,12 +15,34 @@ class CompanySeed:
     merchant_name: str | None
 
 
-class CompanySeedRepository(Protocol):
-    def next_companies(self, limit: int = 3) -> list[int]:
+class ConnectionFactory(Protocol):
+    def __call__(self) -> Any:
         ...
 
-    def company_seed(self, company_id: int) -> CompanySeed:
+
+class CompanySeedResolver(Protocol):
+    def resolve(self, company_id: int) -> CompanySeed:
         ...
+
+
+class DatabaseCompanySeedResolver:
+    """Resolve only canonical company identity fields needed by enrichment."""
+
+    def __init__(self, connection_factory: ConnectionFactory) -> None:
+        self._connection_factory = connection_factory
+
+    def resolve(self, company_id: int) -> CompanySeed:
+        with self._connection_factory() as conn, conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, domain, name FROM public.companies WHERE id = %s",
+                (company_id,),
+            )
+            row = cur.fetchone()
+        if row is None:
+            raise ValueError(f"company {company_id} was not found")
+        if not row[1]:
+            raise ValueError(f"company {company_id} has no domain")
+        return CompanySeed(company_id=row[0], domain=row[1], merchant_name=row[2])
 
 
 class TinyFishBatchEnricher:
@@ -30,15 +52,17 @@ class TinyFishBatchEnricher:
         self,
         repository: EnrichmentRepository,
         provider: TinyFishEnrichmentProvider,
+        seed_resolver: CompanySeedResolver,
     ) -> None:
         self._repository = repository
         self._provider = provider
+        self._seed_resolver = seed_resolver
 
     def build_next_batch(self, *, limit: int = 3) -> EnrichmentBatch:
         company_ids = self._repository.next_companies(limit=limit)
         packets: list[EnrichmentPacket] = []
         for company_id in company_ids:
-            seed = self._repository.company_seed(company_id)
+            seed = self._seed_resolver.resolve(company_id)
             packets.append(
                 self._provider.build_packet(
                     company_id=seed.company_id,
