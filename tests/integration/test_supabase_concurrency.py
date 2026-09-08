@@ -42,7 +42,7 @@ def test_two_workers_cannot_claim_same_send() -> None:
         barrier = threading.Barrier(2)
         def claim(worker_id: str):
             barrier.wait()
-            return Database(dsn, worker_id=worker_id).claim_due(batch_size=1, worker_id=worker_id)
+            return Database(dsn, worker_id=worker_id).claim_due(batch_size=500, worker_id=worker_id)
 
         with ThreadPoolExecutor(max_workers=2) as executor:
             results = [future.result() for future in [executor.submit(claim, "ci-worker-a"), executor.submit(claim, "ci-worker-b")]]
@@ -56,12 +56,11 @@ def test_two_workers_cannot_claim_same_send() -> None:
             row = cur.fetchone()
         assert row is not None and row[0] == "claiming" and row[1] in worker_ids and row[2] == 1 and row[3] is not None
 
-        # Release any unrelated send accidentally claimed by the second worker in the shared CI queue.
         with psycopg.connect(dsn) as conn, conn.cursor() as cur:
             cur.execute("update public.sends set status='queued', claimed_by=null, claim_lease_until=null where claimed_by = any(%s) and id <> %s", (list(worker_ids), send_id))
             cur.execute("update public.sends set claim_lease_until=now()-interval '1 second' where id=%s", (send_id,))
 
-        reclaimed = Database(dsn, worker_id="ci-worker-b").claim_due(batch_size=50, worker_id="ci-worker-b")
+        reclaimed = Database(dsn, worker_id="ci-worker-b").claim_due(batch_size=500, worker_id="ci-worker-b")
         reclaimed_for_test = [send for send in reclaimed if send.send_id == str(send_id)]
         assert len(reclaimed_for_test) == 1
         assert reclaimed_for_test[0].attempt_count == 2
@@ -101,9 +100,10 @@ def test_retry_lifecycle_and_stale_completion_fencing() -> None:
             cur.execute("insert into public.sequence_steps (id,campaign_id,step_no,delay_days,subject_template,body_template,active) values (%s,%s,1,0,'CI retry','test body',true)", (step_id,campaign_id))
             cur.execute("insert into public.sends (id,person_id,campaign_id,sequence_step_id,mailbox_id,idempotency_key,scheduled_at,status) values (%s,%s,%s,%s,%s,%s,now(),'queued')", (send_id,person_id,campaign_id,step_id,mailbox_id,f"ci-retry-{suffix}"))
         worker = Database(dsn, worker_id="ci-retry-worker")
-        claimed = worker.claim_due(batch_size=1, worker_id="ci-retry-worker")
-        assert len(claimed) == 1
-        assert claimed[0].attempt_count == 1
+        claimed = worker.claim_due(batch_size=500, worker_id="ci-retry-worker")
+        target = [send for send in claimed if send.send_id == str(send_id)]
+        assert len(target) == 1
+        assert target[0].attempt_count == 1
         from datetime import UTC, datetime, timedelta
         retry_at = datetime.now(UTC) + timedelta(minutes=5)
         worker.mark_failed(send_id=str(send_id), error="temporary provider failure", retry_at=retry_at, transient=True, provider_code="421")
@@ -112,9 +112,10 @@ def test_retry_lifecycle_and_stale_completion_fencing() -> None:
             row = cur.fetchone()
         assert row[0] == "queued" and row[1] == 1 and row[2] is not None and row[3] is None
         with psycopg.connect(dsn) as conn, conn.cursor() as cur: cur.execute("update public.sends set next_attempt_at=now() where id=%s", (send_id,))
-        retried = worker.claim_due(batch_size=1, worker_id="ci-retry-worker")
-        assert len(retried) == 1 and retried[0].attempt_count == 2
-        worker.mark_sent(send_id=str(send_id), message_id=retried[0].message_id, provider_message_id=f"provider-ci-{suffix}")
+        retried = worker.claim_due(batch_size=500, worker_id="ci-retry-worker")
+        target_retry = [send for send in retried if send.send_id == str(send_id)]
+        assert len(target_retry) == 1 and target_retry[0].attempt_count == 2
+        worker.mark_sent(send_id=str(send_id), message_id=target_retry[0].message_id, provider_message_id=f"provider-ci-{suffix}")
         with psycopg.connect(dsn) as conn, conn.cursor() as cur:
             cur.execute("select status, attempt_count, claimed_by from public.sends where id=%s", (send_id,)); row = cur.fetchone()
             cur.execute("select count(*) from public.send_attempts where send_id=%s and attempt_no=2", (send_id,)); attempts = cur.fetchone()[0]
@@ -137,7 +138,7 @@ def test_uncertain_send_is_reconciled_by_different_worker() -> None:
             cur.execute("insert into mail.mailboxes (id, domain_id, email, display_name, provider, credentials_ref, status, health_status, daily_limit) values (%s,%s,%s,'CI Reconcile','test','ci-test','active','unknown',0)", (mailbox_id, domain_id, f"reconcile-{suffix}@example.invalid"))
             cur.execute("insert into public.people (full_name,email,status) values ('CI Reconcile Test',%s,'NEW') returning id", (f"recipient-{suffix}@example.invalid",)); person_id = cur.fetchone()[0]
             cur.execute("insert into public.campaigns (id,name,status,daily_global_limit,timezone) values (%s,'CI Reconcile','active',0,'UTC')", (campaign_id,)); cur.execute("insert into public.sequence_steps (id,campaign_id,step_no,delay_days,subject_template,body_template,active) values (%s,%s,1,0,'CI reconcile','test body',true)", (step_id,campaign_id)); cur.execute("insert into public.sends (id,person_id,campaign_id,sequence_step_id,mailbox_id,idempotency_key,scheduled_at,status) values (%s,%s,%s,%s,%s,%s,now(),'queued')", (send_id,person_id,campaign_id,step_id,mailbox_id,f"ci-reconcile-{suffix}"))
-        worker_a = Database(dsn, worker_id="ci-reconcile-a"); claimed = worker_a.claim_due(batch_size=1); assert len(claimed) == 1; worker_a.mark_ambiguous(send_id=str(send_id), error="CI simulated timeout after submission")
+        worker_a = Database(dsn, worker_id="ci-reconcile-a"); claimed = worker_a.claim_due(batch_size=500); target = [send for send in claimed if send.send_id == str(send_id)]; assert len(target) == 1; worker_a.mark_ambiguous(send_id=str(send_id), error="CI simulated timeout after submission")
         with psycopg.connect(dsn) as conn, conn.cursor() as cur: cur.execute("select status, claimed_by, claim_lease_until from public.sends where id=%s", (send_id,)); row = cur.fetchone()
         assert row[0] == "uncertain" and row[1] == "ci-reconcile-a" and row[2] is not None
         worker_b = Database(dsn, worker_id="ci-reconcile-b"); worker_b.resolve_uncertain(send_id=str(send_id), accepted=True, provider_message_id=f"ci-provider-message-{suffix}")
@@ -146,7 +147,7 @@ def test_uncertain_send_is_reconciled_by_different_worker() -> None:
         with pytest.raises(Exception, match="not uncertain"): worker_b.resolve_uncertain(send_id=str(send_id), accepted=True, provider_message_id="ci-provider-message-2")
     finally:
         with psycopg.connect(dsn) as conn, conn.cursor() as cur:
-            cur.execute("delete from public.send_attempts where send_id=%s", (send_id,)); cur.execute("delete from public.sends where id=%s", (send_id,)); cur.execute("delete from public.sequence_steps where id=%s", (step_id,)); cur.execute("delete from public.campaigns where id=%s", (campaign_id,));
+            cur.execute("delete from public.send_attempts where send_id=%s", (send_id,)); cur.execute("delete from public.sends where id=%s", (send_id,)); cur.execute("delete from public.sequence_steps where id=%s", (step_id,)); cur.execute("delete from public.campaigns where id=%s", (campaign_id));
             if person_id is not None: cur.execute("delete from public.people where id=%s", (person_id,))
             cur.execute("delete from mail.mailboxes where id=%s", (mailbox_id,)); cur.execute("delete from mail.domains where id=%s", (domain_id,))
 
