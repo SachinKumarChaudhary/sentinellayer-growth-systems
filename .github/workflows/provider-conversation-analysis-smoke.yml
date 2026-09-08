@@ -183,3 +183,4 @@ jobs:
               except OSError: pass
           print("Mailbox acknowledgement: Seen after successful runtime + queue verification")
           PY
+# Final trigger: exercise the fixed sales-task binding on a fresh provider reply.
