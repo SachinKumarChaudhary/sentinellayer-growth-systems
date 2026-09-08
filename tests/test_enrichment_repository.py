@@ -94,14 +94,14 @@ def test_decision_maker_and_contact_upsert_use_canonical_relationship() -> None:
 def test_intent_persistence_uses_canonical_weight_and_half_life() -> None:
     cursor = FakeCursor()
     repository = EnrichmentRepository(lambda: None)  # type: ignore[arg-type]
-    repository._insert_intent_signals(cursor, _packet(), uuid4(), datetime.now(UTC))
+    repository._insert_intent_signals(cursor, _packet(), datetime.now(UTC))
 
     query, params = cursor.executed[0]
     assert "intelligence.intent_signals" in query
     assert params[1] == "funding"
     assert params[2] == date(2026, 9, 1)
-    assert params[4] == 3
-    assert params[5] == 21
+    assert params[3] == 3
+    assert params[4] == 21
 
 
 def test_evidence_hash_is_stable_for_same_payload() -> None:
