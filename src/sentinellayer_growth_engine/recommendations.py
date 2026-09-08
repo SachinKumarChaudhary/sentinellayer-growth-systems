@@ -1,8 +1,7 @@
-# ruff: noqa: I001
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Literal
+from dataclasses import dataclass
 
 
 Channel = Literal["email", "linkedin", "instagram", "reddit", "social_content", "phone", "none"]
