@@ -234,16 +234,47 @@ Never fabricate a person, contact, URL, event or intent signal.
 - Enrichment & Deep Enrichment
 - Free Oracles
 
-## Explicitly unresolved implementation decisions
+## Implementation decisions now locked
 
-These remain open until separately decided:
-- Exact Supabase table/column schema for the new entities.
-- Exact Composio actions/scopes available to the connected accounts.
-- Exact TinyFish rate-limit numbers and scheduling strategy based on live service limits.
-- Exact QEV/Email Hippo/Apify interfaces and costs.
-- Exact operator UI implementation.
-- Exact Reddit RSS/source coverage and company-resolution method.
-- Exact first-party `/go/` routing implementation.
-- Exact cadence for recurring company intent refreshes.
+### Supabase schema
+The canonical relational design is `docs/11-multichannel-growth/SUPABASE_SCHEMA.md`.
 
-**Rule:** Do not fill these gaps with assumptions. Inspect the actual integration/tool, then document the decision.
+Key rule: decision makers and their individual contact methods belong to the company/person relationship; generic company contacts are separate.
+
+### TinyFish limits
+Verified current public limits on 2026-09-08:
+- Search: 30 requests/minute and 500 requests/hour, free.
+- Fetch: 150 URLs/minute and 1,000 URLs/day, free.
+- Agent: 2 concurrent runs, metered.
+- Browser: 5 concurrent sessions, metered.
+
+Use Search/Fetch as the primary enrichment resource, with caching and rate-aware scheduling.
+
+### Composio
+Composio is the execution/integration layer for connected LinkedIn, Instagram and Reddit accounts.
+
+Current public catalogs verified on 2026-09-08:
+- LinkedIn toolkit: 24 tools covering posts, comments, profiles/company info, media, reactions/statistics. The inspected public catalog did not expose a direct DM-send tool.
+- Instagram toolkit: 36 tools including conversations/messages, text/image messaging, publishing, comments/replies and insights; Business/Creator account requirement applies.
+- Reddit toolkit: 23 tools including posts/comments, subreddit search, retrieval and user information. The inspected public catalog did not expose a direct private-DM-send tool.
+
+Therefore the channel adapter must capability-discover the actual connected account before executing an action. Unsupported actions become operator tasks.
+
+### API/secret integration
+QEV, Email Hippo and other external services use API-key-backed adapters.
+
+Apify supports a multiple-key pool. Actual keys remain in deployment secret storage; Supabase stores credential references plus health/cooldown/usage metadata. When a key exhausts quota, cool it down and select a healthy pool member. If all keys are exhausted, queue rather than loop.
+
+### AI research
+AI research agents may use public web sources to enrich companies, decision makers, public contact methods, social identities and buying-intent evidence. They must preserve source/evidence provenance and must respect access/rate restrictions.
+
+### Exact implementation details still to decide while coding
+- QEV/Email Hippo exact endpoints/response mapping.
+- Reddit RSS/source coverage and company-resolution heuristics.
+- Exact `/go/` route implementation.
+- Recurring intent-monitor cadence.
+- Operator UI details.
+
+These are implementation details, not license to invent capabilities.
+
+**Rule:** For any external capability not covered above, inspect the live integration/tool before coding against it.
