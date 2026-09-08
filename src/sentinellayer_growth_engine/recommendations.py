@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-import dataclasses
-
+from dataclasses import dataclass
 from typing import Literal
 
 
 Channel = Literal["email", "linkedin", "instagram", "reddit", "social_content", "phone", "none"]
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclass(frozen=True)
 class Recommendation:
     recommendation_type: str
     recommended_channel: Channel
