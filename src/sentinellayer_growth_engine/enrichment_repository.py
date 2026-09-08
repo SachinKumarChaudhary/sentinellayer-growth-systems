@@ -386,7 +386,10 @@ class EnrichmentRepository:
                 """,
                 (limit,),
             )
-            columns = [desc.name for desc in cur.description]
+            description = cur.description
+            if description is None:
+                raise RuntimeError("company export query returned no column description")
+            columns = [desc.name for desc in description]
             return [dict(zip(columns, row, strict=True)) for row in cur.fetchall()]
 
     @staticmethod
