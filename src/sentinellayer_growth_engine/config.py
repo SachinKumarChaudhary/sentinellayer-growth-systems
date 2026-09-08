@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     imap_mailbox: str = Field(default="INBOX")
     imap_timeout_seconds: float = Field(default=30.0, gt=0)
     scheduler_tick_seconds: int = Field(default=30, ge=1)
+    tinyfish_api_key: str | None = Field(default=None)
+    tinyfish_search_url: str = Field(default="https://api.search.tinyfish.ai")
+    tinyfish_fetch_url: str = Field(default="https://api.fetch.tinyfish.ai")
+    tinyfish_timeout_seconds: float = Field(default=30.0, gt=0)
 
     model_config = SettingsConfigDict(
         env_file=".env",
