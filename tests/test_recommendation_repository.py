@@ -85,3 +85,24 @@ def test_invalid_supporting_signal_is_rejected_before_db_write() -> None:
         )
 
     assert connection.cursor_instance.executed == []
+
+
+def test_non_approval_recommendation_is_rejected_before_db_write() -> None:
+    connection = FakeConnection()
+    repository = RecommendationRepository(lambda: connection)  # type: ignore[arg-type]
+    recommendation = Recommendation(
+        recommendation_type="initial_outreach",
+        recommended_channel="email",
+        reason="Drafted outreach.",
+        sequence=("email",),
+        requires_approval=False,
+    )
+
+    with pytest.raises(ValueError, match="operator approval"):
+        repository.persist(
+            company_id=123,
+            decision_maker_id=None,
+            recommendation=recommendation,
+        )
+
+    assert connection.cursor_instance.executed == []
