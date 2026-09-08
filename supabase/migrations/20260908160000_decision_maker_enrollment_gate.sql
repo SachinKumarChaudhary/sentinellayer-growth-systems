@@ -39,18 +39,10 @@ set search_path = growth, public
 as $$
 declare
   v_review growth.decision_maker_reviews;
-  v_verified boolean;
 begin
   if nullif(trim(coalesce(p_operator_id, '')), '') is null then
     raise exception 'operator_id is required for decision-maker approval';
   end if;
-
-  select exists (
-    select 1
-    from growth.decision_maker_contact_methods cm
-    where cm.decision_maker_id = v_review.decision_maker_id
-      and cm.verification_status = 'verified'
-  ) into v_verified;
 
   select * into v_review
   from growth.decision_maker_reviews
