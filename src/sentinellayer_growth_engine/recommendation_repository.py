@@ -48,7 +48,7 @@ class RecommendationRepository:
                      recommended_channel, reason, supporting_signal_ids,
                      recommended_sequence, draft_message, confidence,
                      requires_approval, status, created_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, 'pending', %s)
+                VALUES (%s, %s, %s, %s, %s, %s::uuid[], %s::jsonb, %s, %s, %s, 'pending', %s)
                 RETURNING recommendation_id, status, created_at
                 """,
                 (
