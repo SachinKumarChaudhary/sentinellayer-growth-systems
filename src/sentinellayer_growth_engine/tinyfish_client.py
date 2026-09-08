@@ -53,17 +53,23 @@ class TinyFishClient:
         self._fetch_url = fetch_url
         self._timeout_seconds = timeout_seconds
 
-    def search(self, query: str, *, purpose: str | None = None) -> list[TinyFishSearchResult]:
+    def search(
+        self, query: str, *, purpose: str | None = None
+    ) -> list[TinyFishSearchResult]:
         """Run one public-web search and return structured results."""
         if not query.strip():
             raise ValueError("TinyFish search query must not be empty")
         params: dict[str, str] = {"query": query}
         if purpose:
             params["purpose"] = purpose
-        payload = self._request_json("GET", f"{self._search_url}?{urlencode(params)}")
+        payload = self._request_json(
+            "GET", f"{self._search_url}?{urlencode(params)}"
+        )
         raw_results = payload.get("results", [])
         if not isinstance(raw_results, list):
-            raise TinyFishError("TinyFish Search returned an invalid results payload")
+            raise TinyFishError(
+                "TinyFish Search returned an invalid results payload"
+            )
         results: list[TinyFishSearchResult] = []
         for item in raw_results:
             if not isinstance(item, dict):
@@ -71,8 +77,18 @@ class TinyFishClient:
             title = item.get("title")
             url = item.get("url")
             snippet = item.get("snippet", "")
-            if isinstance(title, str) and isinstance(url, str) and isinstance(snippet, str):
-                results.append(TinyFishSearchResult(title=title, url=url, snippet=snippet))
+            if (
+                isinstance(title, str)
+                and isinstance(url, str)
+                and isinstance(snippet, str)
+            ):
+                results.append(
+                    TinyFishSearchResult(
+                        title=title,
+                        url=url,
+                        snippet=snippet,
+                    )
+                )
         return results
 
     def fetch(
@@ -88,10 +104,14 @@ class TinyFishClient:
         """Fetch up to ten known public URLs using TinyFish's read-only API."""
         if not 1 <= len(urls) <= 10:
             raise ValueError("TinyFish Fetch accepts between 1 and 10 URLs")
-        if any(not url.startswith(("http://", "https://")) for url in urls):
+        if any(
+            not url.startswith(("http://", "https://")) for url in urls
+        ):
             raise ValueError("TinyFish Fetch URLs must use http or https")
         if format not in {"markdown", "html", "json"}:
-            raise ValueError("TinyFish Fetch format must be markdown, html, or json")
+            raise ValueError(
+                "TinyFish Fetch format must be markdown, html, or json"
+            )
 
         body: dict[str, Any] = {
             "urls": urls,
@@ -105,7 +125,9 @@ class TinyFishClient:
         payload = self._request_json("POST", self._fetch_url, body)
         raw_results = payload.get("results", [])
         if not isinstance(raw_results, list):
-            raise TinyFishError("TinyFish Fetch returned an invalid results payload")
+            raise TinyFishError(
+                "TinyFish Fetch returned an invalid results payload"
+            )
         results: list[TinyFishFetchResult] = []
         for item in raw_results:
             if not isinstance(item, dict):
@@ -118,22 +140,36 @@ class TinyFishClient:
                 TinyFishFetchResult(
                     url=url,
                     text=text,
-                    title=item.get("title") if isinstance(item.get("title"), str) else None,
-                    final_url=item.get("final_url")
-                    if isinstance(item.get("final_url"), str)
-                    else None,
-                    published_date=item.get("published_date")
-                    if isinstance(item.get("published_date"), str)
-                    else None,
+                    title=(
+                        item.get("title")
+                        if isinstance(item.get("title"), str)
+                        else None
+                    ),
+                    final_url=(
+                        item.get("final_url")
+                        if isinstance(item.get("final_url"), str)
+                        else None
+                    ),
+                    published_date=(
+                        item.get("published_date")
+                        if isinstance(item.get("published_date"), str)
+                        else None
+                    ),
                 )
             )
         return results
 
     def _request_json(
-        self, method: str, url: str, body: dict[str, Any] | None = None
+        self,
+        method: str,
+        url: str,
+        body: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         data = None if body is None else json.dumps(body).encode("utf-8")
-        headers = {"X-API-Key": self._api_key, "Accept": "application/json"}
+        headers = {
+            "X-API-Key": self._api_key,
+            "Accept": "application/json",
+        }
         if data is not None:
             headers["Content-Type"] = "application/json"
         request = Request(url, data=data, headers=headers, method=method)
@@ -142,9 +178,13 @@ class TinyFishClient:
                 raw = response.read().decode("utf-8")
         except HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")[:500]
-            raise TinyFishError(f"TinyFish API HTTP {exc.code}: {detail}") from exc
+            raise TinyFishError(
+                f"TinyFish API HTTP {exc.code}: {detail}"
+            ) from exc
         except URLError as exc:
-            raise TinyFishError(f"TinyFish API request failed: {exc.reason}") from exc
+            raise TinyFishError(
+                f"TinyFish API request failed: {exc.reason}"
+            ) from exc
         except TimeoutError as exc:
             raise TinyFishError("TinyFish API request timed out") from exc
 
@@ -153,5 +193,7 @@ class TinyFishClient:
         except json.JSONDecodeError as exc:
             raise TinyFishError("TinyFish API returned invalid JSON") from exc
         if not isinstance(payload, dict):
-            raise TinyFishError("TinyFish API returned a non-object JSON payload")
+            raise TinyFishError(
+                "TinyFish API returned a non-object JSON payload"
+            )
         return payload
