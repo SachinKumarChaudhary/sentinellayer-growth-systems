@@ -5,7 +5,6 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-
 Channel = Literal["email", "phone", "linkedin", "instagram", "reddit", "x", "other"]
 CompanyContactChannel = Literal["email", "phone", "contact_form", "other"]
 
