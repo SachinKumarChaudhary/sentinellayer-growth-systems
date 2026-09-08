@@ -1,4 +1,7 @@
-from sentinellayer_growth_engine.contact_verification import VerificationOrchestrator, verification_candidates
+from sentinellayer_growth_engine.contact_verification import (
+    VerificationOrchestrator,
+    verification_candidates,
+)
 from sentinellayer_growth_engine.enrichment_contracts import ContactMethod
 
 
