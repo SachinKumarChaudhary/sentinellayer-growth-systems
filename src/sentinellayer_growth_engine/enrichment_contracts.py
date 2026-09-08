@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 Channel = Literal["email", "phone", "linkedin", "instagram", "reddit", "x", "other"]
 CompanyContactChannel = Literal["email", "phone", "contact_form", "other"]
+VerificationStatus = Literal["unknown", "candidate", "verified", "invalid", "stale"]
 
 BANNED_EVIDENCE_LABELS = ("VERIFIED", "INFERRED", "NOT_FOUND")
 
@@ -38,7 +39,7 @@ class ContactMethod(BaseModel):
     normalized_value: str = Field(min_length=1, max_length=2000)
     source: str | None = None
     source_url: str | None = None
-    verification_status: Literal["unknown", "candidate"] = "unknown"
+    verification_status: VerificationStatus = "unknown"
     verification_provider: str | None = None
     confidence: float | None = Field(default=None, ge=0, le=1)
     first_seen_at: datetime | None = None
@@ -99,7 +100,7 @@ class IntentSignal(BaseModel):
     @classmethod
     def signal_type_is_safe(cls, value: str) -> str:
         if any(label in value.upper() for label in BANNED_EVIDENCE_LABELS):
-            raise ValueError("verification labels are assigned by the validation pipeline")
+            raise ValueError("evidence labels are assigned by validation, not by the research agent")
         return value
 
 
@@ -135,7 +136,7 @@ class EnrichmentPacket(BaseModel):
     @classmethod
     def personalization_is_safe(cls, value: str | None) -> str | None:
         if value is not None and any(label in value.upper() for label in BANNED_EVIDENCE_LABELS):
-            raise ValueError("verification labels are assigned by the validation pipeline")
+            raise ValueError("evidence labels are assigned by the validation pipeline")
         return value
 
 
