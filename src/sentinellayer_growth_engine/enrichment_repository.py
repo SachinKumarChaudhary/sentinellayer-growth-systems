@@ -10,7 +10,7 @@ import psycopg
 from .contact_verification import VerificationResult
 from .enrichment_contracts import EnrichmentBatch, EnrichmentPacket, Evidence
 from .intent_normalization import normalize_signal
-from .intelligence_scoring import IntentSignalInput, score_company
+from .intelligence_scoring import score_company
 
 
 class ConnectionFactory(Protocol):
@@ -29,94 +29,70 @@ class EnrichmentRepository:
         results: list[dict[str, Any]] = []
         with self._connection_factory() as conn, conn.cursor() as cur:
             for packet in batch.packets:
-                run_id = self._insert_run(cur, packet, provider, now)
+                enrichment_run_id = self._start_run(cur, packet, provider, now)
                 self._upsert_company_facts(cur, packet, now)
-                self._upsert_company_contacts(cur, packet, now)
-
                 decision_maker_ids = self._upsert_decision_makers(cur, packet, now)
-                self._insert_packet_evidence(cur, packet, decision_maker_ids, run_id)
-                self._insert_intent_signals(cur, packet, run_id, now)
-                self._upsert_company_score(cur, packet, now)
-
-                cur.execute(
-                    """
-                    update intelligence.enrichment_runs
-                    set status = 'completed', completed_at = %s
-                    where enrichment_run_id = %s
-                    """,
-                    (now, run_id),
+                self._insert_packet_evidence(cur, packet, enrichment_run_id, now)
+                self._insert_intent_signals(cur, packet, enrichment_run_id, now)
+                score = self._upsert_company_score(cur, packet, now)
+                self._complete_run(cur, enrichment_run_id, packet, now)
+                results.append(
+                    {
+                        "company_id": packet.company_id,
+                        "enrichment_run_id": enrichment_run_id,
+                        "decision_maker_ids": decision_maker_ids,
+                        "score": score,
+                    }
                 )
-                results.append({"company_id": packet.company_id, "enrichment_run_id": str(run_id)})
-        return {"provider": provider, "processed": results}
+            conn.commit()
+        return {"provider": provider, "results": results}
 
-    def update_contact_verification(
-        self,
-        *,
-        decision_maker_id: Any,
-        channel: str,
-        normalized_value: str,
-        result: VerificationResult,
-    ) -> bool:
-        """Persist a provider result; only provider output can move verification status."""
-        verified_at = datetime.now(UTC) if result.status in {"verified", "invalid", "stale"} else None
-        with self._connection_factory() as conn, conn.cursor() as cur:
-            cur.execute(
-                """
-                update growth.decision_maker_contact_methods
-                set verification_status=%s,
-                    verification_provider=%s,
-                    confidence=%s,
-                    last_verified_at=%s
-                where decision_maker_id=%s
-                  and channel=%s
-                  and normalized_value=%s
-                """,
-                (
-                    result.status,
-                    result.provider,
-                    result.confidence,
-                    verified_at,
-                    decision_maker_id,
-                    channel,
-                    normalized_value,
-                ),
-            )
-            return cur.rowcount == 1
-
-    def _insert_run(
-        self, cur: psycopg.Cursor[Any], packet: EnrichmentPacket, provider: str, now: datetime
-    ) -> Any:
+    @staticmethod
+    def _start_run(cur: Any, packet: EnrichmentPacket, provider: str, now: datetime) -> Any:
         cur.execute(
             """
-            insert into intelligence.enrichment_runs (
-                company_id, run_type, provider, model_or_agent, status, started_at
-            ) values (%s, %s, %s, %s, 'running', %s)
-            returning enrichment_run_id
+            INSERT INTO intelligence.enrichment_runs
+                (company_id, provider, status, started_at)
+            VALUES (%s, %s, 'running', %s)
+            RETURNING id
             """,
-            (packet.company_id, "small_batch_research", provider, provider, now),
+            (packet.company_id, provider, now),
         )
         row = cur.fetchone()
-        if not row:
-            raise RuntimeError("failed to create enrichment run")
+        if row is None:
+            raise RuntimeError("enrichment run insert did not return an id")
         return row[0]
 
-    def _upsert_company_facts(self, cur: psycopg.Cursor[Any], packet: EnrichmentPacket, now: datetime) -> None:
+    @staticmethod
+    def _complete_run(cur: Any, enrichment_run_id: Any, packet: EnrichmentPacket, now: datetime) -> None:
+        cur.execute(
+            """
+            UPDATE intelligence.enrichment_runs
+            SET status = 'completed', completed_at = %s,
+                research_notes = %s, personalization_angle = %s
+            WHERE id = %s
+            """,
+            (now, packet.research_notes, packet.personalization_angle, enrichment_run_id),
+        )
+
+    @staticmethod
+    def _upsert_company_facts(cur: Any, packet: EnrichmentPacket, now: datetime) -> None:
         facts = packet.company_facts
         cur.execute(
             """
-            insert into intelligence.company_facts (
-                company_id, employee_count, monthly_sessions, has_login,
-                vertical, ownership_type, india_bridge, data_sensitivity, updated_at
-            ) values (%s,%s,%s,%s,%s,%s,%s,%s,%s)
-            on conflict (company_id) do update
-            set employee_count=coalesce(excluded.employee_count, intelligence.company_facts.employee_count),
-                monthly_sessions=coalesce(excluded.monthly_sessions, intelligence.company_facts.monthly_sessions),
-                has_login=excluded.has_login,
-                vertical=coalesce(excluded.vertical, intelligence.company_facts.vertical),
-                ownership_type=coalesce(excluded.ownership_type, intelligence.company_facts.ownership_type),
-                india_bridge=excluded.india_bridge,
-                data_sensitivity=coalesce(excluded.data_sensitivity, intelligence.company_facts.data_sensitivity),
-                updated_at=excluded.updated_at
+            INSERT INTO intelligence.company_facts
+                (company_id, employee_count, monthly_sessions, has_login, vertical,
+                 ownership_type, india_bridge, data_sensitivity, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (company_id) DO UPDATE SET
+                employee_count = EXCLUDED.employee_count,
+                monthly_sessions = EXCLUDED.monthly_sessions,
+                has_login = EXCLUDED.has_login,
+                vertical = EXCLUDED.vertical,
+                ownership_type = EXCLUDED.ownership_type,
+                india_bridge = EXCLUDED.india_bridge,
+                data_sensitivity = EXCLUDED.data_sensitivity,
+                updated_at = EXCLUDED.updated_at
             """,
             (
                 packet.company_id,
@@ -131,87 +107,18 @@ class EnrichmentRepository:
             ),
         )
 
-    def _upsert_company_score(self, cur: psycopg.Cursor[Any], packet: EnrichmentPacket, now: datetime) -> None:
-        facts = packet.company_facts
-        notes = "\n".join(
-            packet.research_notes
-            + [signal.signal_type for signal in packet.intent_signals]
-            + [
-                json.dumps(evidence.claim, sort_keys=True)
-                for dm in packet.decision_makers
-                for evidence in dm.evidence
-            ]
-        )
-        signals = [
-            normalize_signal(
-                signal_type=signal.signal_type,
-                signal_date=signal.signal_date,
-            ).as_score_input()
-            for signal in packet.intent_signals
-        ]
-        score = score_company(
-            employee_count=facts.employee_count,
-            monthly_sessions=facts.monthly_sessions,
-            has_login=facts.has_login,
-            notes=notes,
-            signals=signals,
-            today=now.date(),
-            behavior_override=False,
-            india_bridge=facts.india_bridge,
-        )
-        cur.execute(
-            """
-            insert into intelligence.company_scores (
-                company_id, fit_score, fit_raw, intent_score,
-                behavior_override, negative_flags, modifiers, priority,
-                scoring_version, scored_at, updated_at
-            ) values (%s,%s,%s,%s,%s,%s,%s,%s,'v2.1',%s,%s)
-            on conflict (company_id) do update
-            set fit_score=excluded.fit_score,
-                fit_raw=excluded.fit_raw,
-                intent_score=excluded.intent_score,
-                behavior_override=excluded.behavior_override,
-                negative_flags=excluded.negative_flags,
-                modifiers=excluded.modifiers,
-                priority=excluded.priority,
-                scoring_version=excluded.scoring_version,
-                scored_at=excluded.scored_at,
-                updated_at=excluded.updated_at
-            """,
-            (
-                packet.company_id,
-                score.fit_score,
-                score.fit_raw,
-                score.intent_score,
-                score.behavior_override,
-                json.dumps(score.negative_flags),
-                json.dumps(score.modifiers),
-                score.priority,
-                now,
-                now,
-            ),
-        )
-
-    def _upsert_company_contacts(
-        self, cur: psycopg.Cursor[Any], packet: EnrichmentPacket, now: datetime
-    ) -> None:
+    @staticmethod
+    def _upsert_company_contacts(cur: Any, packet: EnrichmentPacket, now: datetime) -> None:
         for contact in packet.company_contacts:
             cur.execute(
                 """
-                insert into growth.company_contacts (
-                    company_id, channel, value, normalized_value, label,
-                    source, source_url, verification_status, confidence,
-                    first_seen_at
-                ) values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                on conflict (company_id, channel, normalized_value) do update
-                set value=excluded.value,
-                    label=excluded.label,
-                    source=coalesce(excluded.source, growth.company_contacts.source),
-                    source_url=coalesce(excluded.source_url, growth.company_contacts.source_url),
-                    confidence=greatest(
-                        coalesce(growth.company_contacts.confidence, 0),
-                        coalesce(excluded.confidence, 0)
-                    )
+                INSERT INTO growth.company_contacts
+                    (company_id, channel, value, normalized_value, label, source, source_url, confidence, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (company_id, channel, normalized_value) DO UPDATE SET
+                    value = EXCLUDED.value, label = EXCLUDED.label,
+                    source = EXCLUDED.source, source_url = EXCLUDED.source_url,
+                    confidence = EXCLUDED.confidence, updated_at = EXCLUDED.updated_at
                 """,
                 (
                     packet.company_id,
@@ -221,75 +128,52 @@ class EnrichmentRepository:
                     contact.label,
                     contact.source,
                     contact.source_url,
-                    "candidate",
                     contact.confidence,
                     now,
                 ),
             )
 
-    def _upsert_decision_makers(
-        self, cur: psycopg.Cursor[Any], packet: EnrichmentPacket, now: datetime
-    ) -> dict[str, Any]:
-        ids_by_name: dict[str, Any] = {}
-        for dm in packet.decision_makers:
+    def _upsert_decision_makers(self, cur: Any, packet: EnrichmentPacket, now: datetime) -> dict[str, Any]:
+        ids: dict[str, Any] = {}
+        for decision_maker in packet.decision_makers:
             cur.execute(
                 """
-                insert into growth.decision_makers (
-                    company_id, full_name, title, role_family, role_priority,
-                    rationale, confidence, first_seen_at, updated_at,
-                    status, research_status
-                ) values (
-                    %s,%s,%s,%s,%s,%s,%s,%s,%s,'candidate','complete'
-                )
-                on conflict (company_id, lower(full_name), lower(coalesce(title,'')))
-                do update set
-                    role_family=coalesce(excluded.role_family, growth.decision_makers.role_family),
-                    role_priority=coalesce(excluded.role_priority, growth.decision_makers.role_priority),
-                    rationale=coalesce(excluded.rationale, growth.decision_makers.rationale),
-                    confidence=greatest(
-                        coalesce(growth.decision_makers.confidence, 0),
-                        coalesce(excluded.confidence, 0)
-                    ),
-                    updated_at=excluded.updated_at,
-                    research_status='complete'
-                returning decision_maker_id
+                INSERT INTO growth.decision_makers
+                    (company_id, full_name, title, role_family, role_priority, rationale, confidence, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (company_id, lower(full_name)) DO UPDATE SET
+                    title = EXCLUDED.title, role_family = EXCLUDED.role_family,
+                    role_priority = EXCLUDED.role_priority, rationale = EXCLUDED.rationale,
+                    confidence = EXCLUDED.confidence, updated_at = EXCLUDED.updated_at
+                RETURNING id
                 """,
                 (
                     packet.company_id,
-                    dm.full_name,
-                    dm.title,
-                    dm.role_family,
-                    dm.role_priority,
-                    dm.rationale,
-                    dm.confidence,
-                    now,
+                    decision_maker.full_name,
+                    decision_maker.title,
+                    decision_maker.role_family,
+                    decision_maker.role_priority,
+                    decision_maker.rationale,
+                    decision_maker.confidence,
                     now,
                 ),
             )
             row = cur.fetchone()
-            if not row:
-                raise RuntimeError("failed to upsert decision maker")
+            if row is None:
+                raise RuntimeError("decision-maker upsert did not return an id")
             decision_maker_id = row[0]
-            ids_by_name[dm.full_name.lower()] = decision_maker_id
-
-            for contact in dm.contacts:
+            ids[decision_maker.full_name.casefold()] = decision_maker_id
+            for contact in decision_maker.contacts:
                 cur.execute(
                     """
-                    insert into growth.decision_maker_contact_methods (
-                        decision_maker_id, channel, value, normalized_value,
-                        source, source_url, verification_status,
-                        verification_provider, confidence, first_seen_at, last_verified_at
-                    ) values (
-                        %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s
-                    )
-                    on conflict (decision_maker_id, channel, normalized_value) do update
-                    set value=excluded.value,
-                        source=coalesce(excluded.source, growth.decision_maker_contact_methods.source),
-                        source_url=coalesce(excluded.source_url, growth.decision_maker_contact_methods.source_url),
-                        confidence=greatest(
-                            coalesce(growth.decision_maker_contact_methods.confidence, 0),
-                            coalesce(excluded.confidence, 0)
-                        )
+                    INSERT INTO growth.decision_maker_contact_methods
+                        (decision_maker_id, channel, value, normalized_value, source, source_url,
+                         verification_status, verification_provider, confidence, updated_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (decision_maker_id, channel, normalized_value) DO UPDATE SET
+                        value = EXCLUDED.value, source = EXCLUDED.source,
+                        source_url = EXCLUDED.source_url, confidence = EXCLUDED.confidence,
+                        updated_at = EXCLUDED.updated_at
                     """,
                     (
                         decision_maker_id,
@@ -302,133 +186,154 @@ class EnrichmentRepository:
                         contact.verification_provider,
                         contact.confidence,
                         now,
-                        contact.last_verified_at,
                     ),
                 )
-        return ids_by_name
+        return ids
 
-    def _insert_packet_evidence(
-        self,
-        cur: psycopg.Cursor[Any],
-        packet: EnrichmentPacket,
-        decision_maker_ids: dict[str, Any],
-        run_id: Any,
-    ) -> None:
-        for dm in packet.decision_makers:
-            for evidence in dm.evidence:
-                self._insert_evidence(
-                    cur, run_id, packet.company_id, decision_maker_ids[dm.full_name.lower()], evidence
-                )
+    @staticmethod
+    def _insert_packet_evidence(cur: Any, packet: EnrichmentPacket, enrichment_run_id: Any, now: datetime) -> None:
+        for decision_maker in packet.decision_makers:
+            for evidence in decision_maker.evidence:
+                EnrichmentRepository._insert_evidence(cur, evidence, packet.company_id, enrichment_run_id, now)
+            for contact in decision_maker.contacts:
+                for evidence in contact.evidence:
+                    EnrichmentRepository._insert_evidence(cur, evidence, packet.company_id, enrichment_run_id, now)
         for contact in packet.company_contacts:
             for evidence in contact.evidence:
-                self._insert_evidence(cur, run_id, packet.company_id, None, evidence)
+                EnrichmentRepository._insert_evidence(cur, evidence, packet.company_id, enrichment_run_id, now)
         for signal in packet.intent_signals:
             for evidence in signal.evidence:
-                self._insert_evidence(cur, run_id, packet.company_id, None, evidence)
+                EnrichmentRepository._insert_evidence(cur, evidence, packet.company_id, enrichment_run_id, now)
 
-    def _insert_evidence(
-        self,
-        cur: psycopg.Cursor[Any],
-        run_id: Any,
-        company_id: int,
-        decision_maker_id: Any,
-        evidence: Evidence,
-    ) -> None:
-        observed_at = evidence.observed_at or datetime.now(UTC)
-        evidence_hash = self._hash_evidence(evidence.model_dump(mode="json"))
+    @staticmethod
+    def _insert_evidence(cur: Any, evidence: Evidence, company_id: int, enrichment_run_id: Any, now: datetime) -> None:
+        payload = evidence.model_dump(mode="json")
+        evidence_hash = EnrichmentRepository._hash_evidence(payload)
         cur.execute(
             """
-            insert into intelligence.evidence (
-                enrichment_run_id, company_id, decision_maker_id,
-                claim_type, claim, source_url, source_type,
-                observed_at, event_date, confidence, evidence_hash
-            ) values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-            on conflict (evidence_hash) do nothing
+            INSERT INTO intelligence.evidence
+                (company_id, enrichment_run_id, claim_type, claim, source_url, source_type,
+                 observed_at, event_date, confidence, evidence_hash)
+            VALUES (%s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (evidence_hash) DO NOTHING
             """,
             (
-                run_id,
                 company_id,
-                decision_maker_id,
+                enrichment_run_id,
                 evidence.claim_type,
                 json.dumps(evidence.claim),
                 evidence.source_url,
                 evidence.source_type,
-                observed_at,
+                evidence.observed_at,
                 evidence.event_date,
                 evidence.confidence,
                 evidence_hash,
             ),
         )
 
-    def _insert_intent_signals(
-        self,
-        cur: psycopg.Cursor[Any],
-        packet: EnrichmentPacket,
-        run_id: Any,
-        now: datetime,
-    ) -> None:
+    @staticmethod
+    def _insert_intent_signals(cur: Any, packet: EnrichmentPacket, enrichment_run_id: Any, now: datetime) -> None:
         for signal in packet.intent_signals:
-            normalized = normalize_signal(
-                signal_type=signal.signal_type,
-                signal_date=signal.signal_date,
-            )
-            evidence_id = None
-            if signal.evidence:
-                digest = self._hash_evidence(signal.evidence[0].model_dump(mode="json"))
-                cur.execute(
-                    "select evidence_id from intelligence.evidence where evidence_hash=%s",
-                    (digest,),
-                )
-                row = cur.fetchone()
-                evidence_id = row[0] if row else None
-
+            normalized = normalize_signal(signal)
             cur.execute(
                 """
-                insert into intelligence.intent_signals (
-                    company_id, signal_type, signal_date, detected_at,
-                    weight, half_life_days, evidence_id, confidence, status
-                ) values (%s,%s,%s,%s,%s,%s,%s,%s,'active')
+                INSERT INTO intelligence.intent_signals
+                    (company_id, enrichment_run_id, signal_type, signal_date, weight, half_life_days,
+                     confidence, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
                     packet.company_id,
+                    enrichment_run_id,
                     normalized.signal_type,
                     normalized.signal_date,
-                    now,
                     normalized.weight,
                     normalized.half_life_days,
-                    evidence_id,
                     signal.confidence,
+                    now,
                 ),
             )
 
-    def next_companies(self, *, limit: int = 3) -> list[dict[str, Any]]:
-        if limit not in (1, 2, 3):
-            raise ValueError("limit must be between 1 and 3")
-        with self._connection_factory() as conn, conn.cursor() as cur:
-            cur.execute(
-                """
-                select c.id, c.domain, c.name, c.country, c.city,
-                       c.revenue_est, c.visits_est, c.website,
-                       c.company_linkedin, c.notes
-                from public.companies c
-                where not exists (
-                    select 1
-                    from intelligence.enrichment_runs er
-                    where er.company_id = c.id
-                      and er.status = 'completed'
-                )
-                order by c.id
-                limit %s
-                """,
-                (limit,),
-            )
-            description = cur.description
-            if description is None:
-                raise RuntimeError("company export query returned no column description")
-            columns = [desc.name for desc in description]
-            return [dict(zip(columns, row, strict=True)) for row in cur.fetchall()]
+    @staticmethod
+    def _upsert_company_score(cur: Any, packet: EnrichmentPacket, now: datetime) -> dict[str, Any]:
+        normalized_signals = [normalize_signal(signal).to_intent_signal_input() for signal in packet.intent_signals]
+        score = score_company(
+            fit_factors=packet.company_facts.model_dump(),
+            intent_signals=normalized_signals,
+            behavior_score=0.0,
+        )
+        cur.execute(
+            """
+            INSERT INTO intelligence.company_scores
+                (company_id, fit_score, intent_score, behavior_score, priority_score, scored_at)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON CONFLICT (company_id) DO UPDATE SET
+                fit_score = EXCLUDED.fit_score,
+                intent_score = EXCLUDED.intent_score,
+                behavior_score = EXCLUDED.behavior_score,
+                priority_score = EXCLUDED.priority_score,
+                scored_at = EXCLUDED.scored_at
+            """,
+            (
+                packet.company_id,
+                score.fit_score,
+                score.intent_score,
+                score.behavior_score,
+                score.priority_score,
+                now,
+            ),
+        )
+        return score.model_dump()
 
     @staticmethod
     def _hash_evidence(payload: dict[str, Any]) -> str:
         canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def update_contact_verification(
+        cur: Any,
+        decision_maker_id: Any,
+        normalized_value: str,
+        result: VerificationResult,
+        now: datetime | None = None,
+    ) -> None:
+        observed_at = now or datetime.now(UTC)
+        cur.execute(
+            """
+            UPDATE growth.decision_maker_contact_methods
+            SET verification_status = %s,
+                verification_provider = %s,
+                confidence = %s,
+                updated_at = %s
+            WHERE decision_maker_id = %s AND normalized_value = %s
+            """,
+            (
+                result.status,
+                result.provider,
+                result.confidence,
+                observed_at,
+                decision_maker_id,
+                normalized_value,
+            ),
+        )
+
+    @staticmethod
+    def next_companies(cur: Any, limit: int = 3) -> list[int]:
+        if not 1 <= limit <= 3:
+            raise ValueError("next_companies limit must be between 1 and 3")
+        cur.execute(
+            """
+            SELECT c.id
+            FROM public.companies AS c
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM intelligence.enrichment_runs AS er
+                WHERE er.company_id = c.id AND er.status = 'completed'
+            )
+            ORDER BY c.id
+            LIMIT %s
+            """,
+            (limit,),
+        )
+        return [row[0] for row in cur.fetchall()]
