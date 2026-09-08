@@ -122,7 +122,7 @@ def test_retry_lifecycle_and_stale_completion_fencing() -> None:
         assert row[0] == "sent" and row[1] == 2 and row[2] is None and attempts == 1
     finally:
         with psycopg.connect(dsn) as conn, conn.cursor() as cur:
-            cur.execute("delete from public.send_attempts where send_id=%s", (send_id,)); cur.execute("delete from public.sends where id=%s", (send_id,)); cur.execute("delete from public.sequence_steps where id=%s", (step_id,)); cur.execute("delete from public.campaigns where id=%s", (campaign_id,))
+            cur.execute("delete from public.send_attempts where send_id=%s", (send_id,)); cur.execute("delete from public.sends where id=%s", (send_id,)); cur.execute("delete from public.sequence_steps where id=%s", (step_id,)); cur.execute("delete from public.campaigns where id=%s", (campaign_id,));
             if person_id is not None: cur.execute("delete from public.people where id=%s", (person_id,))
             cur.execute("delete from mail.mailboxes where id=%s", (mailbox_id,)); cur.execute("delete from mail.domains where id=%s", (domain_id,))
 
@@ -147,9 +147,14 @@ def test_uncertain_send_is_reconciled_by_different_worker() -> None:
         with pytest.raises(Exception, match="not uncertain"): worker_b.resolve_uncertain(send_id=str(send_id), accepted=True, provider_message_id="ci-provider-message-2")
     finally:
         with psycopg.connect(dsn) as conn, conn.cursor() as cur:
-            cur.execute("delete from public.send_attempts where send_id=%s", (send_id,)); cur.execute("delete from public.sends where id=%s", (send_id,)); cur.execute("delete from public.sequence_steps where id=%s", (step_id,)); cur.execute("delete from public.campaigns where id=%s", (campaign_id));
-            if person_id is not None: cur.execute("delete from public.people where id=%s", (person_id,))
-            cur.execute("delete from mail.mailboxes where id=%s", (mailbox_id,)); cur.execute("delete from mail.domains where id=%s", (domain_id,))
+            cur.execute("delete from public.send_attempts where send_id=%s", (send_id,))
+            cur.execute("delete from public.sends where id=%s", (send_id,))
+            cur.execute("delete from public.sequence_steps where id=%s", (step_id,))
+            cur.execute("delete from public.campaigns where id=%s", (campaign_id,))
+            if person_id is not None:
+                cur.execute("delete from public.people where id=%s", (person_id,))
+            cur.execute("delete from mail.mailboxes where id=%s", (mailbox_id,))
+            cur.execute("delete from mail.domains where id=%s", (domain_id,))
 
 
 @pytest.mark.integration
