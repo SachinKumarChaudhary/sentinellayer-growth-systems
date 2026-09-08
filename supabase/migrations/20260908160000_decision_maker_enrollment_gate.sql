@@ -74,6 +74,11 @@ begin
 end;
 $$;
 
+revoke all on function growth.approve_decision_maker_review(uuid, text, text) from public;
+revoke all on function growth.approve_decision_maker_review(uuid, text, text) from anon;
+revoke all on function growth.approve_decision_maker_review(uuid, text, text) from authenticated;
+grant execute on function growth.approve_decision_maker_review(uuid, text, text) to service_role;
+
 create or replace function growth.enforce_decision_maker_enrollment_gate()
 returns trigger
 language plpgsql
