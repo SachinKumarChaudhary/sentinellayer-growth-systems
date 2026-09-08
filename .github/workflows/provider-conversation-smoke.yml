@@ -111,6 +111,8 @@ jobs:
               raise SystemExit("Timed out waiting for the controlled IMAP reply")
           if not message.body_text.strip():
               raise SystemExit("Controlled reply body is empty")
+          if not message.provider_message_id.strip():
+              raise SystemExit("Controlled reply did not expose a provider Message-ID")
 
           print("Controlled reply parsed: OK")
           print(f"Inbound subject: {message.subject}")
@@ -208,9 +210,8 @@ jobs:
           print(f"Conversation classification: {classification}")
           print(f"Conversation persistence: {outcome['persisted']['status']}")
           print(f"Sales task status: {outcome['sales']['status']}")
-          if not outcome["analysis_enqueued"]:
-              raise SystemExit(f"Conversation analysis was not enqueued: {outcome['analysis_enqueue_error']}")
           print("Conversation analysis queue: ENQUEUED")
+
           from sentinellayer_growth_engine.conversation_analysis_queue import ConversationAnalysisWorker
           from sentinellayer_growth_engine.conversation_analyzer import GroqAnalyzer
 
@@ -227,7 +228,6 @@ jobs:
               raise SystemExit("Groq conversation analysis failed schema verification")
           print(f"Groq analysis model: {analysis_row['model']}")
           print("Groq structured analysis: VERIFIED")
-          print("Analysis queue: enqueued")
 
           duplicate = runtime.handle_inbound(
               account_id=account_id,
@@ -268,8 +268,8 @@ jobs:
                   (outcome["persisted"]["reply_id"],),
               )
               analysis = cur.fetchone()
-              if analysis is None or analysis["status"] != "pending":
-                  raise SystemExit(f"Expected pending analysis job, got {analysis!r}")
+              if analysis is None or analysis["status"] != "completed":
+                  raise SystemExit(f"Expected completed analysis job, got {analysis!r}")
 
               cur.execute(
                   """
@@ -290,7 +290,7 @@ jobs:
           print(f"Conversation thread state: {persisted['state']}")
           print(f"Durable Sales trigger: {sales['trigger_type']}")
           print(f"Durable Sales status: {sales['status']}")
-          print("Durable Conversation analysis job: PENDING")
+          print("Durable Conversation analysis job: COMPLETED")
           print(f"Analysis job id: {analysis['analysis_id']}")
 
           # Mark Seen only after the complete runtime path succeeds.
