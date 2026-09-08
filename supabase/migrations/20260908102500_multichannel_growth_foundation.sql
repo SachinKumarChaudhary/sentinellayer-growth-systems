@@ -75,6 +75,18 @@ create table if not exists growth.company_contacts (
 create index if not exists company_contacts_company_idx
   on growth.company_contacts(company_id);
 
+create table if not exists intelligence.company_facts (
+  company_id bigint primary key references public.companies(id) on delete cascade,
+  employee_count integer check (employee_count is null or employee_count >= 0),
+  monthly_sessions bigint check (monthly_sessions is null or monthly_sessions >= 0),
+  has_login boolean not null default false,
+  vertical text,
+  ownership_type text,
+  india_bridge boolean not null default false,
+  data_sensitivity text,
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists intelligence.enrichment_runs (
   enrichment_run_id uuid primary key default gen_random_uuid(),
   company_id bigint references public.companies(id) on delete cascade,
