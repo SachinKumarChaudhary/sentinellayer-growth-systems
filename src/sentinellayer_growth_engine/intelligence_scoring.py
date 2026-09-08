@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from collections.abc import Iterable
 from datetime import date
 from math import pow
-from typing import Iterable
 
 BASE_QUALIFIER_POINTS = 3
 
