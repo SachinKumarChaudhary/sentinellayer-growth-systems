@@ -8,6 +8,9 @@ on:
         required: true
         default: false
         type: boolean
+  push:
+    branches:
+      - ops/provider-conversation-push-trigger
 
 permissions:
   contents: read
@@ -36,7 +39,7 @@ jobs:
         with:
           python-version: "3.11"
       - name: Validate required configuration
-        if: ${{ inputs.process_reply }}
+        if: ${{ inputs.process_reply || github.event_name == 'push' }}
         run: |
           set -euo pipefail
           for name in IMAP_HOST IMAP_PORT IMAP_USERNAME IMAP_PASSWORD IMAP_MAILBOX SUPABASE_DATABASE_URL; do
@@ -47,10 +50,10 @@ jobs:
           test -n "$GROQ_API_KEY" || { echo "Missing GROQ_API_KEY"; exit 1; }
           echo "Required provider and database configuration: present"
       - name: Install
-        if: ${{ inputs.process_reply }}
+        if: ${{ inputs.process_reply || github.event_name == 'push' }}
         run: python -m pip install -e .
       - name: Process controlled reply through Conversation and Sales
-        if: ${{ inputs.process_reply }}
+        if: ${{ inputs.process_reply || github.event_name == 'push' }}
         run: |
           python - <<'PY'
           import imaplib
@@ -179,7 +182,7 @@ jobs:
 
           analysis_queue = ConversationAnalysisQueue(
               dsn,
-              worker_id=f"provider-conversation-smoke-{os.environ.get('GITHUB_RUN_ID', 'manual')}-{os.environ.get('GITHUB_RUN_ATTEMPT', '1')}",
+              worker_id=f"provider-conversation-smoke-{os.environ.get('GITHUB_RUN_ID', 'push')}-{os.environ.get('GITHUB_RUN_ATTEMPT', '1')}",
           )
           runtime = ConversationRuntime(
               db,
@@ -202,7 +205,7 @@ jobs:
           if outcome["persisted"].get("status") not in {"stored", "duplicate"}:
               raise SystemExit("Conversation persistence did not report stored/duplicate")
           if outcome.get("analysis_enqueued") is not True:
-              raise SystemExit(f"Conversation analysis queue was not enqueued: {outcome.get('analysis_enqueue_error')!r}")
+              raise SystemExit(f"Conversation analysis was not enqueued: {outcome.get('analysis_enqueue_error')!r}")
           if outcome.get("analysis_enqueue_error") is not None:
               raise SystemExit(f"Conversation analysis enqueue reported an error: {outcome['analysis_enqueue_error']!r}")
           if outcome["sales"] is None:
