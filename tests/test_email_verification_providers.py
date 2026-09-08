@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, Self
 
 from sentinellayer_growth_engine.email_verification_providers import QuickEmailVerificationProvider
 from sentinellayer_growth_engine.enrichment_contracts import ContactMethod
@@ -11,7 +11,7 @@ class FakeResponse:
     def __init__(self, payload: dict[str, Any]) -> None:
         self.payload = payload
 
-    def __enter__(self) -> FakeResponse:
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *_args: object) -> None:
