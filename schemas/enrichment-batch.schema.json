@@ -4,9 +4,14 @@
   "title": "EnrichmentBatch",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "packets"],
+  "required": [
+    "schema_version",
+    "packets"
+  ],
   "properties": {
-    "schema_version": {"const": "1.0"},
+    "schema_version": {
+      "const": "1.0"
+    },
     "packets": {
       "type": "array",
       "minItems": 1,
@@ -14,17 +19,95 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["schema_version", "company_id", "domain"],
+        "required": [
+          "schema_version",
+          "company_id",
+          "domain",
+          "company_facts"
+        ],
         "properties": {
-          "schema_version": {"const": "1.0"},
-          "company_id": {"type": "integer", "minimum": 1},
-          "domain": {"type": "string", "minLength": 1},
-          "merchant_name": {"type": ["string", "null"]},
-          "company_contacts": {"type": "array"},
-          "decision_makers": {"type": "array"},
-          "intent_signals": {"type": "array"},
-          "personalization_angle": {"type": ["string", "null"]},
-          "research_notes": {"type": "array", "items": {"type": "string"}}
+          "schema_version": {
+            "const": "1.0"
+          },
+          "company_id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "domain": {
+            "type": "string",
+            "minLength": 1
+          },
+          "merchant_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "company_contacts": {
+            "type": "array"
+          },
+          "decision_makers": {
+            "type": "array"
+          },
+          "intent_signals": {
+            "type": "array"
+          },
+          "personalization_angle": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "research_notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "company_facts": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "employee_count": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0
+              },
+              "monthly_sessions": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0
+              },
+              "has_login": {
+                "type": "boolean"
+              },
+              "vertical": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "ownership_type": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "india_bridge": {
+                "type": "boolean"
+              },
+              "data_sensitivity": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
         }
       }
     }
