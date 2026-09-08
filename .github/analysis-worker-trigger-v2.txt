@@ -1,4 +1,4 @@
 RUN-CONVERSATION-ANALYSIS
 fix=5f9251f6da228407d9e92db34a9d69facd7d149e
 diagnostic=structured-output-full-schema-v5
-provider-smoke=c032f8b0-22cf-4091-898c-4d714bbc0d90
+provider-smoke=3a1b38ef-6df2-4d5b-9d77-7c5684bfd5b5
