@@ -66,3 +66,4 @@ jobs:
           name: ci-metadata-${{ github.run_id }}
           path: test-results/ci-metadata.txt
           if-no-files-found: error
+# CI validation trigger for conversation-analysis changes.
