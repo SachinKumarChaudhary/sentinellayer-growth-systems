@@ -9,6 +9,7 @@ import psycopg
 
 from .contact_verification import VerificationResult
 from .enrichment_contracts import EnrichmentBatch, EnrichmentPacket, Evidence
+from .intent_normalization import normalize_signal
 from .intelligence_scoring import IntentSignalInput, score_company
 
 
@@ -51,7 +52,7 @@ class EnrichmentRepository:
     def update_contact_verification(
         self,
         *,
-        decision_maker_id: int,
+        decision_maker_id: Any,
         channel: str,
         normalized_value: str,
         result: VerificationResult,
@@ -142,12 +143,10 @@ class EnrichmentRepository:
             ]
         )
         signals = [
-            IntentSignalInput(
+            normalize_signal(
                 signal_type=signal.signal_type,
                 signal_date=signal.signal_date,
-                weight=signal.weight,
-                half_life_days=signal.half_life_days,
-            )
+            ).as_score_input()
             for signal in packet.intent_signals
         ]
         score = score_company(
@@ -369,6 +368,10 @@ class EnrichmentRepository:
         now: datetime,
     ) -> None:
         for signal in packet.intent_signals:
+            normalized = normalize_signal(
+                signal_type=signal.signal_type,
+                signal_date=signal.signal_date,
+            )
             evidence_id = None
             if signal.evidence:
                 digest = self._hash_evidence(signal.evidence[0].model_dump(mode="json"))
@@ -388,11 +391,11 @@ class EnrichmentRepository:
                 """,
                 (
                     packet.company_id,
-                    signal.signal_type,
-                    signal.signal_date,
+                    normalized.signal_type,
+                    normalized.signal_date,
                     now,
-                    signal.weight,
-                    signal.half_life_days,
+                    normalized.weight,
+                    normalized.half_life_days,
                     evidence_id,
                     signal.confidence,
                 ),
