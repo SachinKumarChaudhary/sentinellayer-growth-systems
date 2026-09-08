@@ -34,75 +34,25 @@ Keep existing schema names where the current production system already owns a co
 
 ## 3. Core tables
 
-### growth.companies
+### public.companies (existing system of record)
 
-One row per normalized company.
+The repository already has 1,200 company rows in `public.companies`. This table remains the canonical company root.
 
-Key fields:
-- company_id UUID PK
-- canonical_domain text UNIQUE
-- legal_name / display_name
-- country / state / city
-- employee_count
-- traffic_monthly
-- active_users_monthly
-- vertical
-- ownership_type
-- parent_company_id nullable self-reference
-- status
-- created_at / updated_at
+The new growth/intelligence tables reference `public.companies(id)` rather than creating a duplicate company table.
 
 Do not store decision makers as a delimited text field here.
 
-### growth.people
+### Existing public.people
 
-One row per real person identity.
+The repository already has `public.people`, but the new canonical enrichment model uses `growth.decision_makers` because your current requirement is company -> decision makers, with their outreach identities attached to them. Existing `public.people` remains legacy/compatibility data until the outreach execution layer is migrated.
 
-Key fields:
-- person_id UUID PK
-- normalized_name
-- first_name / last_name
-- created_at / updated_at
+### growth.decision_makers
 
-### growth.company_people
+Canonical decision-maker records for the new enrichment pipeline. Each row belongs to a company and contains role/ranking/research state.
 
-Relationship between company and person.
+### growth.decision_maker_contact_methods
 
-Key fields:
-- company_person_id UUID PK
-- company_id FK
-- person_id FK
-- role_title
-- role_family
-- employment_status
-- is_decision_maker boolean
-- rank
-- rationale
-- first_seen_at
-- last_verified_at
-
-Unique constraint: `company_id, person_id`.
-
-### growth.decision_maker_contacts
-
-Outreach identities belonging to a decision maker.
-
-Key fields:
-- decision_maker_contact_id UUID PK
-- company_person_id FK
-- email_candidate(s) should be normalized into child rows where multiple addresses exist
-- primary_email_id nullable
-- primary_phone_id nullable
-- linkedin_url
-- instagram_url
-- reddit_username/url
-- x_url
-- other_public_profiles JSONB
-- confidence numeric
-- status
-- created_at / updated_at
-
-Prefer child contact-method rows for extensibility:
+All individual outreach identities belonging to a decision maker.
 
 ```
 growth.person_contact_methods
@@ -225,7 +175,7 @@ Scores can be recomputed from immutable evidence.
 
 ### growth.campaigns
 
-Strategic container.
+Strategic monthly campaign container for the new growth system. Existing `public.campaigns` remains for compatibility until the campaign execution layer is migrated.
 
 Fields:
 - campaign_id
@@ -576,9 +526,11 @@ Do not expose raw provider credentials, private research artifacts, or internal 
 
 ## 13. Migration strategy
 
-Do not replace the existing conversation/tracking tables immediately.
+The first foundation has now been applied to Supabase and committed as `20260908102500_multichannel_growth_foundation.sql`.
 
-Add the canonical growth layer around current foundations, migrate concepts incrementally, then remove duplicated legacy fields only after CI and production replay prove equivalence.
+The existing `public.companies` table remains the source of truth for the 1,200 companies. Existing `public.people`, `public.campaigns`, conversation and tracking tables remain compatibility foundations. New growth/intelligence/outreach/ops tables are introduced incrementally.
+
+Do not remove legacy fields until CI and live replay prove equivalence.
 
 The first migration set should create:
 - growth.companies
