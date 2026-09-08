@@ -8,6 +8,7 @@ from typing import Any, Protocol
 import psycopg
 
 from .enrichment_contracts import EnrichmentBatch, EnrichmentPacket, Evidence
+from .intelligence_scoring import IntentSignalInput, score_company
 
 
 class ConnectionFactory(Protocol):
@@ -33,6 +34,7 @@ class EnrichmentRepository:
                 decision_maker_ids = self._upsert_decision_makers(cur, packet, now)
                 self._insert_packet_evidence(cur, packet, decision_maker_ids, run_id)
                 self._insert_intent_signals(cur, packet, run_id, now)
+                self._upsert_company_score(cur, packet, now)
 
                 cur.execute(
                     """
@@ -90,6 +92,70 @@ class EnrichmentRepository:
                 facts.ownership_type,
                 facts.india_bridge,
                 facts.data_sensitivity,
+                now,
+            ),
+        )
+
+
+    def _upsert_company_score(self, cur: psycopg.Cursor[Any], packet: EnrichmentPacket, now: datetime) -> None:
+        facts = packet.company_facts
+        notes = "\n".join(
+            packet.research_notes
+            + [signal.signal_type for signal in packet.intent_signals]
+            + [
+                json.dumps(evidence.claim, sort_keys=True)
+                for dm in packet.decision_makers
+                for evidence in dm.evidence
+            ]
+        )
+        signals = [
+            IntentSignalInput(
+                signal_type=signal.signal_type,
+                signal_date=signal.signal_date,
+                weight=signal.weight,
+                half_life_days=signal.half_life_days,
+            )
+            for signal in packet.intent_signals
+        ]
+        score = score_company(
+            employee_count=facts.employee_count,
+            monthly_sessions=facts.monthly_sessions,
+            has_login=facts.has_login,
+            notes=notes,
+            signals=signals,
+            today=now.date(),
+            behavior_override=False,
+            india_bridge=facts.india_bridge,
+        )
+        cur.execute(
+            """
+            insert into intelligence.company_scores (
+                company_id, fit_score, fit_raw, intent_score,
+                behavior_override, negative_flags, modifiers, priority,
+                scoring_version, scored_at, updated_at
+            ) values (%s,%s,%s,%s,%s,%s,%s,%s,'v2.1',%s,%s)
+            on conflict (company_id) do update
+            set fit_score=excluded.fit_score,
+                fit_raw=excluded.fit_raw,
+                intent_score=excluded.intent_score,
+                behavior_override=excluded.behavior_override,
+                negative_flags=excluded.negative_flags,
+                modifiers=excluded.modifiers,
+                priority=excluded.priority,
+                scoring_version=excluded.scoring_version,
+                scored_at=excluded.scored_at,
+                updated_at=excluded.updated_at
+            """,
+            (
+                packet.company_id,
+                score.fit_score,
+                score.fit_raw,
+                score.intent_score,
+                score.behavior_override,
+                json.dumps(score.negative_flags),
+                json.dumps(score.modifiers),
+                score.priority,
+                now,
                 now,
             ),
         )
