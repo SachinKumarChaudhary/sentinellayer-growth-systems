@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, Sequence
+from typing import Literal
 
 
 Channel = Literal["email", "linkedin", "instagram", "reddit", "social_content", "phone", "none"]
@@ -22,7 +22,7 @@ def recommend_next_action(
     priority: str,
     has_conversation: bool,
     awaiting_reply: bool,
-    available_channels: Sequence[Channel],
+    available_channels: list[Channel],
     social_warming_available: bool,
 ) -> Recommendation:
     channels = set(available_channels)
