@@ -3,20 +3,23 @@ from sentinellayer_growth_engine.enrichment_contracts import ContactMethod, Deci
 
 
 def _dm(name: str, title: str, family: str, priority: int, status: str = "unknown") -> DecisionMaker:
+    contact = ContactMethod(
+        channel="email",
+        value=f"{name.lower().replace(' ', '.')}@example.com",
+        normalized_value=f"{name.lower().replace(' ', '.')}@example.com",
+    )
+    if status != "unknown":
+        # Verified/invalid/stale are validation-pipeline states, not AI input states.
+        # model_copy preserves the already-validated contract while simulating the
+        # state after the verification boundary for ranking tests.
+        contact = contact.model_copy(update={"verification_status": status})
     return DecisionMaker(
         full_name=name,
         title=title,
         role_family=family,
         role_priority=priority,
         confidence=0.9,
-        contacts=[
-            ContactMethod(
-                channel="email",
-                value=f"{name.lower().replace(' ', '.')}@example.com",
-                normalized_value=f"{name.lower().replace(' ', '.')}@example.com",
-                verification_status=status,
-            )
-        ],
+        contacts=[contact],
     )
 
 
