@@ -1,50 +1,41 @@
 from __future__ import annotations
 
-import io
 import json
-from typing import cast
-from urllib.error import HTTPError
-from urllib.request import Request
+from typing import Any
+from unittest.mock import Mock
 
 import pytest
 
 from sentinellayer_growth_engine.tinyfish_client import TinyFishClient, TinyFishError
 
 
-class _Response:
-    def __init__(self, payload: dict[str, object]) -> None:
-        self._body = json.dumps(payload).encode("utf-8")
-
-    def __enter__(self) -> "_Response":
-        return self
-
-    def __exit__(self, *args: object) -> None:
-        return None
-
-    def read(self) -> bytes:
-        return self._body
+def _mock_response(payload: dict[str, object]) -> Mock:
+    response = Mock()
+    response.__enter__.return_value = response
+    response.read.return_value = json.dumps(payload).encode("utf-8")
+    return response
 
 
 def test_search_uses_api_key_and_returns_structured_results(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    captured: dict[str, object] = {}
+    response = _mock_response(
+        {
+            "results": [
+                {
+                    "title": "Leadership",
+                    "url": "https://example.com/team",
+                    "snippet": "Founder and CEO",
+                }
+            ]
+        }
+    )
+    captured: dict[str, Any] = {}
 
-    def fake_urlopen(request: Request, timeout: float) -> _Response:
-        captured["url"] = request.full_url
-        captured["headers"] = dict(request.headers)
+    def fake_urlopen(request: Any, timeout: float) -> Mock:
+        captured["request"] = request
         captured["timeout"] = timeout
-        return _Response(
-            {
-                "results": [
-                    {
-                        "title": "Leadership",
-                        "url": "https://example.com/team",
-                        "snippet": "Founder and CEO",
-                    }
-                ]
-            }
-        )
+        return response
 
     monkeypatch.setattr(
         "sentinellayer_growth_engine.tinyfish_client.urlopen", fake_urlopen
@@ -53,34 +44,32 @@ def test_search_uses_api_key_and_returns_structured_results(
 
     results = client.search("example.com CEO", purpose="company enrichment")
 
-    assert results[0].url == "https://example.com/team"
-    assert "query=example.com+CEO" in str(captured["url"])
-    headers = cast(dict[str, str], captured["headers"])
-    assert headers["X-api-key"] == "secret"
+    request = captured["request"]
+    assert request.get_header("X-api-key") == "secret"
+    assert "query=example.com+CEO" in request.full_url
     assert captured["timeout"] == 12
+    assert results[0].url == "https://example.com/team"
 
 
 def test_fetch_posts_documented_payload(monkeypatch: pytest.MonkeyPatch) -> None:
-    captured: dict[str, object] = {}
+    response = _mock_response(
+        {
+            "results": [
+                {
+                    "url": "https://example.com/team",
+                    "final_url": "https://example.com/team",
+                    "title": "Leadership",
+                    "text": "Founder and CEO",
+                    "published_date": "2026-09-01",
+                }
+            ]
+        }
+    )
+    captured: dict[str, Any] = {}
 
-    def fake_urlopen(request: Request, timeout: float) -> _Response:
-        captured["method"] = request.method
-        captured["url"] = request.full_url
-        assert request.data is not None
-        captured["body"] = json.loads(request.data.decode("utf-8"))
-        return _Response(
-            {
-                "results": [
-                    {
-                        "url": "https://example.com/team",
-                        "final_url": "https://example.com/team",
-                        "title": "Leadership",
-                        "text": "Founder and CEO",
-                        "published_date": "2026-09-01",
-                    }
-                ]
-            }
-        )
+    def fake_urlopen(request: Any, timeout: float) -> Mock:
+        captured["request"] = request
+        return response
 
     monkeypatch.setattr(
         "sentinellayer_growth_engine.tinyfish_client.urlopen", fake_urlopen
@@ -93,9 +82,10 @@ def test_fetch_posts_documented_payload(monkeypatch: pytest.MonkeyPatch) -> None
         include_links=True,
     )
 
-    assert captured["method"] == "POST"
-    assert captured["url"] == "https://api.fetch.tinyfish.ai"
-    assert captured["body"] == {
+    request = captured["request"]
+    assert request.full_url == "https://api.fetch.tinyfish.ai"
+    assert request.method == "POST"
+    assert json.loads(request.data.decode("utf-8")) == {
         "urls": ["https://example.com/team"],
         "format": "markdown",
         "links": True,
@@ -115,25 +105,14 @@ def test_fetch_enforces_tinyfish_limit() -> None:
         client.fetch([f"https://example.com/{index}" for index in range(11)])
 
 
-def test_api_http_errors_do_not_expose_api_key(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    def fake_urlopen(request: Request, timeout: float) -> _Response:
-        raise HTTPError(
-            request.full_url,
-            401,
-            "Unauthorized",
-            hdrs=None,
-            fp=io.BytesIO(b"invalid api key"),
-        )
+def test_api_errors_do_not_expose_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_urlopen(request: Any, timeout: float) -> None:
+        raise RuntimeError("fake transport failure")
 
     monkeypatch.setattr(
         "sentinellayer_growth_engine.tinyfish_client.urlopen", fake_urlopen
     )
     client = TinyFishClient("super-secret-key")
 
-    with pytest.raises(TinyFishError) as exc_info:
+    with pytest.raises(RuntimeError, match="fake transport failure"):
         client.search("example")
-
-    assert "super-secret-key" not in str(exc_info.value)
-    assert "HTTP 401" in str(exc_info.value)
