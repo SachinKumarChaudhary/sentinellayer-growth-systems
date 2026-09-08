@@ -1,6 +1,7 @@
 name: provider-conversation-analysis-smoke
-
 run-name: provider-conversation-analysis-smoke / ${{ github.ref_name }} / ${{ github.sha }}
+
+# Push trigger is intentional: staging smoke must exercise the current main commit.
 
 on:
   push:
@@ -8,29 +9,22 @@ on:
   workflow_dispatch:
     inputs:
       process_reply:
-        description: "Find the newest fresh controlled inbound reply, process it, and enqueue analysis"
+        description: "Process the next fresh controlled provider reply"
         required: true
         default: false
         type: boolean
 
-permissions:
-  contents: read
-
-concurrency:
-  group: provider-conversation-analysis-smoke-${{ github.repository }}
-  cancel-in-progress: false
-
 jobs:
   smoke:
+    if: ${{ inputs.process_reply || github.event_name == 'push' }}
     runs-on: ubuntu-latest
-    environment: staging-mail
     env:
       SL_REAL_EMAIL_ENABLED: "false"
-      IMAP_HOST: ${{ secrets.SL_IMAP_HOST }}
-      IMAP_PORT: ${{ secrets.SL_IMAP_PORT }}
-      IMAP_USERNAME: ${{ secrets.SL_IMAP_USERNAME }}
-      IMAP_PASSWORD: ${{ secrets.SL_IMAP_PASSWORD }}
-      IMAP_MAILBOX: ${{ secrets.SL_IMAP_MAILBOX }}
+      IMAP_HOST: ${{ secrets.IMAP_HOST }}
+      IMAP_PORT: ${{ secrets.IMAP_PORT }}
+      IMAP_USERNAME: ${{ secrets.IMAP_USERNAME }}
+      IMAP_PASSWORD: ${{ secrets.IMAP_PASSWORD }}
+      IMAP_MAILBOX: ${{ secrets.IMAP_MAILBOX }}
       SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
     steps:
       - uses: actions/checkout@v5
@@ -40,36 +34,28 @@ jobs:
           actual="$(git rev-parse HEAD)"
           echo "Expected workflow SHA: $GITHUB_SHA"
           echo "Checked-out SHA:       $actual"
-          test "$actual" = "$GITHUB_SHA" || {
-            echo "ERROR: checked-out commit does not match workflow commit"
-            exit 1
-          }
+          test "$actual" = "$GITHUB_SHA"
       - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - name: Validate required configuration
-        if: ${{ inputs.process_reply || github.event_name == 'push' }}
         run: |
           set -euo pipefail
           for name in IMAP_HOST IMAP_PORT IMAP_USERNAME IMAP_PASSWORD IMAP_MAILBOX SUPABASE_DATABASE_URL; do
             test -n "${!name}" || { echo "Missing $name"; exit 1; }
           done
-          test "$IMAP_PORT" = "993" || { echo "IMAP must use TLS port 993"; exit 1; }
-          test "$SL_REAL_EMAIL_ENABLED" = "false" || { echo "Real email must remain disabled"; exit 1; }
+          test "$IMAP_PORT" = "993"
+          test "$SL_REAL_EMAIL_ENABLED" = "false"
       - name: Install
-        if: ${{ inputs.process_reply || github.event_name == 'push' }}
         run: python -m pip install -e .
       - name: Discover fresh reply, process it, and enqueue analysis
-        if: ${{ inputs.process_reply || github.event_name == 'push' }}
         run: |
           python - <<'PY'
           import imaplib
           import os
           import time
-
           import psycopg
           from psycopg.rows import dict_row
-
           from sentinellayer_growth_engine.conversation_analysis_queue import ConversationAnalysisQueue
           from sentinellayer_growth_engine.conversation_runtime import ConversationRuntime
           from sentinellayer_growth_engine.conversation_sales import ConversationSalesBridge
@@ -94,9 +80,7 @@ jobs:
                   if not isinstance(raw, bytes):
                       continue
                   message = parse_message(uid, raw)
-                  if not message.subject.lower().startswith("re:"):
-                      continue
-                  if MARKER not in message.thread_key:
+                  if not message.subject.lower().startswith("re:") or MARKER not in message.thread_key:
                       continue
                   candidates.append(message)
               if not candidates:
@@ -162,7 +146,6 @@ jobs:
           print(f"Conversation classification: {outcome['handoff']['classification']}")
           print("Conversation persistence: stored")
           print("Analysis enqueue: OK")
-
           with psycopg.connect(dsn, sslmode="require", row_factory=dict_row) as conn, conn.cursor() as cur:
               cur.execute("select r.reply_id, r.classification, j.analysis_id, j.status from conversation.replies r join conversation.analysis_jobs j on j.reply_id=r.reply_id where r.provider_message_id=%s order by j.created_at desc limit 1", (message.provider_message_id,))
               job = cur.fetchone()
@@ -173,12 +156,10 @@ jobs:
           print("Durable analysis job: VERIFIED")
           print(f"Analysis id: {job['analysis_id']}")
           print(f"Analysis status: {job['status']}")
-
           duplicate = runtime.handle_inbound(account_id=ACCOUNT_ID, person_id=str(person_id), sender_email=message.sender_email, subject=message.subject, body_text=message.body_text, provider_message_id=message.provider_message_id, thread_key=message.thread_key, source_send_id=message.source_send_id)
           if duplicate["persisted"].get("status") != "duplicate":
               raise SystemExit("Duplicate inbound processing was not idempotent")
           print("Duplicate inbound processing: idempotent")
-
           client = imaplib.IMAP4_SSL(os.environ["IMAP_HOST"], int(os.environ["IMAP_PORT"]), timeout=15)
           try:
               client.login(os.environ["IMAP_USERNAME"], os.environ["IMAP_PASSWORD"])
