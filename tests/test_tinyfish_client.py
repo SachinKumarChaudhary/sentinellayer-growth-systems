@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import json
+from typing import cast
 from urllib.error import HTTPError
 from urllib.request import Request
 
@@ -24,7 +25,9 @@ class _Response:
         return self._body
 
 
-def test_search_uses_api_key_and_returns_structured_results(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_search_uses_api_key_and_returns_structured_results(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     captured: dict[str, object] = {}
 
     def fake_urlopen(request: Request, timeout: float) -> _Response:
@@ -43,14 +46,17 @@ def test_search_uses_api_key_and_returns_structured_results(monkeypatch: pytest.
             }
         )
 
-    monkeypatch.setattr("sentinellayer_growth_engine.tinyfish_client.urlopen", fake_urlopen)
+    monkeypatch.setattr(
+        "sentinellayer_growth_engine.tinyfish_client.urlopen", fake_urlopen
+    )
     client = TinyFishClient("secret", timeout_seconds=12)
 
     results = client.search("example.com CEO", purpose="company enrichment")
 
     assert results[0].url == "https://example.com/team"
     assert "query=example.com+CEO" in str(captured["url"])
-    assert captured["headers"]["X-api-key"] == "secret"
+    headers = cast(dict[str, str], captured["headers"])
+    assert headers["X-api-key"] == "secret"
     assert captured["timeout"] == 12
 
 
@@ -60,6 +66,7 @@ def test_fetch_posts_documented_payload(monkeypatch: pytest.MonkeyPatch) -> None
     def fake_urlopen(request: Request, timeout: float) -> _Response:
         captured["method"] = request.method
         captured["url"] = request.full_url
+        assert request.data is not None
         captured["body"] = json.loads(request.data.decode("utf-8"))
         return _Response(
             {
@@ -75,7 +82,9 @@ def test_fetch_posts_documented_payload(monkeypatch: pytest.MonkeyPatch) -> None
             }
         )
 
-    monkeypatch.setattr("sentinellayer_growth_engine.tinyfish_client.urlopen", fake_urlopen)
+    monkeypatch.setattr(
+        "sentinellayer_growth_engine.tinyfish_client.urlopen", fake_urlopen
+    )
     client = TinyFishClient("secret")
 
     results = client.fetch(
@@ -106,7 +115,9 @@ def test_fetch_enforces_tinyfish_limit() -> None:
         client.fetch([f"https://example.com/{index}" for index in range(11)])
 
 
-def test_api_http_errors_do_not_expose_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_api_http_errors_do_not_expose_api_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     def fake_urlopen(request: Request, timeout: float) -> _Response:
         raise HTTPError(
             request.full_url,
@@ -116,7 +127,9 @@ def test_api_http_errors_do_not_expose_api_key(monkeypatch: pytest.MonkeyPatch) 
             fp=io.BytesIO(b"invalid api key"),
         )
 
-    monkeypatch.setattr("sentinellayer_growth_engine.tinyfish_client.urlopen", fake_urlopen)
+    monkeypatch.setattr(
+        "sentinellayer_growth_engine.tinyfish_client.urlopen", fake_urlopen
+    )
     client = TinyFishClient("super-secret-key")
 
     with pytest.raises(TinyFishError) as exc_info:
