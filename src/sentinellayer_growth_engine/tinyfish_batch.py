@@ -4,8 +4,6 @@ from dataclasses import dataclass
 from typing import Any, Protocol
 
 from .enrichment_contracts import EnrichmentBatch, EnrichmentPacket
-from .enrichment_repository import EnrichmentRepository
-from .tinyfish_enrichment import TinyFishEnrichmentProvider
 
 
 @dataclass(frozen=True)
@@ -22,6 +20,28 @@ class ConnectionFactory(Protocol):
 
 class CompanySeedResolver(Protocol):
     def resolve(self, company_id: int) -> CompanySeed:
+        ...
+
+
+class EnrichmentRepositoryPort(Protocol):
+    def next_companies(self, limit: int = 3) -> list[int]:
+        ...
+
+    def persist_batch(
+        self, batch: EnrichmentBatch, *, provider: str = "manual_ai_research"
+    ) -> dict[str, Any]:
+        ...
+
+
+class TinyFishProviderPort(Protocol):
+    def build_packet(
+        self,
+        *,
+        company_id: int,
+        domain: str,
+        merchant_name: str | None = None,
+        max_fetch_urls: int = 10,
+    ) -> EnrichmentPacket:
         ...
 
 
@@ -50,8 +70,8 @@ class TinyFishBatchEnricher:
 
     def __init__(
         self,
-        repository: EnrichmentRepository,
-        provider: TinyFishEnrichmentProvider,
+        repository: EnrichmentRepositoryPort,
+        provider: TinyFishProviderPort,
         seed_resolver: CompanySeedResolver,
     ) -> None:
         self._repository = repository
