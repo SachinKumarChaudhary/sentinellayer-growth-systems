@@ -13,6 +13,8 @@ from .db import Database
 from .enrichment_contracts import EnrichmentBatch
 from .enrichment_repository import EnrichmentRepository
 from .health import check as health_check
+from .tinyfish_client import TinyFishClient
+from .tinyfish_enrichment import TinyFishEnrichmentProvider
 
 
 def _settings() -> Settings:
@@ -58,6 +60,31 @@ def cmd_enrichment_export(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_enrichment_research(args: argparse.Namespace) -> int:
+    try:
+        settings = _settings()
+        if not settings.tinyfish_api_key:
+            print("ERROR: SL_TINYFISH_API_KEY is required", file=sys.stderr)
+            return 2
+        client = TinyFishClient(
+            settings.tinyfish_api_key,
+            search_url=settings.tinyfish_search_url,
+            fetch_url=settings.tinyfish_fetch_url,
+            timeout_seconds=settings.tinyfish_timeout_seconds,
+        )
+        provider = TinyFishEnrichmentProvider(client)
+        packet = provider.build_packet(
+            company_id=args.company_id,
+            domain=args.domain,
+            merchant_name=args.merchant_name,
+        )
+        print(json.dumps(packet.model_dump(mode="json"), indent=2, default=str))
+        return 0
+    except (ValueError, RuntimeError) as exc:
+        print(f"ERROR: TinyFish enrichment failed: {exc}", file=sys.stderr)
+        return 1
+
+
 def cmd_enrichment_import(args: argparse.Namespace) -> int:
     try:
         payload = json.loads(Path(args.file).read_text(encoding="utf-8"))
@@ -88,7 +115,16 @@ def build_parser() -> argparse.ArgumentParser:
     export_cmd.add_argument("--limit", type=int, default=3, choices=range(1, 4))
     export_cmd.set_defaults(func=cmd_enrichment_export)
 
-    import_cmd = enrichment_sub.add_parser("import", help="persist a validated AI enrichment batch JSON")
+    research_cmd = enrichment_sub.add_parser(
+        "tinyfish",
+        help="build one conservative EnrichmentPacket from TinyFish public evidence",
+    )
+    research_cmd.add_argument("--company-id", type=int, required=True)
+    research_cmd.add_argument("--domain", required=True)
+    research_cmd.add_argument("--merchant-name")
+    research_cmd.set_defaults(func=cmd_enrichment_research)
+
+    import_cmd = enrichment_sub.add_parser("import", help="persist a validated enrichment batch JSON")
     import_cmd.add_argument("--file", required=True)
     import_cmd.add_argument("--provider", default="manual_ai_research")
     import_cmd.set_defaults(func=cmd_enrichment_import)
