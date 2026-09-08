@@ -15,7 +15,6 @@ def test_controlled_enrichment_verification_approval_enrollment_gate() -> None:
         pytest.skip("SUPABASE_DATABASE_URL is required for integration tests")
 
     suffix = uuid4().hex
-    company_id = int(uuid4().int % 2_000_000_000) + 1_000_000_000
     campaign_id = uuid4()
     decision_maker_id = uuid4()
     contact_method_id = uuid4()
@@ -28,9 +27,10 @@ def test_controlled_enrichment_verification_approval_enrollment_gate() -> None:
             # Seed a disposable company and research output. No provider or outbound
             # transport is invoked by this test.
             cur.execute(
-                "insert into public.companies (id, domain, name, source) values (%s,%s,%s,'controlled-e2e')",
-                (company_id, f"e2e-{suffix}.invalid", "Sentinel Layer Controlled E2E"),
+                "insert into public.companies (domain, name, source) values (%s,%s,'controlled-e2e') returning id",
+                (f"e2e-{suffix}.invalid", "Sentinel Layer Controlled E2E"),
             )
+            company_id = cur.fetchone()[0]
             cur.execute(
                 "insert into intelligence.company_facts (company_id, employee_count, monthly_sessions, has_login, vertical, ownership_type, india_bridge, data_sensitivity) values (%s,120,250000,true,'ecommerce','private',true,'high')",
                 (company_id,),
