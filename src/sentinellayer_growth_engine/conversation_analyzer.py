@@ -91,6 +91,7 @@ class GroqAnalyzer:
                 headers={
                     "Authorization": f"Bearer {self.api_key}",
                     "Content-Type": "application/json",
+                    "User-Agent": "sentinellayer-growth-engine/0.1.0",
                 },
             )
             try:
