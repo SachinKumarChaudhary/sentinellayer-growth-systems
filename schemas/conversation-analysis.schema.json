@@ -23,7 +23,7 @@
     },
     "secondary_intents": {
       "type": "array", "items": {"type": "string"},
-      "maxItems": 5, "uniqueItems": true
+      "maxItems": 5
     },
     "objections": {
       "type": "array",
