@@ -27,6 +27,7 @@ class EnrichmentRepository:
         with self._connection_factory() as conn, conn.cursor() as cur:
             for packet in batch.packets:
                 run_id = self._insert_run(cur, packet, provider, now)
+                self._upsert_company_facts(cur, packet, now)
                 self._upsert_company_contacts(cur, packet, now)
 
                 decision_maker_ids = self._upsert_decision_makers(cur, packet, now)
@@ -60,6 +61,38 @@ class EnrichmentRepository:
         if not row:
             raise RuntimeError("failed to create enrichment run")
         return row[0]
+
+
+    def _upsert_company_facts(self, cur: psycopg.Cursor[Any], packet: EnrichmentPacket, now: datetime) -> None:
+        facts = packet.company_facts
+        cur.execute(
+            """
+            insert into intelligence.company_facts (
+                company_id, employee_count, monthly_sessions, has_login,
+                vertical, ownership_type, india_bridge, data_sensitivity, updated_at
+            ) values (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            on conflict (company_id) do update
+            set employee_count=coalesce(excluded.employee_count, intelligence.company_facts.employee_count),
+                monthly_sessions=coalesce(excluded.monthly_sessions, intelligence.company_facts.monthly_sessions),
+                has_login=excluded.has_login,
+                vertical=coalesce(excluded.vertical, intelligence.company_facts.vertical),
+                ownership_type=coalesce(excluded.ownership_type, intelligence.company_facts.ownership_type),
+                india_bridge=excluded.india_bridge,
+                data_sensitivity=coalesce(excluded.data_sensitivity, intelligence.company_facts.data_sensitivity),
+                updated_at=excluded.updated_at
+            """,
+            (
+                packet.company_id,
+                facts.employee_count,
+                facts.monthly_sessions,
+                facts.has_login,
+                facts.vertical,
+                facts.ownership_type,
+                facts.india_bridge,
+                facts.data_sensitivity,
+                now,
+            ),
+        )
 
     def _upsert_company_contacts(
         self, cur: psycopg.Cursor[Any], packet: EnrichmentPacket, now: datetime
