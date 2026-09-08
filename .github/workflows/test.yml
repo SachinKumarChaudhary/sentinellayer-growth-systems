@@ -67,3 +67,4 @@ jobs:
           path: test-results/ci-metadata.txt
           if-no-files-found: error
 # CI validation trigger for conversation-analysis changes.
+# Final provider smoke trigger after sales task binding fix.
