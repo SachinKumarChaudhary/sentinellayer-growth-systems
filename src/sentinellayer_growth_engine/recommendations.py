@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, Sequence
 
 
 Channel = Literal["email", "linkedin", "instagram", "reddit", "social_content", "phone", "none"]
