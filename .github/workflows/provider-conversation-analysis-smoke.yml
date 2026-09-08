@@ -154,12 +154,14 @@ jobs:
           print("Conversation persistence: stored")
           print("Analysis enqueue: OK")
           with psycopg.connect(dsn, sslmode="require", row_factory=dict_row) as conn, conn.cursor() as cur:
-              cur.execute("select r.reply_id, r.classification, j.analysis_id, j.status from conversation.replies r join conversation.analysis_jobs j on j.reply_id=r.reply_id where r.provider_message_id=%s order by j.created_at desc limit 1", (message.provider_message_id,))
+              cur.execute("select r.reply_id, r.classification, j.analysis_id, j.status, j.analysis from conversation.replies r join conversation.analysis_jobs j on j.reply_id=r.reply_id where r.provider_message_id=%s order by j.created_at desc limit 1", (message.provider_message_id,))
               job = cur.fetchone()
               if job is None:
                   raise SystemExit("No durable analysis job exists for the fresh reply")
-              if job["status"] != "pending":
-                  raise SystemExit(f"Expected pending analysis job, got {job['status']!r}")
+              if job["status"] not in {"pending", "completed"}:
+                  raise SystemExit(f"Unexpected analysis job status: {job['status']!r}")
+              if job["status"] == "completed" and not isinstance(job["analysis"], dict):
+                  raise SystemExit("Completed analysis job has no durable analysis payload")
           print("Durable analysis job: VERIFIED")
           print(f"Analysis id: {job['analysis_id']}")
           print(f"Analysis status: {job['status']}")
