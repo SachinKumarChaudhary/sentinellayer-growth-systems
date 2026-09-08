@@ -363,22 +363,22 @@ class EnrichmentRepository:
             ),
         )
 
-    @staticmethod
-    def next_companies(cur: Any, limit: int = 3) -> list[int]:
+    def next_companies(self, limit: int = 3) -> list[int]:
         if not 1 <= limit <= 3:
             raise ValueError("next_companies limit must be between 1 and 3")
-        cur.execute(
-            """
-            SELECT c.id
-            FROM public.companies AS c
-            WHERE NOT EXISTS (
-                SELECT 1
-                FROM intelligence.enrichment_runs AS er
-                WHERE er.company_id = c.id AND er.status = 'completed'
+        with self._connection_factory() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT c.id
+                FROM public.companies AS c
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM intelligence.enrichment_runs AS er
+                    WHERE er.company_id = c.id AND er.status = 'completed'
+                )
+                ORDER BY c.id
+                LIMIT %s
+                """,
+                (limit,),
             )
-            ORDER BY c.id
-            LIMIT %s
-            """,
-            (limit,),
-        )
-        return [row[0] for row in cur.fetchall()]
+            return [row[0] for row in cur.fetchall()]
