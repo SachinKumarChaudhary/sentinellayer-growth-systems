@@ -138,7 +138,6 @@ class TinyFishEnrichmentProvider:
         decision_makers = cls._extract_decision_makers(fetched, observed_at)
         company_contacts = cls._extract_company_contacts(fetched, observed_at)
         employee_values = cls._employee_values(fetched)
-        evidence = cls._general_evidence(fetched, observed_at)
 
         notes: list[str] = [
             f"TinyFish research run fetched {len(fetched)} same-domain public URL(s).",
@@ -184,9 +183,9 @@ class TinyFishEnrichmentProvider:
                 values.add(int(match.replace(",", "")))
         return values
 
-    @classmethod
+    @staticmethod
     def _extract_company_contacts(
-        cls, fetched: list[TinyFishFetchResult], observed_at: datetime
+        fetched: list[TinyFishFetchResult], observed_at: datetime
     ) -> list[CompanyContact]:
         contacts: dict[str, CompanyContact] = {}
         for item in fetched:
@@ -262,23 +261,3 @@ class TinyFishEnrichmentProvider:
             if needle in lowered:
                 return family, priority
         return None, None
-
-    @staticmethod
-    def _general_evidence(
-        fetched: list[TinyFishFetchResult], observed_at: datetime
-    ) -> list[Evidence]:
-        evidence: list[Evidence] = []
-        for item in fetched:
-            lower_text = item.text.lower()
-            if any(term in lower_text for term in ("sign in", "log in", "login", "customer account")):
-                evidence.append(
-                    Evidence(
-                        claim_type="customer_login_surface",
-                        claim={"url": item.final_url or item.url},
-                        source_url=item.url,
-                        source_type="tinyfish_fetch",
-                        observed_at=observed_at,
-                        confidence=1.0,
-                    )
-                )
-        return evidence
