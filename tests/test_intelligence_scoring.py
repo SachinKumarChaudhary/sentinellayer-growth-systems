@@ -8,10 +8,12 @@ def test_high_fit_and_fresh_intent_routes_p1() -> None:
         employee_count=180,
         monthly_sessions=900_000,
         has_login=True,
-        notes="IoT app-connected device, subscription, SOC 2",
+        notes="IoT app-connected device, subscription, SOC 2, kids minors, health data, drop-model",
         signals=[
             IntentSignalInput("funding", date(2026, 9, 1), 3, 21),
             IntentSignalInput("security_hiring", date(2026, 9, 5), 2, 30),
+            IntentSignalInput("dark_funnel", date(2026, 9, 7), 2, 14),
+            IntentSignalInput("new_c_suite", date(2026, 9, 8), 2, 45),
         ],
         today=date(2026, 9, 8),
     )
@@ -29,7 +31,7 @@ def test_corporate_route_caps_priority_at_p3() -> None:
         signals=[IntentSignalInput("funding", date(2026, 9, 7), 3, 21)],
         today=date(2026, 9, 8),
     )
-    assert result.priority == "P3"
+    assert result.priority == "P4"
 
 
 def test_behavior_override_forces_p1() -> None:
@@ -46,14 +48,14 @@ def test_behavior_override_forces_p1() -> None:
     assert "behavior_override" in result.modifiers
 
 
-def test_india_bridge_can_promote_one_tier() -> None:
+def test_india_bridge_can_promote_p2_to_p1() -> None:
     result = score_company(
         employee_count=100,
         monthly_sessions=200_000,
         has_login=True,
-        notes="ordinary DTC",
+        notes="IoT app-connected device subscription",
         signals=[],
         today=date(2026, 9, 8),
         india_bridge=True,
     )
-    assert result.priority == "P3"
+    assert result.priority == "P1"
