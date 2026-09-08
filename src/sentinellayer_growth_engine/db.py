@@ -213,7 +213,7 @@ class Database:
                     recommended_action, why_now, latest_reply, behavior_summary,
                     campaign_context, conversation_summary, status, updated_at
                 ) values (
-                    %s,%s,%s,%s,%s,%s,%s::jsonb,%s::jsonb,%s::jsonb,%s,%s,now()
+                    %s,%s,%s,%s,%s,%s,%s::jsonb,%s::jsonb,%s::jsonb,%s,%s,'open',now()
                 )
                 on conflict (account_id, person_id, trigger_type)
                 where sales.tasks.status in ('open','claimed')
