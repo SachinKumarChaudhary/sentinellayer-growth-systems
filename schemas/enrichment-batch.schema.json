@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinellayer.invalid/schemas/enrichment-batch.schema.json",
+  "title": "EnrichmentBatch",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "packets"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "packets": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["schema_version", "company_id", "domain"],
+        "properties": {
+          "schema_version": {"const": "1.0"},
+          "company_id": {"type": "integer", "minimum": 1},
+          "domain": {"type": "string", "minLength": 1},
+          "merchant_name": {"type": ["string", "null"]},
+          "company_contacts": {"type": "array"},
+          "decision_makers": {"type": "array"},
+          "intent_signals": {"type": "array"},
+          "personalization_angle": {"type": ["string", "null"]},
+          "research_notes": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    }
+  }
+}
