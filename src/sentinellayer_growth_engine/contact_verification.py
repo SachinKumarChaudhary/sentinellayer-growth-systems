@@ -45,7 +45,7 @@ class VerificationOrchestrator:
         for provider in self.providers:
             try:
                 result = provider.verify(contact)
-            except Exception as exc:  # provider failures must not become fake verification
+            except (RuntimeError, ValueError, TimeoutError) as exc:
                 last = VerificationResult(
                     status="unknown",
                     provider=provider.name,
