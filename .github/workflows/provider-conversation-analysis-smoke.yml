@@ -92,7 +92,7 @@ jobs:
                   if not isinstance(raw, bytes):
                       continue
                   message = parse_message(uid, raw)
-                  if not message.subject.lower().startswith("re"):
+                  if not message.subject.lower().startswith("re:"):
                       continue
                   if MARKER not in message.thread_key:
                       continue
