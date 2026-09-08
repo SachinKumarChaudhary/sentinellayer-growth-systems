@@ -266,6 +266,30 @@ class EnrichmentRepository:
                 ),
             )
 
+    def next_companies(self, *, limit: int = 3) -> list[dict[str, Any]]:
+        if limit not in (1, 2, 3):
+            raise ValueError("limit must be between 1 and 3")
+        with self._connection_factory() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                select c.id, c.domain, c.name, c.country, c.city,
+                       c.revenue_est, c.visits_est, c.website,
+                       c.company_linkedin, c.notes
+                from public.companies c
+                where not exists (
+                    select 1
+                    from intelligence.enrichment_runs er
+                    where er.company_id = c.id
+                      and er.status = 'completed'
+                )
+                order by c.id
+                limit %s
+                """,
+                (limit,),
+            )
+            columns = [desc.name for desc in cur.description]
+            return [dict(zip(columns, row, strict=True)) for row in cur.fetchall()]
+
     @staticmethod
     def _hash_evidence(payload: dict[str, Any]) -> str:
         canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
