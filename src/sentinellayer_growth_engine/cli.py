@@ -13,7 +13,6 @@ from .db import Database
 from .enrichment_contracts import EnrichmentBatch
 from .enrichment_repository import EnrichmentRepository
 from .health import check as health_check
-from .tinyfish_client import TinyFishClient, TinyFishError
 
 
 def _settings() -> Settings:
@@ -25,18 +24,6 @@ def _connection_factory() -> psycopg.Connection[object]:
     if not settings.database_url:
         raise RuntimeError("SL_DATABASE_URL is required")
     return psycopg.connect(settings.database_url)
-
-
-def _tinyfish_client() -> TinyFishClient:
-    settings = _settings()
-    if not settings.tinyfish_api_key:
-        raise RuntimeError("SL_TINYFISH_API_KEY is required")
-    return TinyFishClient(
-        settings.tinyfish_api_key,
-        search_url=settings.tinyfish_search_url,
-        fetch_url=settings.tinyfish_fetch_url,
-        timeout_seconds=settings.tinyfish_timeout_seconds,
-    )
 
 
 def cmd_health(_: argparse.Namespace) -> int:
@@ -84,28 +71,6 @@ def cmd_enrichment_import(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_tinyfish_search(args: argparse.Namespace) -> int:
-    try:
-        client = _tinyfish_client()
-        results = client.search(args.query, purpose=args.purpose)
-    except (RuntimeError, TinyFishError, ValueError) as exc:
-        print(f"ERROR: TinyFish search failed: {exc}", file=sys.stderr)
-        return 1
-    print(json.dumps([result.__dict__ for result in results], indent=2))
-    return 0
-
-
-def cmd_tinyfish_fetch(args: argparse.Namespace) -> int:
-    try:
-        client = _tinyfish_client()
-        results = client.fetch(args.url, purpose=args.purpose)
-    except (RuntimeError, TinyFishError, ValueError) as exc:
-        print(f"ERROR: TinyFish fetch failed: {exc}", file=sys.stderr)
-        return 1
-    print(json.dumps([result.__dict__ for result in results], indent=2))
-    return 0
-
-
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="slctl", description="SentinelLayer operator CLI")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -127,21 +92,6 @@ def build_parser() -> argparse.ArgumentParser:
     import_cmd.add_argument("--file", required=True)
     import_cmd.add_argument("--provider", default="manual_ai_research")
     import_cmd.set_defaults(func=cmd_enrichment_import)
-
-    tinyfish = subparsers.add_parser(
-        "tinyfish", help="read-only TinyFish Search and Fetch access for research"
-    )
-    tinyfish_sub = tinyfish.add_subparsers(dest="tinyfish_command", required=True)
-
-    search_cmd = tinyfish_sub.add_parser("search", help="search the public web with TinyFish")
-    search_cmd.add_argument("query")
-    search_cmd.add_argument("--purpose")
-    search_cmd.set_defaults(func=cmd_tinyfish_search)
-
-    fetch_cmd = tinyfish_sub.add_parser("fetch", help="fetch up to ten known URLs with TinyFish")
-    fetch_cmd.add_argument("url", nargs="+", metavar="URL")
-    fetch_cmd.add_argument("--purpose")
-    fetch_cmd.set_defaults(func=cmd_tinyfish_fetch)
 
     return parser
 
