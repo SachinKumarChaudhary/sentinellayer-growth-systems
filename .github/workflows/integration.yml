@@ -72,7 +72,8 @@ jobs:
         env:
           SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
         run: python scripts/apply_supabase_migrations.py
-      - name: Supabase concurrency integration test
+      - name: Supabase integration tests
         env:
           SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
-        run: pytest -q tests/integration/test_supabase_concurrency.py -m integration
+        run: |
+          pytest -q tests/integration/test_supabase_concurrency.py tests/integration/test_controlled_enrollment_e2e.py -m integration
