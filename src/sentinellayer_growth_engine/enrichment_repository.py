@@ -19,12 +19,14 @@ class ConnectionFactory(Protocol):
 
 
 class EnrichmentRepository:
-    """Persists validated small-batch research packets into canonical growth schemas."""
+    """Persist validated small-batch research packets into canonical schemas."""
 
     def __init__(self, connection_factory: ConnectionFactory) -> None:
         self._connection_factory = connection_factory
 
-    def persist_batch(self, batch: EnrichmentBatch, *, provider: str = "manual_ai_research") -> dict[str, Any]:
+    def persist_batch(
+        self, batch: EnrichmentBatch, *, provider: str = "manual_ai_research"
+    ) -> dict[str, Any]:
         now = datetime.now(UTC)
         results: list[dict[str, Any]] = []
         with self._connection_factory() as conn, conn.cursor() as cur:
@@ -33,9 +35,9 @@ class EnrichmentRepository:
                 self._upsert_company_facts(cur, packet, now)
                 decision_maker_ids = self._upsert_decision_makers(cur, packet, now)
                 self._insert_packet_evidence(cur, packet, enrichment_run_id, now)
-                self._insert_intent_signals(cur, packet, enrichment_run_id, now)
+                self._insert_intent_signals(cur, packet, now)
                 score = self._upsert_company_score(cur, packet, now)
-                self._complete_run(cur, enrichment_run_id, packet, now)
+                self._complete_run(cur, enrichment_run_id, now)
                 results.append(
                     {
                         "company_id": packet.company_id,
@@ -52,9 +54,9 @@ class EnrichmentRepository:
         cur.execute(
             """
             INSERT INTO intelligence.enrichment_runs
-                (company_id, provider, status, started_at)
-            VALUES (%s, %s, 'running', %s)
-            RETURNING id
+                (company_id, run_type, provider, status, started_at)
+            VALUES (%s, 'company_enrichment', %s, 'running', %s)
+            RETURNING enrichment_run_id
             """,
             (packet.company_id, provider, now),
         )
@@ -64,15 +66,14 @@ class EnrichmentRepository:
         return row[0]
 
     @staticmethod
-    def _complete_run(cur: Any, enrichment_run_id: Any, packet: EnrichmentPacket, now: datetime) -> None:
+    def _complete_run(cur: Any, enrichment_run_id: Any, now: datetime) -> None:
         cur.execute(
             """
             UPDATE intelligence.enrichment_runs
-            SET status = 'completed', completed_at = %s,
-                research_notes = %s, personalization_angle = %s
-            WHERE id = %s
+            SET status = 'completed', completed_at = %s
+            WHERE enrichment_run_id = %s
             """,
-            (now, packet.research_notes, packet.personalization_angle, enrichment_run_id),
+            (now, enrichment_run_id),
         )
 
     @staticmethod
@@ -113,7 +114,8 @@ class EnrichmentRepository:
             cur.execute(
                 """
                 INSERT INTO growth.company_contacts
-                    (company_id, channel, value, normalized_value, label, source, source_url, confidence, updated_at)
+                    (company_id, channel, value, normalized_value, label, source,
+                     source_url, confidence, updated_at)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (company_id, channel, normalized_value) DO UPDATE SET
                     value = EXCLUDED.value, label = EXCLUDED.label,
@@ -133,19 +135,23 @@ class EnrichmentRepository:
                 ),
             )
 
-    def _upsert_decision_makers(self, cur: Any, packet: EnrichmentPacket, now: datetime) -> dict[str, Any]:
+    def _upsert_decision_makers(
+        self, cur: Any, packet: EnrichmentPacket, now: datetime
+    ) -> dict[str, Any]:
         ids: dict[str, Any] = {}
         for decision_maker in packet.decision_makers:
             cur.execute(
                 """
                 INSERT INTO growth.decision_makers
-                    (company_id, full_name, title, role_family, role_priority, rationale, confidence, updated_at)
+                    (company_id, full_name, title, role_family, role_priority,
+                     rationale, confidence, updated_at)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (company_id, lower(full_name)) DO UPDATE SET
+                ON CONFLICT (company_id, lower(full_name), lower(coalesce(title, '')))
+                DO UPDATE SET
                     title = EXCLUDED.title, role_family = EXCLUDED.role_family,
                     role_priority = EXCLUDED.role_priority, rationale = EXCLUDED.rationale,
                     confidence = EXCLUDED.confidence, updated_at = EXCLUDED.updated_at
-                RETURNING id
+                RETURNING decision_maker_id
                 """,
                 (
                     packet.company_id,
@@ -167,8 +173,9 @@ class EnrichmentRepository:
                 cur.execute(
                     """
                     INSERT INTO growth.decision_maker_contact_methods
-                        (decision_maker_id, channel, value, normalized_value, source, source_url,
-                         verification_status, verification_provider, confidence, updated_at)
+                        (decision_maker_id, channel, value, normalized_value, source,
+                         source_url, verification_status, verification_provider,
+                         confidence, updated_at)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (decision_maker_id, channel, normalized_value) DO UPDATE SET
                         value = EXCLUDED.value, source = EXCLUDED.source,
@@ -191,40 +198,63 @@ class EnrichmentRepository:
         return ids
 
     @staticmethod
-    def _insert_packet_evidence(cur: Any, packet: EnrichmentPacket, enrichment_run_id: Any, now: datetime) -> None:
+    def _insert_packet_evidence(
+        cur: Any, packet: EnrichmentPacket, enrichment_run_id: Any, now: datetime
+    ) -> None:
         for decision_maker in packet.decision_makers:
             for evidence in decision_maker.evidence:
-                EnrichmentRepository._insert_evidence(cur, evidence, packet.company_id, enrichment_run_id, now)
+                EnrichmentRepository._insert_evidence(
+                    cur, evidence, packet.company_id, enrichment_run_id, now,
+                    decision_maker_id=None,
+                )
             for contact in decision_maker.contacts:
                 for evidence in contact.evidence:
-                    EnrichmentRepository._insert_evidence(cur, evidence, packet.company_id, enrichment_run_id, now)
+                    EnrichmentRepository._insert_evidence(
+                        cur, evidence, packet.company_id, enrichment_run_id, now,
+                        decision_maker_id=None,
+                    )
         for contact in packet.company_contacts:
             for evidence in contact.evidence:
-                EnrichmentRepository._insert_evidence(cur, evidence, packet.company_id, enrichment_run_id, now)
+                EnrichmentRepository._insert_evidence(
+                    cur, evidence, packet.company_id, enrichment_run_id, now,
+                    decision_maker_id=None,
+                )
         for signal in packet.intent_signals:
             for evidence in signal.evidence:
-                EnrichmentRepository._insert_evidence(cur, evidence, packet.company_id, enrichment_run_id, now)
+                EnrichmentRepository._insert_evidence(
+                    cur, evidence, packet.company_id, enrichment_run_id, now,
+                    decision_maker_id=None,
+                )
 
     @staticmethod
-    def _insert_evidence(cur: Any, evidence: Evidence, company_id: int, enrichment_run_id: Any, now: datetime) -> None:
+    def _insert_evidence(
+        cur: Any,
+        evidence: Evidence,
+        company_id: int,
+        enrichment_run_id: Any,
+        now: datetime,
+        *,
+        decision_maker_id: Any = None,
+    ) -> None:
         payload = evidence.model_dump(mode="json")
         evidence_hash = EnrichmentRepository._hash_evidence(payload)
         cur.execute(
             """
             INSERT INTO intelligence.evidence
-                (company_id, enrichment_run_id, claim_type, claim, source_url, source_type,
-                 observed_at, event_date, confidence, evidence_hash)
-            VALUES (%s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s, %s)
+                (company_id, enrichment_run_id, decision_maker_id, claim_type, claim,
+                 source_url, source_type, observed_at, event_date, confidence, evidence_hash)
+            VALUES (%s, %s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (evidence_hash) DO NOTHING
             """,
             (
                 company_id,
                 enrichment_run_id,
+                decision_maker_id,
                 evidence.claim_type,
                 json.dumps(evidence.claim),
                 evidence.source_url,
                 evidence.source_type,
-                evidence.observed_at,
+                evidence.observed_at or now,
                 evidence.event_date,
                 evidence.confidence,
                 evidence_hash,
@@ -232,19 +262,18 @@ class EnrichmentRepository:
         )
 
     @staticmethod
-    def _insert_intent_signals(cur: Any, packet: EnrichmentPacket, enrichment_run_id: Any, now: datetime) -> None:
+    def _insert_intent_signals(cur: Any, packet: EnrichmentPacket, now: datetime) -> None:
         for signal in packet.intent_signals:
             normalized = normalize_signal(signal)
             cur.execute(
                 """
                 INSERT INTO intelligence.intent_signals
-                    (company_id, enrichment_run_id, signal_type, signal_date, weight, half_life_days,
+                    (company_id, signal_type, signal_date, weight, half_life_days,
                      confidence, created_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
                     packet.company_id,
-                    enrichment_run_id,
                     normalized.signal_type,
                     normalized.signal_date,
                     normalized.weight,
@@ -256,34 +285,53 @@ class EnrichmentRepository:
 
     @staticmethod
     def _upsert_company_score(cur: Any, packet: EnrichmentPacket, now: datetime) -> dict[str, Any]:
-        normalized_signals = [normalize_signal(signal).to_intent_signal_input() for signal in packet.intent_signals]
+        normalized_signals = [
+            normalize_signal(signal).to_intent_signal_input()
+            for signal in packet.intent_signals
+        ]
+        notes = "\n".join(
+            part
+            for part in (packet.research_notes, packet.personalization_angle)
+            if part
+        )
         score = score_company(
-            fit_factors=packet.company_facts.model_dump(),
-            intent_signals=normalized_signals,
-            behavior_score=0.0,
+            employee_count=packet.company_facts.employee_count,
+            monthly_sessions=packet.company_facts.monthly_sessions,
+            has_login=packet.company_facts.has_login,
+            notes=notes,
+            signals=normalized_signals,
+            today=now.date(),
+            india_bridge=packet.company_facts.india_bridge,
         )
         cur.execute(
             """
             INSERT INTO intelligence.company_scores
-                (company_id, fit_score, intent_score, behavior_score, priority_score, scored_at)
-            VALUES (%s, %s, %s, %s, %s, %s)
+                (company_id, fit_score, intent_score, behavior_override,
+                 negative_flags, modifiers, priority, scored_at, updated_at)
+            VALUES (%s, %s, %s, %s, %s::jsonb, %s::jsonb, %s, %s, %s)
             ON CONFLICT (company_id) DO UPDATE SET
                 fit_score = EXCLUDED.fit_score,
                 intent_score = EXCLUDED.intent_score,
-                behavior_score = EXCLUDED.behavior_score,
-                priority_score = EXCLUDED.priority_score,
-                scored_at = EXCLUDED.scored_at
+                behavior_override = EXCLUDED.behavior_override,
+                negative_flags = EXCLUDED.negative_flags,
+                modifiers = EXCLUDED.modifiers,
+                priority = EXCLUDED.priority,
+                scored_at = EXCLUDED.scored_at,
+                updated_at = EXCLUDED.updated_at
             """,
             (
                 packet.company_id,
                 score.fit_score,
                 score.intent_score,
-                score.behavior_score,
-                score.priority_score,
+                score.behavior_override,
+                json.dumps(score.negative_flags),
+                json.dumps(score.modifiers),
+                score.priority,
+                now,
                 now,
             ),
         )
-        return score.model_dump()
+        return score.__dict__
 
     @staticmethod
     def _hash_evidence(payload: dict[str, Any]) -> str:
@@ -305,6 +353,7 @@ class EnrichmentRepository:
             SET verification_status = %s,
                 verification_provider = %s,
                 confidence = %s,
+                last_verified_at = %s,
                 updated_at = %s
             WHERE decision_maker_id = %s AND normalized_value = %s
             """,
@@ -312,6 +361,7 @@ class EnrichmentRepository:
                 result.status,
                 result.provider,
                 result.confidence,
+                observed_at,
                 observed_at,
                 decision_maker_id,
                 normalized_value,
