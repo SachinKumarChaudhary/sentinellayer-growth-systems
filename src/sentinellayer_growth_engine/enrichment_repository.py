@@ -7,6 +7,7 @@ from typing import Any, Protocol
 
 import psycopg
 
+from .contact_verification import VerificationResult
 from .enrichment_contracts import EnrichmentBatch, EnrichmentPacket, Evidence
 from .intelligence_scoring import IntentSignalInput, score_company
 
@@ -47,6 +48,40 @@ class EnrichmentRepository:
                 results.append({"company_id": packet.company_id, "enrichment_run_id": str(run_id)})
         return {"provider": provider, "processed": results}
 
+    def update_contact_verification(
+        self,
+        *,
+        decision_maker_id: int,
+        channel: str,
+        normalized_value: str,
+        result: VerificationResult,
+    ) -> bool:
+        """Persist a provider result; only provider output can move verification status."""
+        verified_at = datetime.now(UTC) if result.status in {"verified", "invalid", "stale"} else None
+        with self._connection_factory() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                update growth.decision_maker_contact_methods
+                set verification_status=%s,
+                    verification_provider=%s,
+                    confidence=%s,
+                    last_verified_at=%s
+                where decision_maker_id=%s
+                  and channel=%s
+                  and normalized_value=%s
+                """,
+                (
+                    result.status,
+                    result.provider,
+                    result.confidence,
+                    verified_at,
+                    decision_maker_id,
+                    channel,
+                    normalized_value,
+                ),
+            )
+            return cur.rowcount == 1
+
     def _insert_run(
         self, cur: psycopg.Cursor[Any], packet: EnrichmentPacket, provider: str, now: datetime
     ) -> Any:
@@ -63,7 +98,6 @@ class EnrichmentRepository:
         if not row:
             raise RuntimeError("failed to create enrichment run")
         return row[0]
-
 
     def _upsert_company_facts(self, cur: psycopg.Cursor[Any], packet: EnrichmentPacket, now: datetime) -> None:
         facts = packet.company_facts
@@ -95,7 +129,6 @@ class EnrichmentRepository:
                 now,
             ),
         )
-
 
     def _upsert_company_score(self, cur: psycopg.Cursor[Any], packet: EnrichmentPacket, now: datetime) -> None:
         facts = packet.company_facts
