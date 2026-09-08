@@ -104,6 +104,18 @@ class IntentSignal(BaseModel):
         return value
 
 
+class CompanyFacts(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    employee_count: int | None = Field(default=None, ge=0)
+    monthly_sessions: int | None = Field(default=None, ge=0)
+    has_login: bool = False
+    vertical: str | None = None
+    ownership_type: str | None = None
+    india_bridge: bool = False
+    data_sensitivity: str | None = None
+
+
 class EnrichmentPacket(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -111,6 +123,7 @@ class EnrichmentPacket(BaseModel):
     company_id: int = Field(gt=0)
     domain: str = Field(min_length=1, max_length=500)
     merchant_name: str | None = Field(default=None, max_length=500)
+    company_facts: CompanyFacts = Field(default_factory=CompanyFacts)
 
     company_contacts: list[CompanyContact] = Field(default_factory=list)
     decision_makers: list[DecisionMaker] = Field(default_factory=list)
