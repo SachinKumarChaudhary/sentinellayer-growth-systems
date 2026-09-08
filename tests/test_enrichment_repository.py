@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from uuid import uuid4
 
 from sentinellayer_growth_engine.enrichment_contracts import (
@@ -71,7 +71,7 @@ def _packet() -> EnrichmentPacket:
 def test_company_facts_are_persisted_to_canonical_table() -> None:
     cursor = FakeCursor()
     repository = EnrichmentRepository(lambda: None)  # type: ignore[arg-type]
-    repository._upsert_company_facts(cursor, _packet(), datetime.now(timezone.utc))
+    repository._upsert_company_facts(cursor, _packet(), datetime.now(UTC))
 
     query, params = cursor.executed[0]
     assert "intelligence.company_facts" in query
@@ -83,7 +83,7 @@ def test_decision_maker_and_contact_upsert_use_canonical_relationship() -> None:
     decision_maker_id = uuid4()
     cursor = FakeCursor(rows=[(decision_maker_id,)])
     repository = EnrichmentRepository(lambda: None)  # type: ignore[arg-type]
-    ids = repository._upsert_decision_makers(cursor, _packet(), datetime.now(timezone.utc))
+    ids = repository._upsert_decision_makers(cursor, _packet(), datetime.now(UTC))
 
     assert ids["jane doe"] == decision_maker_id
     assert "growth.decision_makers" in cursor.executed[0][0]
@@ -94,7 +94,7 @@ def test_decision_maker_and_contact_upsert_use_canonical_relationship() -> None:
 def test_intent_persistence_uses_canonical_weight_and_half_life() -> None:
     cursor = FakeCursor()
     repository = EnrichmentRepository(lambda: None)  # type: ignore[arg-type]
-    repository._insert_intent_signals(cursor, _packet(), uuid4(), datetime.now(timezone.utc))
+    repository._insert_intent_signals(cursor, _packet(), uuid4(), datetime.now(UTC))
 
     query, params = cursor.executed[0]
     assert "intelligence.intent_signals" in query
