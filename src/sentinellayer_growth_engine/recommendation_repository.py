@@ -32,6 +32,8 @@ class RecommendationRepository:
     ) -> dict[str, Any]:
         if company_id <= 0:
             raise ValueError("company_id must be positive")
+        if not recommendation.requires_approval:
+            raise ValueError("recommendations must require operator approval")
         if decision_maker_id is not None:
             UUID(decision_maker_id)
         signal_ids = []
