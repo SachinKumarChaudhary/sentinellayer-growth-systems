@@ -2,7 +2,6 @@ name: provider-conversation-analysis-smoke
 run-name: provider-conversation-analysis-smoke / ${{ github.ref_name }} / ${{ github.sha }}
 
 # Push trigger is intentional: staging smoke must exercise the current main commit.
-
 on:
   push:
     branches: [main]
@@ -14,17 +13,25 @@ on:
         default: false
         type: boolean
 
+permissions:
+  contents: read
+
+concurrency:
+  group: provider-conversation-analysis-smoke-${{ github.repository }}
+  cancel-in-progress: false
+
 jobs:
   smoke:
-    if: ${{ inputs.process_reply || github.event_name == 'push' }}
     runs-on: ubuntu-latest
+    environment: staging-mail
+    if: ${{ inputs.process_reply || github.event_name == 'push' }}
     env:
       SL_REAL_EMAIL_ENABLED: "false"
-      IMAP_HOST: ${{ secrets.IMAP_HOST }}
-      IMAP_PORT: ${{ secrets.IMAP_PORT }}
-      IMAP_USERNAME: ${{ secrets.IMAP_USERNAME }}
-      IMAP_PASSWORD: ${{ secrets.IMAP_PASSWORD }}
-      IMAP_MAILBOX: ${{ secrets.IMAP_MAILBOX }}
+      IMAP_HOST: ${{ secrets.SL_IMAP_HOST }}
+      IMAP_PORT: ${{ secrets.SL_IMAP_PORT }}
+      IMAP_USERNAME: ${{ secrets.SL_IMAP_USERNAME }}
+      IMAP_PASSWORD: ${{ secrets.SL_IMAP_PASSWORD }}
+      IMAP_MAILBOX: ${{ secrets.SL_IMAP_MAILBOX }}
       SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
     steps:
       - uses: actions/checkout@v5
