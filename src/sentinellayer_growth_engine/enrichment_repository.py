@@ -33,6 +33,7 @@ class EnrichmentRepository:
             for packet in batch.packets:
                 enrichment_run_id = self._start_run(cur, packet, provider, now)
                 self._upsert_company_facts(cur, packet, now)
+                self._upsert_company_contacts(cur, packet, now)
                 decision_maker_ids = self._upsert_decision_makers(cur, packet, now)
                 self._insert_packet_evidence(cur, packet, enrichment_run_id, now)
                 self._insert_intent_signals(cur, packet, now)
@@ -110,7 +111,7 @@ class EnrichmentRepository:
 
     @staticmethod
     def _upsert_company_contacts(cur: Any, packet: EnrichmentPacket, now: datetime) -> None:
-        for contact in packet.company_contacts:
+        for company_contact in packet.company_contacts:
             cur.execute(
                 """
                 INSERT INTO growth.company_contacts
@@ -124,13 +125,13 @@ class EnrichmentRepository:
                 """,
                 (
                     packet.company_id,
-                    contact.channel,
-                    contact.value,
-                    contact.normalized_value,
-                    contact.label,
-                    contact.source,
-                    contact.source_url,
-                    contact.confidence,
+                    company_contact.channel,
+                    company_contact.value,
+                    company_contact.normalized_value,
+                    company_contact.label,
+                    company_contact.source,
+                    company_contact.source_url,
+                    company_contact.confidence,
                     now,
                 ),
             )
@@ -204,26 +205,17 @@ class EnrichmentRepository:
         for decision_maker in packet.decision_makers:
             for evidence in decision_maker.evidence:
                 EnrichmentRepository._insert_evidence(
-                    cur, evidence, packet.company_id, enrichment_run_id, now,
-                    decision_maker_id=None,
+                    cur, evidence, packet.company_id, enrichment_run_id, now
                 )
-            for contact in decision_maker.contacts:
-                for evidence in contact.evidence:
-                    EnrichmentRepository._insert_evidence(
-                        cur, evidence, packet.company_id, enrichment_run_id, now,
-                        decision_maker_id=None,
-                    )
-        for contact in packet.company_contacts:
-            for evidence in contact.evidence:
+        for company_contact in packet.company_contacts:
+            for evidence in company_contact.evidence:
                 EnrichmentRepository._insert_evidence(
-                    cur, evidence, packet.company_id, enrichment_run_id, now,
-                    decision_maker_id=None,
+                    cur, evidence, packet.company_id, enrichment_run_id, now
                 )
         for signal in packet.intent_signals:
             for evidence in signal.evidence:
                 EnrichmentRepository._insert_evidence(
-                    cur, evidence, packet.company_id, enrichment_run_id, now,
-                    decision_maker_id=None,
+                    cur, evidence, packet.company_id, enrichment_run_id, now
                 )
 
     @staticmethod
@@ -264,7 +256,9 @@ class EnrichmentRepository:
     @staticmethod
     def _insert_intent_signals(cur: Any, packet: EnrichmentPacket, now: datetime) -> None:
         for signal in packet.intent_signals:
-            normalized = normalize_signal(signal)
+            normalized = normalize_signal(
+                signal_type=signal.signal_type, signal_date=signal.signal_date
+            )
             cur.execute(
                 """
                 INSERT INTO intelligence.intent_signals
@@ -286,13 +280,14 @@ class EnrichmentRepository:
     @staticmethod
     def _upsert_company_score(cur: Any, packet: EnrichmentPacket, now: datetime) -> dict[str, Any]:
         normalized_signals = [
-            normalize_signal(signal).to_intent_signal_input()
+            normalize_signal(
+                signal_type=signal.signal_type, signal_date=signal.signal_date
+            ).as_score_input()
             for signal in packet.intent_signals
         ]
         notes = "\n".join(
-            part
-            for part in (packet.research_notes, packet.personalization_angle)
-            if part
+            packet.research_notes
+            + ([packet.personalization_angle] if packet.personalization_angle else [])
         )
         score = score_company(
             employee_count=packet.company_facts.employee_count,
