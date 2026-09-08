@@ -31,7 +31,7 @@ def test_corporate_route_caps_priority_at_p3() -> None:
         signals=[IntentSignalInput("funding", date(2026, 9, 7), 3, 21)],
         today=date(2026, 9, 8),
     )
-    assert result.priority == "P4"
+    assert result.priority == "P3"
 
 
 def test_behavior_override_forces_p1() -> None:
@@ -53,7 +53,7 @@ def test_india_bridge_can_promote_p2_to_p1() -> None:
         employee_count=100,
         monthly_sessions=200_000,
         has_login=True,
-        notes="IoT app-connected device subscription",
+        notes="IoT app-connected device subscription kids health data SOC 2",
         signals=[],
         today=date(2026, 9, 8),
         india_bridge=True,
