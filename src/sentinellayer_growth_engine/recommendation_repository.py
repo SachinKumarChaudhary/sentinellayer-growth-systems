@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from typing import Any, Protocol
 from uuid import UUID
@@ -57,7 +58,7 @@ class RecommendationRepository:
                     recommendation.recommended_channel,
                     recommendation.reason,
                     signal_ids,
-                    __import__("json").dumps(recommendation.sequence),
+                    json.dumps(recommendation.sequence),
                     draft_message,
                     recommendation.confidence,
                     recommendation.requires_approval,
