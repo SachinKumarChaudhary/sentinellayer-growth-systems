@@ -39,7 +39,9 @@ def recommend_next_action(
     if awaiting_reply:
         return Recommendation(
             recommendation_type="follow_up",
-            recommended_channel="linkedin" if "linkedin" in channels else "email" if "email" in channels else "none",
+            recommended_channel=(
+                "linkedin" if "linkedin" in channels else "email" if "email" in channels else "none"
+            ),
             reason="No conversation has started on the current contact yet; recommend the next available approved touchpoint.",
             sequence=tuple(
                 channel
