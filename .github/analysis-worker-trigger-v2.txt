@@ -1,3 +1,3 @@
 RUN-CONVERSATION-ANALYSIS
-fix=1ec7ca73de30b24f002fe1f9cf11cb97ca17288a1
-diagnostic=structured-output-minimal-v4
+fix=5f9251f6da228407d9e92db34a9d69facd7d149e
+diagnostic=structured-output-full-schema-v5
