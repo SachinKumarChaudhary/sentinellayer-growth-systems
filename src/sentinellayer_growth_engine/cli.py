@@ -13,7 +13,7 @@ from .db import Database
 from .enrichment_contracts import EnrichmentBatch
 from .enrichment_repository import EnrichmentRepository
 from .health import check as health_check
-from .tinyfish_batch import DatabaseCompanySeedResolver, TinyFishBatchEnricher
+from .tinyfish_batch import DatabaseCompanySeedResolver, TinyFishBatchEnricher, TinyFishDailyEnricher
 from .tinyfish_client import TinyFishClient
 from .tinyfish_rate_limit import TinyFishRateLimitPolicy, TinyFishRateLimiter
 from .tinyfish_enrichment import TinyFishEnrichmentProvider
@@ -118,6 +118,23 @@ def cmd_enrichment_tinyfish_next(args: argparse.Namespace) -> int:
         return 1
 
 
+def cmd_enrichment_tinyfish_daily(args: argparse.Namespace) -> int:
+    try:
+        settings = _settings()
+        repository = EnrichmentRepository(_connection_factory)
+        provider = TinyFishEnrichmentProvider(_tinyfish_client(settings))
+        result = TinyFishDailyEnricher(
+            repository=repository,
+            provider=provider,
+            seed_resolver=DatabaseCompanySeedResolver(_connection_factory),
+        ).run_daily(limit=args.limit)
+        print(json.dumps(result.__dict__, indent=2, default=str))
+        return 0 if result.failed == 0 else 1
+    except (ValueError, RuntimeError, psycopg.Error) as exc:
+        print(f"ERROR: TinyFish daily enrichment failed: {exc}", file=sys.stderr)
+        return 1
+
+
 def cmd_enrichment_import(args: argparse.Namespace) -> int:
     try:
         payload = json.loads(Path(args.file).read_text(encoding="utf-8"))
@@ -168,6 +185,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="build the batch without persisting it",
     )
     batch_cmd.set_defaults(func=cmd_enrichment_tinyfish_next)
+
+    daily_cmd = enrichment_sub.add_parser(
+        "tinyfish-daily",
+        help="enrich up to 40 new companies using TinyFish and persist each company independently",
+    )
+    daily_cmd.add_argument("--limit", type=int, default=40, choices=range(1, 41))
+    daily_cmd.set_defaults(func=cmd_enrichment_tinyfish_daily)
 
     import_cmd = enrichment_sub.add_parser("import", help="persist a validated enrichment batch JSON")
     import_cmd.add_argument("--file", required=True)
