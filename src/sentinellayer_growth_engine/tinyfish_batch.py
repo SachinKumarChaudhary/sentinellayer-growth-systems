@@ -148,9 +148,18 @@ class TinyFishDailyEnricher:
         company_ids = self._repository.next_enrichment_company_ids(limit=limit)
         succeeded = 0
         failures: list[dict[str, object]] = []
-        for company_id in company_ids:
+        total = len(company_ids)
+        for index, company_id in enumerate(company_ids, start=1):
+            print(
+                f"TinyFish enrichment: starting company {index}/{total} (id={company_id})",
+                flush=True,
+            )
             try:
                 seed = self._seed_resolver.resolve(company_id)
+                print(
+                    f"TinyFish enrichment: researching {seed.domain} ({index}/{total})",
+                    flush=True,
+                )
                 packet = self._provider.build_packet(
                     company_id=seed.company_id,
                     domain=seed.domain,
@@ -161,8 +170,20 @@ class TinyFishDailyEnricher:
                     provider="tinyfish",
                 )
                 succeeded += 1
+                print(
+                    f"TinyFish enrichment: persisted company {index}/{total} (id={company_id})",
+                    flush=True,
+                )
             except (ValueError, RuntimeError) as exc:
                 failures.append({"company_id": company_id, "error": str(exc)})
+                print(
+                    f"TinyFish enrichment: failed company {index}/{total} (id={company_id}): {exc}",
+                    flush=True,
+                )
+        print(
+            f"TinyFish enrichment: completed {succeeded}/{total} companies; {len(failures)} failed",
+            flush=True,
+        )
         return TinyFishDailyRunResult(
             requested=len(company_ids),
             succeeded=succeeded,
