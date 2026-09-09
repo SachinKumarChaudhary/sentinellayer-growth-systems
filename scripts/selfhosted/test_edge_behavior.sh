@@ -11,16 +11,16 @@ cleanup() {
   status=$?
   if [ "$status" -ne 0 ]; then
     "${COMPOSE[@]}" ps || true
-    timeout 10s "${COMPOSE[@]}" logs --no-color edge upstream || true
+    timeout 5s "${COMPOSE[@]}" logs --no-color edge upstream || true
   fi
-  timeout 20s "${COMPOSE[@]}" down -v --remove-orphans || true
+  "${COMPOSE[@]}" kill >/dev/null 2>&1 || true
+  timeout 10s "${COMPOSE[@]}" down -v --remove-orphans >/dev/null 2>&1 || true
   exit "$status"
 }
 trap cleanup EXIT
 
 timeout 60s "${COMPOSE[@]}" up -d
 "${COMPOSE[@]}" ps
-"${COMPOSE[@]}" logs --no-color edge upstream || true
 
 for _ in $(seq 1 30); do
   if curl -fsS --max-time 1 -o /dev/null "$BASE/healthz"; then break; fi
@@ -62,7 +62,7 @@ test "$(curl -sS --max-time 2 -o /dev/null -w '%{http_code}' "$BASE/t/recovery-1
 
 printf '%s\n' "[8/8] rejected traffic is observable without sensitive request data"
 curl -sS --max-time 2 -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $TOKEN" -X POST -d "$BODY_MARKER" "$BASE/t/log-safety" | grep -Eq '^(200|503)$'
-LOGS="$(timeout 5s "${COMPOSE[@]}" exec -T edge cat /var/log/nginx/access.log)"
+LOGS="$(timeout 5s "${COMPOSE[@]}" logs --no-color edge)"
 printf '%s\n' "$LOGS" | grep -q 'status=503'
 if printf '%s\n' "$LOGS" | grep -Fq "$TOKEN"; then
   echo "FAIL: opaque tracking token leaked into edge logs" >&2
