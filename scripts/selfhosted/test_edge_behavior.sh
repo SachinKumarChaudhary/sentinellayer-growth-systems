@@ -20,7 +20,6 @@ test "$(curl -fsS -o /dev/null -w '%{http_code}' "$BASE/readyz")" = 200
 
 printf '%s\n' "[2/8] normal tracking request remains available"
 test "$(curl -fsS -o /dev/null -w '%{http_code}' "$BASE/t/$TOKEN")" = 200
-
 test "$(curl -fsS -o /dev/null -w '%{http_code}' -X POST --data "$BODY_MARKER" "$BASE/t/$TOKEN")" = 200
 
 printf '%s\n' "[3/8] burst traffic is rate limited"
@@ -28,7 +27,7 @@ seq 1 50 | xargs -P50 -I{} curl -sS -o /dev/null -w '%{http_code}\n' "$BASE/t/ra
 awk '$1 == 503 { rejected++ } END { exit(rejected > 0 ? 0 : 1) }' /tmp/rate-statuses
 
 printf '%s\n' "[4/8] concurrent connections are capped"
-seq 1 64 | xargs -P64 -I{} curl -sS --max-time 5 -o /dev/null -w '%{http_code}\n' "$BASE/t/slow-{}-123456789012345" > /tmp/conn-statuses || true
+seq 1 64 | xargs -P64 -I{} curl -sS --max-time 5 -o /dev/null -w '%{http_code}\n' "$BASE/c/slow-{}-123456789012345" > /tmp/conn-statuses || true
 awk '$1 == 503 { rejected++ } END { exit(rejected > 0 ? 0 : 1) }' /tmp/conn-statuses
 
 printf '%s\n' "[5/8] oversized requests are rejected at the edge"
