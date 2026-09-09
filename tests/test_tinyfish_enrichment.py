@@ -41,7 +41,7 @@ class FakeTinyFishClient:
         include_image_links: bool = False,
         include_page_metadata: bool = False,
     ) -> list[TinyFishFetchResult]:
-        assert purpose == "evidence collection for company enrichment"
+        assert purpose and "evidence collection for company enrichment" in purpose
         assert format == "markdown"
         assert include_links is False
         assert include_page_metadata is True
@@ -67,7 +67,7 @@ def test_build_packet_uses_same_domain_fetched_evidence_only() -> None:
         merchant_name="Example",
     )
 
-    assert len(client.searches) == 5
+    assert len(client.searches) == 8
     assert packet.company_id == 123
     assert packet.domain == "example.com"
     assert packet.merchant_name == "Example"
@@ -80,6 +80,56 @@ def test_build_packet_uses_same_domain_fetched_evidence_only() -> None:
     assert packet.decision_makers[0].role_family == "engineering"
     assert packet.decision_makers[0].role_priority == 2
     assert packet.intent_signals == []
+
+
+def test_search_results_can_supply_external_decision_maker_evidence() -> None:
+    from sentinellayer_growth_engine.enrichment_contracts import EnrichmentPacket
+
+    packet = EnrichmentPacket(company_id=1, domain="example.com")
+    searches = [
+        (
+            "leadership_external",
+            [
+                TinyFishSearchResult(
+                    title="Jane Doe | Chief Information Security Officer | Example",
+                    url="https://www.linkedin.com/in/jane-doe",
+                    snippet="Jane Doe — Chief Information Security Officer at Example",
+                )
+            ],
+        )
+    ]
+
+    TinyFishEnrichmentProvider._augment_decision_makers_from_search(
+        packet, searches, "example.com", "Example", datetime.now(UTC)
+    )
+
+    assert len(packet.decision_makers) == 1
+    dm = packet.decision_makers[0]
+    assert dm.full_name == "Jane Doe"
+    assert dm.role_family == "security"
+    assert dm.role_priority == 1
+    assert dm.contacts[0].channel == "linkedin"
+    assert dm.contacts[0].value == "https://www.linkedin.com/in/jane-doe"
+
+
+def test_line_person_parser_handles_pipe_and_comma_formats() -> None:
+    fetched = [
+        TinyFishFetchResult(
+            url="https://www.linkedin.com/in/jane-doe",
+            text=(
+                "Jane Doe | Chief Technology Officer | Example\n"
+                "John Smith, VP Security, Example"
+            ),
+        )
+    ]
+    packet = TinyFishEnrichmentProvider._packet_from_fetched(
+        company_id=1,
+        domain="example.com",
+        merchant_name="Example",
+        fetched=fetched,
+        observed_at=datetime.now(UTC),
+    )
+    assert {dm.full_name for dm in packet.decision_makers} == {"Jane Doe", "John Smith"}
 
 
 def test_conflicting_employee_counts_are_left_empty() -> None:
