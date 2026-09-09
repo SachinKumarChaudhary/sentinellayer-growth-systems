@@ -34,6 +34,26 @@ def test_rejects_search_label_prefix() -> None:
     assert result.reason == "name_contains_search_label"
 
 
+def test_rejects_prose_fragment_as_person() -> None:
+    result = is_valid_decision_maker(
+        "Ooni USA",
+        "As Co",
+        "Founder and Co-CEO, Darina has had an integral role in shaping the future of Ooni",
+    )
+    assert result.valid is False
+    assert result.reason == "name_contains_search_label"
+
+
+def test_rejects_prose_fragment_with_location_prefix_as_person() -> None:
+    result = is_valid_decision_maker(
+        "Ooni USA",
+        "China. As Co",
+        "Founder and Co-CEO, Darina has had an integral role in shaping the future of Ooni",
+    )
+    assert result.valid is False
+    assert result.reason == "name_contains_search_label"
+
+
 def test_accepts_real_founder_ceo() -> None:
     result = is_valid_decision_maker(
         "Athletic Brewing Company",
