@@ -164,7 +164,13 @@ class TinyFishEnrichmentProvider:
             intent_fetched=intent_fetched,
             observed_at=datetime.now(UTC),
         )
-        self._augment_decision_makers_from_search(packet, searches, normalized_domain, datetime.now(UTC))
+        self._augment_decision_makers_from_search(
+            packet,
+            searches,
+            normalized_domain,
+            company_label,
+            datetime.now(UTC),
+        )
         return packet
 
     @staticmethod
@@ -467,6 +473,7 @@ class TinyFishEnrichmentProvider:
         packet: EnrichmentPacket,
         searches: list[tuple[str, list[TinyFishSearchResult]]],
         domain: str,
+        company_label: str,
         observed_at: datetime,
     ) -> None:
         found: dict[tuple[str, str], DecisionMaker] = {
@@ -528,11 +535,17 @@ class TinyFishEnrichmentProvider:
         return found
 
     @staticmethod
-    def _social_contact(source_url: str, observed_at: datetime, name: str) -> list:
+    def _social_contact(
+        source_url: str,
+        observed_at: datetime,
+        name: str,
+        text: str,
+    ) -> list[ContactMethod]:
         parsed = urlparse(source_url)
         host = parsed.netloc.lower().removeprefix("www.")
+        contacts: list[ContactMethod] = []
         if host == "linkedin.com" or host.endswith(".linkedin.com"):
-            return [
+            contacts.append(
                 ContactMethod(
                     channel="linkedin",
                     value=source_url,
@@ -541,8 +554,33 @@ class TinyFishEnrichmentProvider:
                     source_url=source_url,
                     confidence=0.9,
                 )
-            ]
-        return []
+            )
+        generic_prefixes = {
+            "info",
+            "hello",
+            "support",
+            "sales",
+            "contact",
+            "careers",
+            "hr",
+            "team",
+            "press",
+        }
+        for email in _RE_EMAIL.findall(text):
+            local_part = email.split("@", 1)[0].casefold()
+            if local_part in generic_prefixes:
+                continue
+            contacts.append(
+                ContactMethod(
+                    channel="email",
+                    value=email,
+                    normalized_value=email.casefold(),
+                    source=source_type if (source_type := "tinyfish_fetch") else None,
+                    source_url=source_url,
+                    confidence=0.75,
+                )
+            )
+        return contacts
 
     @classmethod
     def _extract_decision_makers(
