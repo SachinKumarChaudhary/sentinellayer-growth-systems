@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import dataclass
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
+
+from .tinyfish_rate_limit import TinyFishRateLimiter
 
 
 class TinyFishError(RuntimeError):
@@ -43,6 +46,8 @@ class TinyFishClient:
         search_url: str = "https://api.search.tinyfish.ai",
         fetch_url: str = "https://api.fetch.tinyfish.ai",
         timeout_seconds: float = 30.0,
+        rate_limiter: TinyFishRateLimiter | None = None,
+        max_retry_attempts: int = 4,
     ) -> None:
         if not api_key.strip():
             raise ValueError("TinyFish API key is required")
@@ -51,7 +56,11 @@ class TinyFishClient:
         self._api_key = api_key
         self._search_url = search_url
         self._fetch_url = fetch_url
+        if max_retry_attempts <= 0:
+            raise ValueError("TinyFish max_retry_attempts must be positive")
         self._timeout_seconds = timeout_seconds
+        self._rate_limiter = rate_limiter or TinyFishRateLimiter()
+        self._max_retry_attempts = max_retry_attempts
 
     def search(
         self, query: str, *, purpose: str | None = None
@@ -63,7 +72,7 @@ class TinyFishClient:
         if purpose:
             params["purpose"] = purpose
         payload = self._request_json(
-            "GET", f"{self._search_url}?{urlencode(params)}"
+            "GET", f"{self._search_url}?{urlencode(params)}", quota_units=1
         )
         raw_results = payload.get("results", [])
         if not isinstance(raw_results, list):
@@ -122,7 +131,9 @@ class TinyFishClient:
         }
         if purpose:
             body["purpose"] = purpose
-        payload = self._request_json("POST", self._fetch_url, body)
+        payload = self._request_json(
+            "POST", self._fetch_url, body, quota_units=len(urls)
+        )
         raw_results = payload.get("results", [])
         if not isinstance(raw_results, list):
             raise TinyFishError(
@@ -164,6 +175,8 @@ class TinyFishClient:
         method: str,
         url: str,
         body: dict[str, Any] | None = None,
+        *,
+        quota_units: int = 1,
     ) -> dict[str, Any]:
         data = None if body is None else json.dumps(body).encode("utf-8")
         headers = {
@@ -172,28 +185,46 @@ class TinyFishClient:
         }
         if data is not None:
             headers["Content-Type"] = "application/json"
-        request = Request(url, data=data, headers=headers, method=method)
-        try:
-            with urlopen(request, timeout=self._timeout_seconds) as response:
-                raw = response.read().decode("utf-8")
-        except HTTPError as exc:
-            detail = exc.read().decode("utf-8", errors="replace")[:500]
-            raise TinyFishError(
-                f"TinyFish API HTTP {exc.code}: {detail}"
-            ) from exc
-        except URLError as exc:
-            raise TinyFishError(
-                f"TinyFish API request failed: {exc.reason}"
-            ) from exc
-        except TimeoutError as exc:
-            raise TinyFishError("TinyFish API request timed out") from exc
 
-        try:
-            payload = json.loads(raw)
-        except json.JSONDecodeError as exc:
-            raise TinyFishError("TinyFish API returned invalid JSON") from exc
-        if not isinstance(payload, dict):
-            raise TinyFishError(
-                "TinyFish API returned a non-object JSON payload"
-            )
-        return payload
+        last_error: TinyFishError | None = None
+        for attempt in range(self._max_retry_attempts):
+            if url.startswith(self._search_url):
+                self._rate_limiter.acquire_search()
+            else:
+                self._rate_limiter.acquire_fetch(quota_units)
+
+            request = Request(url, data=data, headers=headers, method=method)
+            try:
+                with urlopen(request, timeout=self._timeout_seconds) as response:
+                    raw = response.read().decode("utf-8")
+                try:
+                    payload = json.loads(raw)
+                except json.JSONDecodeError as exc:
+                    raise TinyFishError("TinyFish API returned invalid JSON") from exc
+                if not isinstance(payload, dict):
+                    raise TinyFishError("TinyFish API returned a non-object JSON payload")
+                return payload
+            except HTTPError as exc:
+                detail = exc.read().decode("utf-8", errors="replace")[:500]
+                last_error = TinyFishError(f"TinyFish API HTTP {exc.code}: {detail}")
+                if exc.code not in {429, 500, 502, 503, 504}:
+                    raise last_error from exc
+                retry_after = exc.headers.get("Retry-After")
+                if retry_after:
+                    try:
+                        delay = max(0.0, float(retry_after))
+                    except ValueError:
+                        delay = float(2**attempt)
+                else:
+                    delay = float(2**attempt)
+                time.sleep(delay + 0.25 * (attempt + 1))
+            except URLError as exc:
+                last_error = TinyFishError(f"TinyFish API request failed: {exc.reason}")
+                time.sleep(float(2**attempt) + 0.25 * (attempt + 1))
+            except TimeoutError:
+                last_error = TinyFishError("TinyFish API request timed out")
+                time.sleep(float(2**attempt) + 0.25 * (attempt + 1))
+
+        if last_error is not None:
+            raise last_error
+        raise TinyFishError("TinyFish API request failed")
