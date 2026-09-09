@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from collections import deque
 from dataclasses import dataclass
-from typing import Callable
+from collections.abc import Callable
 
 
 class TinyFishQuotaExceeded(RuntimeError):
