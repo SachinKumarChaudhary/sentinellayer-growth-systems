@@ -24,6 +24,16 @@ def test_rejects_company_name_as_person() -> None:
     assert result.reason == "name_overlaps_company_identity"
 
 
+def test_rejects_search_label_prefix() -> None:
+    result = is_valid_decision_maker(
+        "Cozy Earth",
+        "LinkedIn. Kate Greenwood",
+        "Director of Social at Cozy Earth | LinkedIn",
+    )
+    assert result.valid is False
+    assert result.reason == "name_contains_search_label"
+
+
 def test_accepts_real_founder_ceo() -> None:
     result = is_valid_decision_maker(
         "Athletic Brewing Company",
