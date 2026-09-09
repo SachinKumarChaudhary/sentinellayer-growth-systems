@@ -1,3 +1,5 @@
+# ruff: noqa: E501
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -130,7 +132,9 @@ def test_ambiguous_keywords_without_explicit_context_do_not_create_intent() -> N
         TinyFishFetchResult(
             url="https://example.com/about",
             published_date="2026-08-20",
-            text="Our platform supports funding education and security for customers.",
+            text=(
+                "Our platform supports funding education and security for customers."
+            ),
         )
     ]
 
