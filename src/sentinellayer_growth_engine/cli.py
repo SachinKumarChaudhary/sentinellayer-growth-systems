@@ -14,6 +14,7 @@ from .enrichment_contracts import EnrichmentBatch
 from .enrichment_repository import EnrichmentRepository
 from .health import check as health_check
 from .tinyfish_client import TinyFishClient
+from .tinyfish_rate_limit import TinyFishRateLimitPolicy, TinyFishRateLimiter
 from .tinyfish_enrichment import TinyFishEnrichmentProvider
 
 
@@ -66,11 +67,22 @@ def cmd_enrichment_research(args: argparse.Namespace) -> int:
         if not settings.tinyfish_api_key:
             print("ERROR: SL_TINYFISH_API_KEY is required", file=sys.stderr)
             return 2
+        limiter = TinyFishRateLimiter(
+            TinyFishRateLimitPolicy(
+                search_per_minute=settings.tinyfish_search_per_minute,
+                search_per_hour=settings.tinyfish_search_per_hour,
+                fetch_urls_per_minute=settings.tinyfish_fetch_urls_per_minute,
+                fetch_urls_per_day=settings.tinyfish_fetch_urls_per_day,
+                max_retry_attempts=settings.tinyfish_max_retry_attempts,
+            )
+        )
         client = TinyFishClient(
             settings.tinyfish_api_key,
             search_url=settings.tinyfish_search_url,
             fetch_url=settings.tinyfish_fetch_url,
             timeout_seconds=settings.tinyfish_timeout_seconds,
+            rate_limiter=limiter,
+            max_retry_attempts=settings.tinyfish_max_retry_attempts,
         )
         provider = TinyFishEnrichmentProvider(client)
         packet = provider.build_packet(
