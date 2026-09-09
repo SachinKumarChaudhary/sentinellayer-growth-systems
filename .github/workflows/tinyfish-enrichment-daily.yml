@@ -10,6 +10,11 @@ on:
         required: false
         default: "40"
         type: string
+      refresh_limit:
+        description: "Stale companies to refresh (0-10)"
+        required: false
+        default: "10"
+        type: string
 
 permissions:
   contents: read
@@ -62,3 +67,10 @@ jobs:
           SL_DAILY_LIMIT: ${{ inputs.limit || '40' }}
         run: |
           python -m sentinellayer_growth_engine enrichment tinyfish-daily --limit "$SL_DAILY_LIMIT"
+      - name: Refresh stale high-priority slice
+        env:
+          SL_REFRESH_LIMIT: ${{ inputs.refresh_limit || '10' }}
+        run: |
+          if [ "$SL_REFRESH_LIMIT" != "0" ]; then
+            python -m sentinellayer_growth_engine enrichment tinyfish-refresh --limit "$SL_REFRESH_LIMIT" --min-age-days 7
+          fi

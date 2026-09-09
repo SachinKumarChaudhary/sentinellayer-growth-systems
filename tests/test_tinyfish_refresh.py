@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from sentinellayer_growth_engine.enrichment_contracts import CompanyFacts, EnrichmentBatch, EnrichmentPacket
-from sentinellayer_growth_engine.tinyfish_batch import CompanySeed, TinyFishDailyEnricher
+from sentinellayer_growth_engine.tinyfish_batch import CompanySeed, TinyFishRefreshEnricher
 
 
 @dataclass
@@ -13,13 +13,14 @@ class FakeRepository:
         return self.ids[:limit]
 
     def next_enrichment_company_ids(self, limit: int = 40) -> list[int]:
-        return self.ids[:limit]
-
-    def next_refresh_company_ids(self, limit: int = 10, min_age_days: int = 7) -> list[int]:
         return []
 
+    def next_refresh_company_ids(self, limit: int = 10, min_age_days: int = 7) -> list[int]:
+        assert min_age_days == 7
+        return self.ids[:limit]
+
     def persist_batch(self, batch: EnrichmentBatch, *, provider: str = "manual_ai_research"):
-        assert provider == "tinyfish"
+        assert provider == "tinyfish_refresh"
         self.persisted.append(batch)
         return {"provider": provider, "results": []}
 
@@ -34,13 +35,10 @@ class FakeResolver:
 
 @dataclass
 class FakeProvider:
-    calls: list[int]
-    fail_ids: set[int]
+    calls: list[tuple[int, int]]
 
     def build_packet(self, *, company_id: int, domain: str, merchant_name: str | None = None, max_fetch_urls: int = 10):
-        self.calls.append(company_id)
-        if company_id in self.fail_ids:
-            raise RuntimeError("research failed")
+        self.calls.append((company_id, max_fetch_urls))
         return EnrichmentPacket(
             company_id=company_id,
             domain=domain,
@@ -50,36 +48,21 @@ class FakeProvider:
             decision_makers=[],
             intent_signals=[],
             personalization_angle=None,
-            research_notes=["test"],
+            research_notes=["refresh test"],
         )
 
 
-def _runner(fail_ids: set[int] | None = None):
-    ids = [2, 3, 4]
+def test_refresh_runner_is_bounded_and_uses_smaller_fetch_budget() -> None:
+    ids = [11, 12, 13]
     repository = FakeRepository(ids=ids, persisted=[])
-    resolver = FakeResolver(seeds={i: CompanySeed(i, f"company{i}.example", f"Company {i}") for i in ids})
-    provider = FakeProvider(calls=[], fail_ids=fail_ids or set())
-    return TinyFishDailyEnricher(repository, provider, resolver), repository, provider
+    resolver = FakeResolver({i: CompanySeed(i, f"company{i}.example", None) for i in ids})
+    provider = FakeProvider(calls=[])
+    runner = TinyFishRefreshEnricher(repository, provider, resolver)
 
-
-def test_daily_runner_persists_each_successful_company_independently():
-    runner, repository, provider = _runner({3})
-
-    result = runner.run_daily(limit=3)
+    result = runner.run_refresh(limit=3, min_age_days=7)
 
     assert result.requested == 3
-    assert result.succeeded == 2
-    assert result.failed == 1
-    assert provider.calls == [2, 3, 4]
-    assert len(repository.persisted) == 2
-    assert [batch.packets[0].company_id for batch in repository.persisted] == [2, 4]
-    assert result.failures == [{"company_id": 3, "error": "research failed"}]
-
-
-def test_daily_runner_stops_at_forty_company_contract():
-    runner, repository, _ = _runner()
-
-    result = runner.run_daily(limit=3)
-
-    assert result.requested == 3
+    assert result.succeeded == 3
+    assert result.failed == 0
+    assert provider.calls == [(11, 8), (12, 8), (13, 8)]
     assert len(repository.persisted) == 3

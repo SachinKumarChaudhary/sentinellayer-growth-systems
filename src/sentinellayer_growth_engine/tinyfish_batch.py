@@ -30,6 +30,9 @@ class EnrichmentRepositoryPort(Protocol):
     def next_enrichment_company_ids(self, limit: int = 40) -> list[int]:
         ...
 
+    def next_refresh_company_ids(self, limit: int = 10, min_age_days: int = 7) -> list[int]:
+        ...
+
     def persist_batch(
         self, batch: EnrichmentBatch, *, provider: str = "manual_ai_research"
     ) -> dict[str, Any]:
@@ -107,7 +110,6 @@ class TinyFishBatchEnricher:
         return {"provider": "tinyfish", "persisted": True, "result": result}
 
 
-
 @dataclass(frozen=True)
 class TinyFishDailyRunResult:
     requested: int
@@ -116,6 +118,15 @@ class TinyFishDailyRunResult:
     company_ids: list[int]
     failures: list[dict[str, object]]
 
+
+@dataclass(frozen=True)
+class TinyFishRefreshRunResult:
+    requested: int
+    succeeded: int
+    failed: int
+    company_ids: list[int]
+    failures: list[dict[str, object]]
+    min_age_days: int
 
 
 class TinyFishDailyEnricher:
@@ -151,13 +162,62 @@ class TinyFishDailyEnricher:
                 )
                 succeeded += 1
             except (ValueError, RuntimeError) as exc:
-                failures.append(
-                    {"company_id": company_id, "error": str(exc)}
-                )
+                failures.append({"company_id": company_id, "error": str(exc)})
         return TinyFishDailyRunResult(
             requested=len(company_ids),
             succeeded=succeeded,
             failed=len(failures),
             company_ids=company_ids,
             failures=failures,
+        )
+
+
+class TinyFishRefreshEnricher:
+    """Refresh stale companies without changing their canonical identity."""
+
+    def __init__(
+        self,
+        repository: EnrichmentRepositoryPort,
+        provider: TinyFishProviderPort,
+        seed_resolver: CompanySeedResolver,
+    ) -> None:
+        self._repository = repository
+        self._provider = provider
+        self._seed_resolver = seed_resolver
+
+    def run_refresh(
+        self, *, limit: int = 10, min_age_days: int = 7
+    ) -> TinyFishRefreshRunResult:
+        if not 1 <= limit <= 20:
+            raise ValueError("refresh limit must be between 1 and 20")
+        if min_age_days < 1:
+            raise ValueError("min_age_days must be positive")
+        company_ids = self._repository.next_refresh_company_ids(
+            limit=limit, min_age_days=min_age_days
+        )
+        succeeded = 0
+        failures: list[dict[str, object]] = []
+        for company_id in company_ids:
+            try:
+                seed = self._seed_resolver.resolve(company_id)
+                packet = self._provider.build_packet(
+                    company_id=seed.company_id,
+                    domain=seed.domain,
+                    merchant_name=seed.merchant_name,
+                    max_fetch_urls=8,
+                )
+                self._repository.persist_batch(
+                    EnrichmentBatch(packets=[packet]),
+                    provider="tinyfish_refresh",
+                )
+                succeeded += 1
+            except (ValueError, RuntimeError) as exc:
+                failures.append({"company_id": company_id, "error": str(exc)})
+        return TinyFishRefreshRunResult(
+            requested=len(company_ids),
+            succeeded=succeeded,
+            failed=len(failures),
+            company_ids=company_ids,
+            failures=failures,
+            min_age_days=min_age_days,
         )

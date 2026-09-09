@@ -384,6 +384,42 @@ class EnrichmentRepository:
             )
             return [row[0] for row in cur.fetchall()]
 
+    def next_refresh_company_ids(self, limit: int = 10, min_age_days: int = 7) -> list[int]:
+        """Return completed companies whose latest enrichment is stale enough to refresh."""
+        if not 1 <= limit <= 20:
+            raise ValueError("next_refresh_company_ids limit must be between 1 and 20")
+        if min_age_days < 1:
+            raise ValueError("min_age_days must be positive")
+        with self._connection_factory() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT c.id
+                FROM public.companies AS c
+                JOIN LATERAL (
+                    SELECT er.completed_at
+                    FROM intelligence.enrichment_runs AS er
+                    WHERE er.company_id = c.id
+                      AND er.status = 'completed'
+                    ORDER BY er.completed_at DESC NULLS LAST
+                    LIMIT 1
+                ) AS latest ON TRUE
+                LEFT JOIN intelligence.company_scores AS cs ON cs.company_id = c.id
+                WHERE latest.completed_at <= now() - (%s * interval '1 day')
+                ORDER BY
+                    CASE cs.priority
+                        WHEN 'urgent' THEN 0
+                        WHEN 'active' THEN 1
+                        WHEN 'interest' THEN 2
+                        ELSE 3
+                    END,
+                    cs.scored_at ASC NULLS FIRST,
+                    latest.completed_at ASC
+                LIMIT %s
+                """,
+                (min_age_days, limit),
+            )
+            return [row[0] for row in cur.fetchall()]
+
     def next_companies(self, limit: int = 3) -> list[int]:
         if not 1 <= limit <= 3:
             raise ValueError("next_companies limit must be between 1 and 3")
