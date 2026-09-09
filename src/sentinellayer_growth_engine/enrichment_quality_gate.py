@@ -10,9 +10,7 @@ _ROLE_MARKER_RE = re.compile(
     r"ceo|cto|ciso|cfo|coo|cio|president|vice president|vp|svp|evp|head of|director of|director|founder|co-founder)\b",
     re.IGNORECASE,
 )
-_NAME_RE = re.compile(
-    r"^[A-Z][A-Za-z'’.-]+(?:\s+[A-Z][A-Za-z'’.-]+){1,3}$"
-)
+_NAME_RE = re.compile(r"^[A-Z][A-Za-z'’.-]+(?:\s+[A-Z][A-Za-z'’.-]+){1,3}$")
 _STOPWORDS = {
     "the", "and", "company", "co", "corp", "corporation", "inc", "llc", "ltd",
     "limited", "group", "holdings", "international", "global",
@@ -60,15 +58,17 @@ def is_valid_company_email(company_domain: str, email: str, source_url: str | No
     local, email_domain = value.rsplit("@", 1)
     if not local or not email_domain:
         return False
-    if local in _GENERIC_EMAIL_PREFIXES:
-        return True
 
     normalized_company_domain = company_domain.casefold().removeprefix("www.").strip()
-    if email_domain == normalized_company_domain or email_domain.endswith("." + normalized_company_domain):
-        return True
-
+    same_company_domain = (
+        email_domain == normalized_company_domain
+        or email_domain.endswith("." + normalized_company_domain)
+    )
+    source_is_company = False
     if source_url:
         host = urlparse(source_url).netloc.casefold().removeprefix("www.")
-        if host == normalized_company_domain or host.endswith("." + normalized_company_domain):
-            return True
-    return False
+        source_is_company = host == normalized_company_domain or host.endswith("." + normalized_company_domain)
+
+    if same_company_domain or source_is_company:
+        return True
+    return local not in _GENERIC_EMAIL_PREFIXES
