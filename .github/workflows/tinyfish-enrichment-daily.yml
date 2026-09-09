@@ -1,0 +1,63 @@
+name: tinyfish-enrichment-daily
+
+on:
+  schedule:
+    - cron: "15 21 * * *"
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "New companies to enrich (1-40)"
+        required: false
+        default: "40"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tinyfish-enrichment-daily
+  cancel-in-progress: false
+
+jobs:
+  enrich:
+    runs-on: ubuntu-latest
+    env:
+      SL_ENVIRONMENT: production
+      SL_REAL_EMAIL_ENABLED: "false"
+      SL_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+      SL_TINYFISH_API_KEY: ${{ secrets.SL_TINYFISH_API_KEY }}
+      SL_TINYFISH_SEARCH_PER_MINUTE: "27"
+      SL_TINYFISH_SEARCH_PER_HOUR: "450"
+      SL_TINYFISH_FETCH_URLS_PER_MINUTE: "135"
+      SL_TINYFISH_FETCH_URLS_PER_DAY: "900"
+      SL_TINYFISH_MAX_RETRY_ATTEMPTS: "4"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip 'setuptools>=83,<84'
+          python -m pip install -e .
+      - name: Safety and credential gate
+        run: |
+          set -euo pipefail
+          test -n "$SL_DATABASE_URL"
+          test -n "$SL_TINYFISH_API_KEY"
+          test "$SL_REAL_EMAIL_ENABLED" = "false"
+          python - <<'PY'
+          from sentinellayer_growth_engine.config import Settings
+          s = Settings(database_url="$SL_DATABASE_URL")
+          s.assert_safe()
+          assert s.tinyfish_search_per_minute <= 30
+          assert s.tinyfish_search_per_hour <= 500
+          assert s.tinyfish_fetch_urls_per_minute <= 150
+          assert s.tinyfish_fetch_urls_per_day <= 1000
+          PY
+      - name: Enrich bounded daily slice
+        env:
+          SL_DAILY_LIMIT: ${{ inputs.limit || '40' }}
+        run: |
+          python -m sentinellayer_growth_engine enrichment tinyfish-daily --limit "$SL_DAILY_LIMIT"
