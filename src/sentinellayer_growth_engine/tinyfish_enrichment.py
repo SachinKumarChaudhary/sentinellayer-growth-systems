@@ -180,7 +180,6 @@ class TinyFishEnrichmentProvider:
         def host_score(url: str) -> int:
             parsed = urlparse(url)
             host = parsed.netloc.lower().removeprefix("www.")
-            path = parsed.path.casefold()
             if host == hostname:
                 return 0
             if host == "linkedin.com" or host.endswith(".linkedin.com"):
