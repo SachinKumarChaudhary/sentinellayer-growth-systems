@@ -59,9 +59,9 @@ def test_accepts_company_domain_email() -> None:
     ) is True
 
 
-def test_generic_company_inbox_is_allowed_when_source_is_company() -> None:
+def test_rejects_third_party_email_even_on_company_page() -> None:
     assert is_valid_company_email(
         "hudabeauty.com",
         "contact@other-domain.example",
         "https://hudabeauty.com/contact",
-    ) is True
+    ) is False
