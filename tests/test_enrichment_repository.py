@@ -54,6 +54,14 @@ def _packet() -> EnrichmentPacket:
                         source="company_team_page",
                     )
                 ],
+                evidence=[
+                    Evidence(
+                        claim_type="public_decision_maker",
+                        claim={"name": "Jane Doe", "title": "CTO"},
+                        source_url="https://example.com/team",
+                        source_type="company_team_page",
+                    )
+                ],
             )
         ],
         intent_signals=[
@@ -89,6 +97,24 @@ def test_decision_maker_and_contact_upsert_use_canonical_relationship() -> None:
     assert "growth.decision_makers" in cursor.executed[0][0]
     assert "growth.decision_maker_contact_methods" in cursor.executed[1][0]
     assert cursor.executed[1][1][0] == decision_maker_id
+
+
+def test_decision_maker_evidence_is_linked_to_persisted_decision_maker_id() -> None:
+    decision_maker_id = uuid4()
+    cursor = FakeCursor()
+    repository = EnrichmentRepository(lambda: None)  # type: ignore[arg-type]
+
+    repository._insert_packet_evidence(
+        cursor,
+        _packet(),
+        uuid4(),
+        datetime.now(UTC),
+        decision_maker_ids={"jane doe": decision_maker_id},
+    )
+
+    query, params = cursor.executed[0]
+    assert "intelligence.evidence" in query
+    assert params[2] == decision_maker_id
 
 
 def test_intent_persistence_uses_canonical_weight_and_half_life() -> None:
