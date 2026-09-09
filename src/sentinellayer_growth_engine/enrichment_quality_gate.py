@@ -63,15 +63,7 @@ def is_valid_company_email(company_domain: str, email: str, source_url: str | No
         return False
 
     normalized_company_domain = company_domain.casefold().removeprefix("www.").strip()
-    same_company_domain = (
+    return (
         email_domain == normalized_company_domain
         or email_domain.endswith("." + normalized_company_domain)
     )
-    source_is_company = False
-    if source_url:
-        host = urlparse(source_url).netloc.casefold().removeprefix("www.")
-        source_is_company = host == normalized_company_domain or host.endswith("." + normalized_company_domain)
-
-    if same_company_domain or source_is_company:
-        return True
-    return local not in _GENERIC_EMAIL_PREFIXES
