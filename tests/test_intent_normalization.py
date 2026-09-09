@@ -41,6 +41,11 @@ def test_ambiguous_signal_is_rejected() -> None:
         normalize_signal_type("new market award")
 
 
+def test_aliases_do_not_match_inside_unrelated_words() -> None:
+    with pytest.raises(IntentSignalNormalizationError):
+        normalize_signal_type("refunding policy")
+
+
 def test_batch_normalization_preserves_dates_and_order() -> None:
     normalized = normalize_signals(
         [
