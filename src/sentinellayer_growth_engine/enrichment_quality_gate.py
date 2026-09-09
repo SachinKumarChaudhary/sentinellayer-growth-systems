@@ -15,6 +15,7 @@ _STOPWORDS = {
     "the", "and", "company", "co", "corp", "corporation", "inc", "llc", "ltd",
     "limited", "group", "holdings", "international", "global",
 }
+_REJECTED_NAME_TOKENS = {"linkedin", "official", "team", "predictions", "profile", "page"}
 _GENERIC_EMAIL_PREFIXES = {
     "info", "hello", "support", "sales", "contact", "careers", "hr", "team", "press",
 }
@@ -39,13 +40,15 @@ def is_valid_decision_maker(company_name: str, full_name: str, title: str | None
     normalized_title = " ".join((title or "").split()).strip()
     if not _NAME_RE.fullmatch(name):
         return DecisionMakerQuality(False, "invalid_person_name_format")
+    name_tokens = _tokens(name)
+    if name_tokens & _REJECTED_NAME_TOKENS:
+        return DecisionMakerQuality(False, "name_contains_search_label")
     if not normalized_title or not _ROLE_MARKER_RE.search(normalized_title):
         return DecisionMakerQuality(False, "title_lacks_explicit_executive_role")
 
-    person_tokens = _tokens(name)
     company_tokens = _tokens(company_name)
-    if person_tokens and company_tokens and (
-        person_tokens <= company_tokens or company_tokens <= person_tokens
+    if name_tokens and company_tokens and (
+        name_tokens <= company_tokens or company_tokens <= name_tokens
     ):
         return DecisionMakerQuality(False, "name_overlaps_company_identity")
     return DecisionMakerQuality(True, "accepted")
