@@ -13,6 +13,7 @@ from .db import Database
 from .enrichment_contracts import EnrichmentBatch
 from .enrichment_repository import EnrichmentRepository
 from .health import check as health_check
+from .tinyfish_batch import DatabaseCompanySeedResolver, TinyFishBatchEnricher
 from .tinyfish_client import TinyFishClient
 from .tinyfish_enrichment import TinyFishEnrichmentProvider
 
@@ -60,19 +61,21 @@ def cmd_enrichment_export(args: argparse.Namespace) -> int:
     return 0
 
 
+def _tinyfish_client(settings: Settings) -> TinyFishClient:
+    if not settings.tinyfish_api_key:
+        raise RuntimeError("SL_TINYFISH_API_KEY is required")
+    return TinyFishClient(
+        settings.tinyfish_api_key,
+        search_url=settings.tinyfish_search_url,
+        fetch_url=settings.tinyfish_fetch_url,
+        timeout_seconds=settings.tinyfish_timeout_seconds,
+    )
+
+
 def cmd_enrichment_research(args: argparse.Namespace) -> int:
     try:
         settings = _settings()
-        if not settings.tinyfish_api_key:
-            print("ERROR: SL_TINYFISH_API_KEY is required", file=sys.stderr)
-            return 2
-        client = TinyFishClient(
-            settings.tinyfish_api_key,
-            search_url=settings.tinyfish_search_url,
-            fetch_url=settings.tinyfish_fetch_url,
-            timeout_seconds=settings.tinyfish_timeout_seconds,
-        )
-        provider = TinyFishEnrichmentProvider(client)
+        provider = TinyFishEnrichmentProvider(_tinyfish_client(settings))
         packet = provider.build_packet(
             company_id=args.company_id,
             domain=args.domain,
@@ -82,6 +85,24 @@ def cmd_enrichment_research(args: argparse.Namespace) -> int:
         return 0
     except (ValueError, RuntimeError) as exc:
         print(f"ERROR: TinyFish enrichment failed: {exc}", file=sys.stderr)
+        return 1
+
+
+def cmd_enrichment_tinyfish_next(args: argparse.Namespace) -> int:
+    try:
+        settings = _settings()
+        repository = EnrichmentRepository(_connection_factory)
+        provider = TinyFishEnrichmentProvider(_tinyfish_client(settings))
+        enricher = TinyFishBatchEnricher(
+            repository=repository,
+            provider=provider,
+            seed_resolver=DatabaseCompanySeedResolver(_connection_factory),
+        )
+        result = enricher.run_next(limit=args.limit, persist=not args.dry_run)
+        print(json.dumps(result, indent=2, default=str))
+        return 0
+    except (ValueError, RuntimeError, psycopg.Error) as exc:
+        print(f"ERROR: TinyFish next-batch enrichment failed: {exc}", file=sys.stderr)
         return 1
 
 
@@ -123,6 +144,18 @@ def build_parser() -> argparse.ArgumentParser:
     research_cmd.add_argument("--domain", required=True)
     research_cmd.add_argument("--merchant-name")
     research_cmd.set_defaults(func=cmd_enrichment_research)
+
+    batch_cmd = enrichment_sub.add_parser(
+        "tinyfish-next",
+        help="enrich and persist the next 1-3 companies from TinyFish public evidence",
+    )
+    batch_cmd.add_argument("--limit", type=int, default=3, choices=range(1, 4))
+    batch_cmd.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="build the batch without persisting it",
+    )
+    batch_cmd.set_defaults(func=cmd_enrichment_tinyfish_next)
 
     import_cmd = enrichment_sub.add_parser("import", help="persist a validated enrichment batch JSON")
     import_cmd.add_argument("--file", required=True)
