@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     environment: str = Field(default="development")
     log_level: str = Field(default="INFO")
     database_url: str
-    database_connect_timeout_seconds: float = Field(default=10.0, gt=0, le=30)
+    database_connect_timeout_seconds: int = Field(default=10, ge=1, le=30)
     database_statement_timeout_seconds: int = Field(default=30000, ge=1000, le=120000)
     real_email_enabled: bool = Field(default=False)
     smtp_host: str | None = Field(default=None)
