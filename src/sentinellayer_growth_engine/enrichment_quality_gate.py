@@ -1,0 +1,70 @@
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass
+
+
+_ROLE_MARKER_RE = re.compile(
+    r"\b(?:chief\s+(?:executive|technology|information security|financial|operating|product|marketing|revenue|risk)|"
+    r"ceo|cto|ciso|cfo|coo|cio|president|vice president|vp|svp|evp|head of|director of|director|founder|co-founder)\b",
+    re.IGNORECASE,
+)
+_NAME_RE = re.compile(r"^[A-Z][A-Za-z'’.-]+(?:\s+[A-Z][A-Za-z'’.-]+){1,3}$")
+_STOPWORDS = {
+    "the", "and", "company", "co", "corp", "corporation", "inc", "llc", "ltd",
+    "limited", "group", "holdings", "international", "global",
+}
+_REJECTED_NAME_TOKENS = {
+    "linkedin", "official", "team", "predictions", "profile", "page",
+    # Search/snippet fragments that can be parsed as a person's name when
+    # TinyFish returns prose such as "As Co-CEO, Darina...".
+    "as", "co", "ceo", "cto", "ciso", "cfo", "coo", "cio",
+}
+
+
+@dataclass(frozen=True)
+class DecisionMakerQuality:
+    valid: bool
+    reason: str
+
+
+def _tokens(value: str) -> set[str]:
+    return {
+        token
+        for token in re.findall(r"[a-z0-9]+", value.casefold())
+        if token not in _STOPWORDS and len(token) > 1
+    }
+
+
+def is_valid_decision_maker(company_name: str, full_name: str, title: str | None) -> DecisionMakerQuality:
+    name = " ".join(full_name.split()).strip()
+    normalized_title = " ".join((title or "").split()).strip()
+    if not _NAME_RE.fullmatch(name):
+        return DecisionMakerQuality(False, "invalid_person_name_format")
+    name_tokens = _tokens(name)
+    if name_tokens & _REJECTED_NAME_TOKENS:
+        return DecisionMakerQuality(False, "name_contains_search_label")
+    if not normalized_title or not _ROLE_MARKER_RE.search(normalized_title):
+        return DecisionMakerQuality(False, "title_lacks_explicit_executive_role")
+
+    company_tokens = _tokens(company_name)
+    if name_tokens and company_tokens and (
+        name_tokens <= company_tokens or company_tokens <= name_tokens
+    ):
+        return DecisionMakerQuality(False, "name_overlaps_company_identity")
+    return DecisionMakerQuality(True, "accepted")
+
+
+def is_valid_company_email(company_domain: str, email: str, source_url: str | None = None) -> bool:
+    value = email.strip().casefold()
+    if "@" not in value:
+        return False
+    local, email_domain = value.rsplit("@", 1)
+    if not local or not email_domain:
+        return False
+
+    normalized_company_domain = company_domain.casefold().removeprefix("www.").strip()
+    return (
+        email_domain == normalized_company_domain
+        or email_domain.endswith("." + normalized_company_domain)
+    )

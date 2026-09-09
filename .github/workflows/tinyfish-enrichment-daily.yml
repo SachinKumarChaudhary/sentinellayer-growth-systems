@@ -3,6 +3,9 @@ name: tinyfish-enrichment-daily
 on:
   schedule:
     - cron: "15 21 * * *"
+  push:
+    branches:
+      - ops/manual-enrichment
   workflow_dispatch:
     inputs:
       limit:
@@ -67,13 +70,19 @@ jobs:
           PY
       - name: Enrich bounded daily slice
         env:
-          SL_DAILY_LIMIT: ${{ inputs.limit || '40' }}
+          SL_DAILY_LIMIT: ${{ github.event_name == 'push' && '3' || inputs.limit || '40' }}
         run: |
           python -m sentinellayer_growth_engine enrichment tinyfish-daily --limit "$SL_DAILY_LIMIT"
+      - name: Clean invalid enrichment output
+        run: |
+          python scripts/enrichment_quality_gate.py --fix
+          python scripts/enrichment_quality_gate.py
       - name: Refresh stale high-priority slice
         env:
-          SL_REFRESH_LIMIT: ${{ inputs.refresh_limit || '10' }}
+          SL_REFRESH_LIMIT: ${{ github.event_name == 'push' && '0' || inputs.refresh_limit || '10' }}
         run: |
           if [ "$SL_REFRESH_LIMIT" != "0" ]; then
             python -m sentinellayer_growth_engine enrichment tinyfish-refresh --limit "$SL_REFRESH_LIMIT" --min-age-days 7
+            python scripts/enrichment_quality_gate.py --fix
+            python scripts/enrichment_quality_gate.py
           fi
