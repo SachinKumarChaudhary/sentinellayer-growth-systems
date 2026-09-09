@@ -100,7 +100,7 @@ def test_search_results_can_supply_external_decision_maker_evidence() -> None:
     ]
 
     TinyFishEnrichmentProvider._augment_decision_makers_from_search(
-        packet, searches, "example.com", datetime.now(UTC)
+        packet, searches, "example.com", "Example", datetime.now(UTC)
     )
 
     assert len(packet.decision_makers) == 1
