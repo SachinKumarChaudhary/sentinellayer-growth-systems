@@ -31,11 +31,12 @@ jobs:
       SL_REAL_EMAIL_ENABLED: "false"
       SL_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
       SL_TINYFISH_API_KEY: ${{ secrets.SL_TINYFISH_API_KEY }}
+      SL_TINYFISH_TIMEOUT_SECONDS: "20"
       SL_TINYFISH_SEARCH_PER_MINUTE: "27"
       SL_TINYFISH_SEARCH_PER_HOUR: "450"
       SL_TINYFISH_FETCH_URLS_PER_MINUTE: "135"
       SL_TINYFISH_FETCH_URLS_PER_DAY: "900"
-      SL_TINYFISH_MAX_RETRY_ATTEMPTS: "4"
+      SL_TINYFISH_MAX_RETRY_ATTEMPTS: "2"
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -61,6 +62,8 @@ jobs:
           assert s.tinyfish_search_per_hour <= 500
           assert s.tinyfish_fetch_urls_per_minute <= 150
           assert s.tinyfish_fetch_urls_per_day <= 1000
+          assert s.tinyfish_timeout_seconds <= 30
+          assert s.tinyfish_max_retry_attempts <= 4
           PY
       - name: Enrich bounded daily slice
         env:
