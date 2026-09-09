@@ -346,8 +346,7 @@ class TinyFishEnrichmentProvider:
     def _has_login(fetched: list[TinyFishFetchResult]) -> bool:
         terms = ("sign in", "log in", "login", "create an account", "customer account")
         return any(
-            any(term in f"{item.title or ''}
-{item.text}".lower() for term in terms)
+            any(term in f"{item.title or ''}\n{item.text}".lower() for term in terms)
             for item in fetched
         )
 
@@ -392,8 +391,8 @@ class TinyFishEnrichmentProvider:
     @staticmethod
     def _monthly_sessions(fetched: list[TinyFishFetchResult]) -> int | None:
         pattern = re.compile(
-            r"\\b([0-9]+(?:,[0-9]{3})*|[0-9]+(?:\\.[0-9]+)?[KMB]?)\\s+"
-            r"(?:monthly\\s+)?(?:visits|sessions|visitors)\\b",
+            r"\b([0-9]+(?:,[0-9]{3})*|[0-9]+(?:\.[0-9]+)?[KMB]?)\s+"
+            r"(?:monthly\s+)?(?:visits|sessions|visitors)\b",
             re.IGNORECASE,
         )
         values: set[int] = set()
@@ -427,7 +426,7 @@ class TinyFishEnrichmentProvider:
             ("travel", "travel"),
         )
         text = " ".join(item.text.casefold() for item in fetched)
-        matches = [value for needle, value in labels if re.search(rf"\\b{re.escape(needle)}\\b", text)]
+        matches = [value for needle, value in labels if re.search(rf"\b{re.escape(needle)}\b", text)]
         return matches[0] if matches else None
 
     @staticmethod
