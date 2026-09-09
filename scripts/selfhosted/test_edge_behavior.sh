@@ -61,7 +61,7 @@ done
 test "$(curl -sS -o /dev/null -w '%{http_code}' "$BASE/t/recovery-123456789012345")" = 200
 
 printf '%s\n' "[8/8] rejected traffic is observable without sensitive request data"
-LOGS="$("${COMPOSE[@]}" exec -T edge cat /var/log/nginx/access.log)"
+LOGS="$(timeout 5s "${COMPOSE[@]}" exec -T edge cat /tmp/nginx-access.log)"
 printf '%s\n' "$LOGS" | grep -q 'status=503'
 if printf '%s\n' "$LOGS" | grep -Fq "$TOKEN"; then
   echo "FAIL: opaque tracking token leaked into edge logs" >&2
