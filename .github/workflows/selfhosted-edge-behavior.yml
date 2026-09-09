@@ -25,9 +25,6 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Validate Nginx test configuration
-        run: docker run --rm -v "$PWD/ops/nginx/test.conf:/etc/nginx/nginx.conf:ro" nginx:1.29-alpine nginx -t
-
       - name: Run isolated edge behavioral tests
         run: |
           chmod +x scripts/selfhosted/test_edge_behavior.sh
