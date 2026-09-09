@@ -15,16 +15,9 @@ from .enrichment_contracts import (
 from .intent_normalization import normalize_signal
 from .tinyfish_client import TinyFishClient, TinyFishFetchResult, TinyFishSearchResult
 
-
 _RE_EMAIL = re.compile(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", re.IGNORECASE)
-_RE_EMPLOYEES = re.compile(r"\b(\d{1,3}(?:,\d{3})*|\d+)\s+employees\b", re.IGNORECASE)
-_RE_HEADING_PERSON = re.compile(
-    r"(?:^|\n)#{2,4}\s+([A-Z][A-Za-z'’.-]+(?:\s+[A-Z][A-Za-z'’.-]+){1,3})\s*\n\s*"
-    r"([A-Z][A-Za-z&/ ,.'’()-]{2,100})\s*(?=\n|$)",
-)
-_RE_DASH_PERSON = re.compile(
-    r"\b([A-Z][A-Za-z'’.-]+(?:\s+[A-Z][A-Za-z'’.-]+){1,3})\s*[—–-]\s*"
-    r"((?:Chief|President|Founder|Co-Founder|VP|Vice President|Head|Director|SVP|EVP|CTO|CISO|CFO|COO|CEO)[^\n.;]{2,100})",
+_RE_EMPLOYEES = re.compile(
+    r"\b(\d{1,3}(?:,\d{3})*|\d+)\s+employees\b", re.IGNORECASE
 )
 _RE_ISO_DATE = re.compile(r"\b(20\d{2}-\d{2}-\d{2})\b")
 _RE_US_DATE = re.compile(
@@ -32,6 +25,15 @@ _RE_US_DATE = re.compile(
     r"Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)"
     r"\s+\d{1,2},\s+20\d{2}\b",
     re.IGNORECASE,
+)
+_RE_HEADING_PERSON = re.compile(
+    r"(?:^|\n)#{2,4}\s+([A-Z][A-Za-z'’.-]+(?:\s+[A-Z][A-Za-z'’.-]+){1,3})"
+    r"\s*\n\s*([A-Z][A-Za-z&/ ,.'’()-]{2,100})\s*(?=\n|$)",
+)
+_RE_DASH_PERSON = re.compile(
+    r"\b([A-Z][A-Za-z'’.-]+(?:\s+[A-Z][A-Za-z'’.-]+){1,3})\s*[—–-]\s*"
+    r"((?:Chief|President|Founder|Co-Founder|VP|Vice President|Head|Director|"
+    r"SVP|EVP|CTO|CISO|CFO|COO|CEO)[^\n.;]{2,100})",
 )
 
 _ROLE_FAMILIES: tuple[tuple[str, str, int], ...] = (
@@ -53,105 +55,46 @@ _ROLE_FAMILIES: tuple[tuple[str, str, int], ...] = (
     ("ceo", "founder", 2),
 )
 
-_INTENT_PATTERNS: tuple[tuple[str, tuple[re.Pattern[str], ...]], ...] = (
-    (
-        "funding",
-        (
-            re.compile(r"\b(?:raised|raises|raising|secured|closed)\b.{0,80}\b(?:\$|usd|funding|financing|investment|capital)\b", re.I | re.S),
-            re.compile(r"\b(?:series [a-z]|seed round|funding round|financing round)\b", re.I),
-        ),
-    ),
-    (
-        "new_c_suite",
-        (
-            re.compile(r"\b(?:appointed|named|joins?|joined|promoted|welcomes?)\b.{0,100}\b(?:chief executive officer|chief technology officer|chief financial officer|chief product officer|chief marketing officer|chief information security officer|ceo|cto|cfo|cpo|cmo|ciso)\b", re.I | re.S),
-            re.compile(r"\b(?:new|incoming)\s+(?:ceo|cto|cfo|cpo|cmo|ciso)\b", re.I),
-        ),
-    ),
-    (
-        "security_hiring",
-        (
-            re.compile(r"\b(?:hiring|hire|recruiting|recruit|job opening|open role|career)\b.{0,100}\b(?:security|cybersecurity|fraud|risk|trust(?: and| &) safety|identity)\b", re.I | re.S),
-            re.compile(r"\b(?:security|cybersecurity|fraud|risk|trust(?: and| &) safety|identity)\b.{0,100}\b(?:hiring|engineer|analyst|manager|director|lead)\b", re.I | re.S),
-        ),
-    ),
-    (
-        "tech_migration",
-        (
-            re.compile(r"\b(?:migrat(?:e|ed|ing)|replatform(?:ed|ing)?|move(?:d|ing)?|rebuild(?:ing)?|moderni[sz](?:e|ed|ing))\b.{0,120}\b(?:platform|technology|stack|shopify|next\.js|express|infrastructure|cloud)\b", re.I | re.S),
-            re.compile(r"\b(?:migration|replatforming|technology rollout)\b", re.I),
-        ),
-    ),
-    (
-        "new_market",
-        (
-            re.compile(r"\b(?:launch(?:ed|ing)?|enter(?:ed|ing)?|expand(?:ed|ing)?|expansion)\b.{0,100}\b(?:market|country|region|europe|eu|asia|india|uk|united states|us)\b", re.I | re.S),
-            re.compile(r"\b(?:entered|expanded into|launched in|now available in)\b.{0,100}\b(?:market|country|region|europe|eu|asia|india|uk|united states|us)\b", re.I | re.S),
-        ),
-    ),
-    (
-        "regulated_expansion",
-        (
-            re.compile(r"\b(?:compliance|regulatory|regulated|regulation)\b.{0,120}\b(?:expan|launch|enter|category|market|regime|requirement)\w*\b", re.I | re.S),
-            re.compile(r"\b(?:enter(?:ed|ing)?|launch(?:ed|ing)?|expand(?:ed|ing)?)\b.{0,100}\b(?:regulated|healthcare|financial services|fintech)\b", re.I | re.S),
-        ),
-    ),
-    (
-        "franchise_launch",
-        (
-            re.compile(r"\b(?:launch(?:ed|ing)?|open(?:ed|ing)?|first|new)\b.{0,80}\bfranchise(?:e|s)?\b", re.I | re.S),
-            re.compile(r"\b(?:franchise|store|location)\b.{0,100}\b(?:open(?:ed|ing)?|launch(?:ed|ing)?|expansion)\b", re.I | re.S),
-        ),
-    ),
-    (
-        "award",
-        (
-            re.compile(r"\b(?:won|wins?|named|recognized|recognition|award(?:ed)?)\b.{0,100}\b(?:award|honor|recognition|top|best|inc\.?\s*5000|forbes|future50)\b", re.I | re.S),
-            re.compile(r"\b(?:inc\.?\s*5000|future50|forbes)\b", re.I),
-        ),
-    ),
-    (
-        "seasonal_window",
-        (
-            re.compile(r"\b(?:seasonal|holiday|black friday|cyber monday|back[- ]to[- ]school|holiday shopping)\b.{0,100}\b(?:campaign|demand|spike|peak|launch|sales)\b", re.I | re.S),
-        ),
-    ),
-    (
-        "pci",
-        (re.compile(r"\b(?:pci dss|pci[- ]dss|pci 4\.0)\b", re.I),),
-    ),
-    (
-        "gdpr",
-        (re.compile(r"\b(?:gdpr|general data protection regulation)\b", re.I),),
-    ),
-    (
-        "dpdp",
-        (re.compile(r"\b(?:dpdp act|digital personal data protection|dpdp)\b", re.I),),
-    ),
-    (
-        "soc2_requirement",
-        (re.compile(r"\b(?:soc\s*2|soc2)\b.{0,100}\b(?:requirement|procurement|vendor security review|customer requirement|certification required)\b", re.I | re.S),),
-    ),
-    (
-        "ftc_click_to_cancel",
-        (re.compile(r"\b(?:ftc|click[- ]to[- ]cancel)\b.{0,100}\b(?:subscription|cancel|rule|compliance)\b", re.I | re.S),),
-    ),
-    (
-        "ca_breach",
-        (re.compile(r"\b(?:california breach|data breach|security breach|sb\s*362|30[- ]day breach)\b", re.I),),
-    ),
+# These patterns require an explicit trigger plus relevant context. They are
+# intentionally narrower than the aliases used by the downstream normalizer.
+_INTENT_CONTEXT: tuple[tuple[str, tuple[tuple[str, ...], ...]], ...] = (
+    ("funding", (("raised", "funding"), ("raised", "financing"),
+                 ("funding round",), ("series a",), ("series b",), ("series c",))),
+    ("new_c_suite", (("appointed", "ceo"), ("appointed", "cto"),
+                      ("appointed", "cfo"), ("appointed", "ciso"),
+                      ("named", "ceo"), ("joined as", "ceo"),
+                      ("new ceo",), ("new cto",), ("new cfo",))),
+    ("security_hiring", (("hiring", "security"), ("hiring", "cybersecurity"),
+                          ("hiring", "fraud"), ("hiring", "risk"),
+                          ("security engineer",), ("fraud analyst",))),
+    ("tech_migration", (("migrated", "platform"), ("migration", "platform"),
+                         ("replatform",), ("technology migration",),
+                         ("migrating to", "shopify"), ("migrating to", "next.js"))),
+    ("new_market", (("launched in", "market"), ("expanded into", "market"),
+                     ("entered", "market"), ("international expansion",),
+                     ("launched in", "europe"), ("expanded to", "india"))),
+    ("regulated_expansion", (("regulated", "expansion"), ("regulatory", "launch"),
+                              ("compliance", "expansion"),
+                              ("new regulated category",))),
+    ("franchise_launch", (("new franchise",), ("first franchise",),
+                           ("franchise", "opened"), ("franchise", "launch"))),
+    ("award", (("won", "award"), ("named", "award"), ("inc. 5000",),
+                ("inc 5000",), ("future50",), ("forbes",))),
+    ("seasonal_window", (("seasonal", "campaign"), ("holiday", "campaign"),
+                          ("black friday",), ("cyber monday",))),
+    ("pci", (("pci dss",), ("pci 4.0",))),
+    ("gdpr", (("gdpr",),)),
+    ("dpdp", (("dpdp act",), ("digital personal data protection",))),
+    ("soc2_requirement", (("soc 2", "requirement"), ("soc2", "procurement"),
+                           ("vendor security review",))),
+    ("ftc_click_to_cancel", (("ftc", "click to cancel"), ("click-to-cancel",))),
+    ("ca_breach", (("california breach",), ("security breach",),
+                    ("data breach", "california"), ("sb 362",))),
 )
 
 
 class TinyFishEnrichmentProvider:
-    """Collect public evidence with TinyFish and build a conservative packet.
-
-    This provider deliberately does not infer email verification, monthly
-    traffic, behavioral intent, or unsupported company attributes. Intent is
-    emitted only from explicit evidence on pages discovered by the dedicated
-    intent search, with a publication/event date that can be recovered from
-    TinyFish metadata or explicit page text.
-    """
+    """Collect public evidence with TinyFish and build a conservative packet."""
 
     SEARCH_PURPOSES: tuple[tuple[str, str], ...] = (
         ("leadership", "leadership executive management team founder CEO CTO CISO"),
@@ -200,15 +143,14 @@ class TinyFishEnrichmentProvider:
             if purpose == "intent"
             for result in results
         }
-        fetched_intent = [item for item in fetched if item.url in intent_urls]
-        observed_at = datetime.now(UTC)
+        intent_fetched = [item for item in fetched if item.url in intent_urls]
         return self._packet_from_fetched(
             company_id=company_id,
             domain=normalized_domain,
             merchant_name=merchant_name,
             fetched=fetched,
-            intent_fetched=fetched_intent,
-            observed_at=observed_at,
+            intent_fetched=intent_fetched,
+            observed_at=datetime.now(UTC),
         )
 
     @staticmethod
@@ -220,9 +162,7 @@ class TinyFishEnrichmentProvider:
         hostname = domain.lower().removeprefix("www.")
         selected: list[str] = []
         seen: set[str] = set()
-        # Take one result per research purpose first so the intent evidence is
-        # not crowded out by leadership/login/commerce pages.
-        for purpose, results in searches:
+        for _, results in searches:
             for result in results:
                 parsed = urlparse(result.url)
                 result_host = parsed.netloc.lower().removeprefix("www.")
@@ -231,7 +171,7 @@ class TinyFishEnrichmentProvider:
                 seen.add(result.url)
                 selected.append(result.url)
                 break
-                
+
         for _, results in searches:
             for result in results:
                 parsed = urlparse(result.url)
@@ -263,9 +203,7 @@ class TinyFishEnrichmentProvider:
             observed_at,
         )
 
-        notes: list[str] = [
-            f"TinyFish research run fetched {len(fetched)} same-domain public URL(s).",
-        ]
+        notes = [f"TinyFish research run fetched {len(fetched)} same-domain public URL(s)."]
         if not fetched:
             notes.append("No same-domain URLs were available to fetch from TinyFish search results.")
         if len(employee_values) > 1:
@@ -306,17 +244,20 @@ class TinyFishEnrichmentProvider:
             signal_date = cls._recover_event_date(item)
             if signal_date is None:
                 continue
-            for signal_type, patterns in _INTENT_PATTERNS:
-                match = next((pattern.search(item.text) for pattern in patterns if pattern.search(item.text)), None)
-                if match is None:
+            text = " ".join(item.text.casefold().split())
+            for signal_type, contexts in _INTENT_CONTEXT:
+                if not any(all(term in text for term in context) for context in contexts):
                     continue
-                canonical = normalize_signal(signal_type=signal_type, signal_date=signal_date)
+                canonical = normalize_signal(
+                    signal_type=signal_type,
+                    signal_date=signal_date,
+                )
+                matched_context = next(
+                    context for context in contexts if all(term in text for term in context)
+                )
                 evidence = Evidence(
                     claim_type="public_intent_signal",
-                    claim={
-                        "signal_type": canonical.signal_type,
-                        "matched_text": " ".join(match.group(0).split())[:500],
-                    },
+                    claim={"signal_type": canonical.signal_type, "matched_terms": matched_context},
                     source_url=item.url,
                     source_type="tinyfish_fetch",
                     observed_at=observed_at,
@@ -344,31 +285,27 @@ class TinyFishEnrichmentProvider:
     @staticmethod
     def _recover_event_date(item: TinyFishFetchResult) -> date | None:
         if item.published_date:
-            value = item.published_date.strip()
             try:
-                return date.fromisoformat(value[:10])
+                return date.fromisoformat(item.published_date.strip()[:10])
             except ValueError:
                 pass
-        for pattern in (_RE_ISO_DATE, _RE_US_DATE):
-            match = pattern.search(item.text)
-            if match:
-                raw = match.group(1) if pattern is _RE_ISO_DATE else match.group(0)
-                if pattern is _RE_ISO_DATE:
-                    return date.fromisoformat(raw)
+        match = _RE_ISO_DATE.search(item.text)
+        if match:
+            return date.fromisoformat(match.group(1))
+        match = _RE_US_DATE.search(item.text)
+        if match:
+            for fmt in ("%B %d, %Y", "%b %d, %Y"):
                 try:
-                    return datetime.strptime(raw, "%B %d, %Y").date()
+                    return datetime.strptime(match.group(0), fmt).date()
                 except ValueError:
-                    try:
-                        return datetime.strptime(raw, "%b %d, %Y").date()
-                    except ValueError:
-                        return None
+                    continue
         return None
 
     @staticmethod
     def _has_login(fetched: list[TinyFishFetchResult]) -> bool:
-        login_terms = ("sign in", "log in", "login", "create an account", "customer account")
+        terms = ("sign in", "log in", "login", "create an account", "customer account")
         return any(
-            any(term in f"{item.title or ''}\n{item.text}".lower() for term in login_terms)
+            any(term in f"{item.title or ''}\n{item.text}".lower() for term in terms)
             for item in fetched
         )
 
@@ -398,16 +335,14 @@ class TinyFishEnrichmentProvider:
                         source="tinyfish_fetch",
                         source_url=item.url,
                         confidence=1.0,
-                        evidence=[
-                            Evidence(
-                                claim_type="public_company_email",
-                                claim={"email": email},
-                                source_url=item.url,
-                                source_type="tinyfish_fetch",
-                                observed_at=observed_at,
-                                confidence=1.0,
-                            )
-                        ],
+                        evidence=[Evidence(
+                            claim_type="public_company_email",
+                            claim={"email": email},
+                            source_url=item.url,
+                            source_type="tinyfish_fetch",
+                            observed_at=observed_at,
+                            confidence=1.0,
+                        )],
                     ),
                 )
         return list(contacts.values())
@@ -437,19 +372,20 @@ class TinyFishEnrichmentProvider:
                         role_priority=priority,
                         rationale="Public leadership evidence collected from the fetched company page.",
                         confidence=1.0,
-                        evidence=[
-                            Evidence(
-                                claim_type="public_decision_maker",
-                                claim={"name": clean_name, "title": clean_title},
-                                source_url=item.url,
-                                source_type="tinyfish_fetch",
-                                observed_at=observed_at,
-                                confidence=1.0,
-                            )
-                        ],
+                        evidence=[Evidence(
+                            claim_type="public_decision_maker",
+                            claim={"name": clean_name, "title": clean_title},
+                            source_url=item.url,
+                            source_type="tinyfish_fetch",
+                            observed_at=observed_at,
+                            confidence=1.0,
+                        )],
                     ),
                 )
-        return sorted(found.values(), key=lambda item: (item.role_priority or 99, item.full_name))
+        return sorted(
+            found.values(),
+            key=lambda item: (item.role_priority or 99, item.full_name),
+        )
 
     @staticmethod
     def _role_family(title: str) -> tuple[str | None, int | None]:
