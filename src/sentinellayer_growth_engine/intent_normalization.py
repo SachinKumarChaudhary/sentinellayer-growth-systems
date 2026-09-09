@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import date
 
@@ -54,6 +55,12 @@ def _normalize_text(value: str) -> str:
     return " ".join(value.strip().lower().replace("_", " ").split())
 
 
+def _contains_alias(normalized: str, alias: str) -> bool:
+    """Match aliases as words/phrases, avoiding accidental substring matches."""
+    pattern = rf"(?<![a-z0-9]){re.escape(_normalize_text(alias))}(?![a-z0-9])"
+    return re.search(pattern, normalized) is not None
+
+
 def normalize_signal_type(signal_type: str) -> str:
     normalized = _normalize_text(signal_type)
     if not normalized:
@@ -64,7 +71,7 @@ def normalize_signal_type(signal_type: str) -> str:
     matches = [
         canonical
         for canonical, aliases in ALIASES.items()
-        if any(alias in normalized for alias in aliases)
+        if any(_contains_alias(normalized, alias) for alias in aliases)
     ]
     unique_matches = sorted(set(matches))
     if not unique_matches:
