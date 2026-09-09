@@ -1,3 +1,5 @@
+# ruff: noqa: E501
+
 from __future__ import annotations
 
 import re
@@ -257,7 +259,10 @@ class TinyFishEnrichmentProvider:
                 )
                 evidence = Evidence(
                     claim_type="public_intent_signal",
-                    claim={"signal_type": canonical.signal_type, "matched_terms": matched_context},
+                    claim={
+                        "signal_type": canonical.signal_type,
+                        "matched_terms": matched_context,
+                    },
                     source_url=item.url,
                     source_type="tinyfish_fetch",
                     observed_at=observed_at,
