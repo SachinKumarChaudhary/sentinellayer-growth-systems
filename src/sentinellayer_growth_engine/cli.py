@@ -32,7 +32,11 @@ def _connection_factory() -> psycopg.Connection[object]:
     settings = _settings()
     if not settings.database_url:
         raise RuntimeError("SL_DATABASE_URL is required")
-    return psycopg.connect(settings.database_url)
+    return psycopg.connect(
+        settings.database_url,
+        connect_timeout=settings.database_connect_timeout_seconds,
+        options=f"-c statement_timeout={settings.database_statement_timeout_seconds}",
+    )
 
 
 def cmd_health(_: argparse.Namespace) -> int:
@@ -126,8 +130,10 @@ def cmd_enrichment_tinyfish_next(args: argparse.Namespace) -> int:
 def cmd_enrichment_tinyfish_daily(args: argparse.Namespace) -> int:
     try:
         settings = _settings()
+        print("TinyFish daily: initializing enrichment worker", flush=True)
         repository = EnrichmentRepository(_connection_factory)
         provider = TinyFishEnrichmentProvider(_tinyfish_client(settings))
+        print("TinyFish daily: resolving next company slice", flush=True)
         result = TinyFishDailyEnricher(
             repository=repository,
             provider=provider,
@@ -143,6 +149,7 @@ def cmd_enrichment_tinyfish_daily(args: argparse.Namespace) -> int:
 def cmd_enrichment_tinyfish_refresh(args: argparse.Namespace) -> int:
     try:
         settings = _settings()
+        print("TinyFish refresh: initializing enrichment worker", flush=True)
         repository = EnrichmentRepository(_connection_factory)
         provider = TinyFishEnrichmentProvider(_tinyfish_client(settings))
         result = TinyFishRefreshEnricher(

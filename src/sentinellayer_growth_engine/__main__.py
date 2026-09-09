@@ -5,6 +5,7 @@ import logging
 import os
 import signal
 import socket
+import sys
 import uuid
 
 from .config import Settings
@@ -60,6 +61,11 @@ async def run() -> None:
 
 
 def main() -> None:
+    if len(sys.argv) > 1:
+        from .cli import main as cli_main
+
+        cli_main()
+        return
     asyncio.run(run())
 
 
