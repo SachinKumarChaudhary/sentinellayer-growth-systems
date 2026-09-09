@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
 from sentinellayer_growth_engine.tinyfish_client import (
     TinyFishFetchResult,
@@ -90,8 +91,76 @@ def test_conflicting_employee_counts_are_left_empty() -> None:
         domain="example.com",
         merchant_name=None,
         fetched=fetched,
-        observed_at=__import__("datetime").datetime.now(__import__("datetime").UTC),
+        observed_at=datetime.now(UTC),
     )
 
     assert packet.company_facts.employee_count is None
     assert any("conflicting values" in note for note in packet.research_notes)
+
+
+def test_dated_funding_evidence_becomes_canonical_signal() -> None:
+    fetched = [
+        TinyFishFetchResult(
+            url="https://example.com/news",
+            published_date="2026-08-20",
+            text="August 20, 2026 — The company raised funding to expand operations.",
+        )
+    ]
+
+    packet = TinyFishEnrichmentProvider._packet_from_fetched(
+        company_id=1,
+        domain="example.com",
+        merchant_name=None,
+        fetched=fetched,
+        intent_fetched=fetched,
+        observed_at=datetime.now(UTC),
+    )
+
+    assert len(packet.intent_signals) == 1
+    signal = packet.intent_signals[0]
+    assert signal.signal_type == "funding"
+    assert signal.signal_date.isoformat() == "2026-08-20"
+    assert signal.weight == 3
+    assert signal.half_life_days == 21
+    assert signal.evidence[0].source_url == "https://example.com/news"
+
+
+def test_ambiguous_keywords_without_explicit_context_do_not_create_intent() -> None:
+    fetched = [
+        TinyFishFetchResult(
+            url="https://example.com/about",
+            published_date="2026-08-20",
+            text="Our platform supports funding education and security for customers.",
+        )
+    ]
+
+    packet = TinyFishEnrichmentProvider._packet_from_fetched(
+        company_id=1,
+        domain="example.com",
+        merchant_name=None,
+        fetched=fetched,
+        intent_fetched=fetched,
+        observed_at=datetime.now(UTC),
+    )
+
+    assert packet.intent_signals == []
+
+
+def test_undated_intent_evidence_is_rejected() -> None:
+    fetched = [
+        TinyFishFetchResult(
+            url="https://example.com/careers",
+            text="We are hiring security engineers.",
+        )
+    ]
+
+    packet = TinyFishEnrichmentProvider._packet_from_fetched(
+        company_id=1,
+        domain="example.com",
+        merchant_name=None,
+        fetched=fetched,
+        intent_fetched=fetched,
+        observed_at=datetime.now(UTC),
+    )
+
+    assert packet.intent_signals == []
