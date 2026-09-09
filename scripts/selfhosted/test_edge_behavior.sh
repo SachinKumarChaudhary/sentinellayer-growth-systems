@@ -19,6 +19,9 @@ cleanup() {
 trap cleanup EXIT
 
 timeout 60s "${COMPOSE[@]}" up -d
+"${COMPOSE[@]}" ps
+"${COMPOSE[@]}" logs --no-color edge upstream || true
+
 for _ in $(seq 1 30); do
   if curl -fsS -o /dev/null "$BASE/healthz"; then break; fi
   sleep 1
