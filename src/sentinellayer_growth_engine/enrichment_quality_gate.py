@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from urllib.parse import urlparse
 
 
 _ROLE_MARKER_RE = re.compile(
@@ -16,9 +15,6 @@ _STOPWORDS = {
     "limited", "group", "holdings", "international", "global",
 }
 _REJECTED_NAME_TOKENS = {"linkedin", "official", "team", "predictions", "profile", "page"}
-_GENERIC_EMAIL_PREFIXES = {
-    "info", "hello", "support", "sales", "contact", "careers", "hr", "team", "press",
-}
 
 
 @dataclass(frozen=True)
