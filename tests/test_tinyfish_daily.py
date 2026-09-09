@@ -1,10 +1,7 @@
 from dataclasses import dataclass
 
 from sentinellayer_growth_engine.enrichment_contracts import CompanyFacts, EnrichmentBatch, EnrichmentPacket
-from sentinellayer_growth_engine.tinyfish_batch import (
-    CompanySeed,
-    TinyFishDailyEnricher,
-)
+from sentinellayer_growth_engine.tinyfish_batch import CompanySeed, TinyFishDailyEnricher
 
 
 @dataclass
@@ -17,6 +14,9 @@ class FakeRepository:
 
     def next_enrichment_company_ids(self, limit: int = 40) -> list[int]:
         return self.ids[:limit]
+
+    def next_refresh_company_ids(self, limit: int = 10, min_age_days: int = 7) -> list[int]:
+        return []
 
     def persist_batch(self, batch: EnrichmentBatch, *, provider: str = "manual_ai_research"):
         assert provider == "tinyfish"
@@ -57,9 +57,7 @@ class FakeProvider:
 def _runner(fail_ids: set[int] | None = None):
     ids = [2, 3, 4]
     repository = FakeRepository(ids=ids, persisted=[])
-    resolver = FakeResolver(
-        seeds={i: CompanySeed(i, f"company{i}.example", f"Company {i}") for i in ids}
-    )
+    resolver = FakeResolver(seeds={i: CompanySeed(i, f"company{i}.example", f"Company {i}") for i in ids})
     provider = FakeProvider(calls=[], fail_ids=fail_ids or set())
     return TinyFishDailyEnricher(repository, provider, resolver), repository, provider
 
