@@ -47,6 +47,7 @@ def test_search_hour_budget_blocks_when_minute_capacity_is_available() -> None:
 
 
 def test_fetch_budget_is_counted_in_urls() -> None:
+    now = [0.0]
     limiter = TinyFishRateLimiter(
         TinyFishRateLimitPolicy(
             search_per_minute=10,
@@ -54,16 +55,13 @@ def test_fetch_budget_is_counted_in_urls() -> None:
             fetch_urls_per_minute=5,
             fetch_urls_per_day=20,
         ),
-        sleep=lambda _: None,
+        clock=lambda: now[0],
+        wall_clock=lambda: now[0],
+        sleep=lambda seconds: now.__setitem__(0, now[0] + seconds),
     )
     limiter.acquire_fetch(3)
-    try:
-        limiter.acquire_fetch(3)
-    except TinyFishQuotaExceeded:
-        # The test uses a no-op sleep to prove the minute budget remains enforced.
-        pass
-    else:
-        raise AssertionError("expected Fetch minute quota to remain enforced")
+    limiter.acquire_fetch(3)
+    assert now[0] >= 60
 
 
 def test_fetch_daily_budget_is_hard_capped() -> None:
