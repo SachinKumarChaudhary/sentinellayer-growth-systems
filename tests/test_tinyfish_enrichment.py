@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
 from sentinellayer_growth_engine.tinyfish_client import (
     TinyFishFetchResult,
@@ -90,8 +91,102 @@ def test_conflicting_employee_counts_are_left_empty() -> None:
         domain="example.com",
         merchant_name=None,
         fetched=fetched,
-        observed_at=__import__("datetime").datetime.now(__import__("datetime").UTC),
+        observed_at=datetime.now(UTC),
     )
 
     assert packet.company_facts.employee_count is None
     assert any("conflicting values" in note for note in packet.research_notes)
+
+
+def test_explicit_dated_intent_signal_is_normalized_and_evidenced() -> None:
+    fetched = [
+        TinyFishFetchResult(
+            url="https://example.com/news",
+            published_date="2026-08-15",
+            text="On August 15, 2026, the company announced it raised $8 million in funding.",
+        )
+    ]
+
+    packet = TinyFishEnrichmentProvider._packet_from_fetched(
+        company_id=1,
+        domain="example.com",
+        merchant_name=None,
+        fetched=fetched,
+        observed_at=datetime(2026, 8, 20, tzinfo=UTC),
+        intent_urls={"https://example.com/news"},
+    )
+
+    assert [(s.signal_type, s.signal_date, s.weight) for s in packet.intent_signals] == [
+        ("funding", datetime(2026, 8, 15, tzinfo=UTC).date(), 3.0)
+    ]
+    assert packet.intent_signals[0].evidence[0].source_url == "https://example.com/news"
+    assert "raised $8 million in funding" in packet.intent_signals[0].evidence[0].claim["evidence_excerpt"]
+
+
+def test_explicit_security_hiring_and_new_market_signals_can_both_be_emitted() -> None:
+    fetched = [
+        TinyFishFetchResult(
+            url="https://example.com/updates",
+            published_date="2026-07-01",
+            text=(
+                "July 1, 2026. We are hiring a security engineer to expand our trust team. "
+                "We also launched in the UK market."
+            ),
+        )
+    ]
+
+    packet = TinyFishEnrichmentProvider._packet_from_fetched(
+        company_id=1,
+        domain="example.com",
+        merchant_name=None,
+        fetched=fetched,
+        observed_at=datetime(2026, 7, 5, tzinfo=UTC),
+        intent_urls={"https://example.com/updates"},
+    )
+
+    assert {s.signal_type for s in packet.intent_signals} == {"security_hiring", "new_market"}
+    assert all(s.signal_date.isoformat() == "2026-07-01" for s in packet.intent_signals)
+
+
+def test_undated_or_ambiguous_keyword_does_not_create_intent() -> None:
+    fetched = [
+        TinyFishFetchResult(
+            url="https://example.com/about",
+            text=(
+                "Our funding helps customers. We support technology migration projects "
+                "and have a security team."
+            ),
+        )
+    ]
+
+    packet = TinyFishEnrichmentProvider._packet_from_fetched(
+        company_id=1,
+        domain="example.com",
+        merchant_name=None,
+        fetched=fetched,
+        observed_at=datetime(2026, 9, 1, tzinfo=UTC),
+        intent_urls={"https://example.com/about"},
+    )
+
+    assert packet.intent_signals == []
+
+
+def test_behavioral_intent_is_never_inferred_from_research_fetches() -> None:
+    fetched = [
+        TinyFishFetchResult(
+            url="https://example.com/pricing",
+            published_date="2026-08-01",
+            text="Pricing and documentation are available. Customers can install the SDK.",
+        )
+    ]
+
+    packet = TinyFishEnrichmentProvider._packet_from_fetched(
+        company_id=1,
+        domain="example.com",
+        merchant_name=None,
+        fetched=fetched,
+        observed_at=datetime(2026, 8, 2, tzinfo=UTC),
+        intent_urls={"https://example.com/pricing"},
+    )
+
+    assert packet.intent_signals == []
