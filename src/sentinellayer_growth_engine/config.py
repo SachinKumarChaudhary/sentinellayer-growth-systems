@@ -24,12 +24,12 @@ class Settings(BaseSettings):
     tinyfish_api_key: str | None = Field(default=None)
     tinyfish_search_url: str = Field(default="https://api.search.tinyfish.ai")
     tinyfish_fetch_url: str = Field(default="https://api.fetch.tinyfish.ai")
-    tinyfish_timeout_seconds: float = Field(default=30.0, gt=0)
+    tinyfish_timeout_seconds: float = Field(default=20.0, gt=0)
     tinyfish_search_per_minute: int = Field(default=27, ge=1, le=30)
     tinyfish_search_per_hour: int = Field(default=450, ge=1, le=500)
     tinyfish_fetch_urls_per_minute: int = Field(default=135, ge=1, le=150)
     tinyfish_fetch_urls_per_day: int = Field(default=900, ge=1, le=1000)
-    tinyfish_max_retry_attempts: int = Field(default=4, ge=1, le=8)
+    tinyfish_max_retry_attempts: int = Field(default=2, ge=1, le=8)
 
     model_config = SettingsConfigDict(
         env_file=".env",
