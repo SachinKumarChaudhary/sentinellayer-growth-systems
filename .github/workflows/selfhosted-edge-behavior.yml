@@ -1,0 +1,34 @@
+name: selfhosted-edge-behavior
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'ops/nginx/**'
+      - 'scripts/selfhosted/test_edge_behavior.sh'
+      - '.github/workflows/selfhosted-edge-behavior.yml'
+  pull_request:
+    paths:
+      - 'ops/nginx/**'
+      - 'scripts/selfhosted/test_edge_behavior.sh'
+      - '.github/workflows/selfhosted-edge-behavior.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: selfhosted-edge-behavior-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  edge-behavior:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Validate Nginx test configuration
+        run: docker run --rm -v "$PWD/ops/nginx/test.conf:/etc/nginx/nginx.conf:ro" nginx:1.29-alpine nginx -t
+
+      - name: Run isolated edge behavioral tests
+        run: |
+          chmod +x scripts/selfhosted/test_edge_behavior.sh
+          scripts/selfhosted/test_edge_behavior.sh
