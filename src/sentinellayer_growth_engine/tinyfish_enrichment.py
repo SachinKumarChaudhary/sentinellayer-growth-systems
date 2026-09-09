@@ -30,24 +30,19 @@ _RE_US_DATE = re.compile(
     re.IGNORECASE,
 )
 _RE_HEADING_PERSON = re.compile(
-    r"(?:^|
-)#{2,4}\s+([A-Z][A-Za-z'’.-]+(?:\s+[A-Z][A-Za-z'’.-]+){1,3})"
-    r"\s*
-\s*([A-Z][A-Za-z&/ ,.'’()-]{2,100})\s*(?=
-|$)",
+    r"(?:^|\n)#{2,4}\s+([A-Z][A-Za-z'’.-]+(?:\s+[A-Z][A-Za-z'’.-]+){1,3})"
+    r"\s*\n\s*([A-Z][A-Za-z&/ ,.'’()-]{2,100})\s*(?=\n|$)",
 )
 _RE_DASH_PERSON = re.compile(
     r"\b([A-Z][A-Za-z'’.-]+(?:\s+[A-Z][A-Za-z'’.-]+){1,3})\s*[—–-]\s*"
     r"((?:Chief|President|Founder|Co-Founder|VP|Vice President|Head|Director|"
-    r"SVP|EVP|CTO|CISO|CFO|COO|CEO)[^
-.;]{2,100})",
+    r"SVP|EVP|CTO|CISO|CFO|COO|CEO)[^\n.;]{2,100})",
 )
 _RE_LINE_PERSON = re.compile(
-    r"(?m)\\b([A-Z][A-Za-z'’.-]+(?:\\s+[A-Z][A-Za-z'’.-]+){1,3})\\s*(?:\\||,)\\s*"
+    r"(?m)\b([A-Z][A-Za-z'’.-]+(?:\s+[A-Z][A-Za-z'’.-]+){1,3})\s*(?:\||,)\s*"
     r"((?:Chief|President|Founder|Co-Founder|VP|Vice President|Head|Director|"
     r"SVP|EVP|CTO|CISO|CFO|COO|CEO|Officer|Security|Technology|Engineering|Product|"
-    r"Risk|Fraud|Information)[^\
-|.;]{2,120})"
+    r"Risk|Fraud|Information)[^\n|.;]{2,120})"
 )
 
 _ROLE_FAMILIES: tuple[tuple[str, str, int], ...] = (
