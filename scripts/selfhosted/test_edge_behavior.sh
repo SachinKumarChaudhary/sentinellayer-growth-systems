@@ -8,7 +8,13 @@ TOKEN="TestOpaqueToken_1234567890"
 BODY_MARKER="SHOULD_NEVER_APPEAR_IN_EDGE_LOGS_9f3c"
 
 cleanup() {
+  status=$?
+  if [ "$status" -ne 0 ]; then
+    "${COMPOSE[@]}" ps || true
+    "${COMPOSE[@]}" logs --no-color edge upstream || true
+  fi
   "${COMPOSE[@]}" down -v --remove-orphans >/dev/null 2>&1 || true
+  exit "$status"
 }
 trap cleanup EXIT
 
