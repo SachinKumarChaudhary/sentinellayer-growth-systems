@@ -15,6 +15,7 @@ from .enrichment_repository import EnrichmentRepository
 from .health import check as health_check
 from .tinyfish_batch import DatabaseCompanySeedResolver, TinyFishBatchEnricher
 from .tinyfish_client import TinyFishClient
+from .tinyfish_rate_limit import TinyFishRateLimitPolicy, TinyFishRateLimiter
 from .tinyfish_enrichment import TinyFishEnrichmentProvider
 
 
@@ -64,11 +65,22 @@ def cmd_enrichment_export(args: argparse.Namespace) -> int:
 def _tinyfish_client(settings: Settings) -> TinyFishClient:
     if not settings.tinyfish_api_key:
         raise RuntimeError("SL_TINYFISH_API_KEY is required")
+    limiter = TinyFishRateLimiter(
+        TinyFishRateLimitPolicy(
+            search_per_minute=settings.tinyfish_search_per_minute,
+            search_per_hour=settings.tinyfish_search_per_hour,
+            fetch_urls_per_minute=settings.tinyfish_fetch_urls_per_minute,
+            fetch_urls_per_day=settings.tinyfish_fetch_urls_per_day,
+            max_retry_attempts=settings.tinyfish_max_retry_attempts,
+        )
+    )
     return TinyFishClient(
         settings.tinyfish_api_key,
         search_url=settings.tinyfish_search_url,
         fetch_url=settings.tinyfish_fetch_url,
         timeout_seconds=settings.tinyfish_timeout_seconds,
+        rate_limiter=limiter,
+        max_retry_attempts=settings.tinyfish_max_retry_attempts,
     )
 
 
