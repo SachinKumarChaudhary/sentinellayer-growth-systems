@@ -101,8 +101,11 @@ def rank_decision_makers(
             )
         )
 
+    # The playbook makes an actual CISO a hard ordering rule, not merely a
+    # scoring preference. Keep the normal score ordering for all other roles.
     ranked.sort(
         key=lambda item: (
+            _normalized_title(item.decision_maker.title) in CISO_TITLES,
             item.score,
             item.decision_maker.role_priority is not None,
             -(item.decision_maker.role_priority or 999),
