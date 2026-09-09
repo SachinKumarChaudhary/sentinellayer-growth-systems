@@ -49,7 +49,7 @@ def test_accepts_company_domain_email() -> None:
     ) is True
 
 
-def test_generic_company_inbox_is_allowed_for_company_contacts() -> None:
+def test_generic_company_inbox_is_allowed_when_source_is_company() -> None:
     assert is_valid_company_email(
         "hudabeauty.com",
         "contact@other-domain.example",
