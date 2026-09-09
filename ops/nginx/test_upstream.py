@@ -4,7 +4,7 @@ import time
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
-        if self.path.startswith("/t/"):
+        if self.path.startswith("/t/") or self.path.startswith("/c/"):
             if "timeout" in self.path:
                 time.sleep(5)
             elif "slow" in self.path:
@@ -30,7 +30,6 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(b"ok")
 
     def log_message(self, fmt: str, *args: object) -> None:
-        # Keep the test upstream log-free so the assertion targets the Nginx edge log.
         return
 
 
