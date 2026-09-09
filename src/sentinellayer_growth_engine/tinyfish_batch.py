@@ -150,7 +150,7 @@ class TinyFishDailyEnricher:
                     provider="tinyfish",
                 )
                 succeeded += 1
-            except Exception as exc:
+            except (ValueError, RuntimeError) as exc:
                 failures.append(
                     {"company_id": company_id, "error": str(exc)}
                 )
