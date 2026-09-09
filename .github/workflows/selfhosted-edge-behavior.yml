@@ -21,11 +21,12 @@ concurrency:
 jobs:
   edge-behavior:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v5
 
       - name: Run isolated edge behavioral tests
+        timeout-minutes: 3
         run: |
           chmod +x scripts/selfhosted/test_edge_behavior.sh
           scripts/selfhosted/test_edge_behavior.sh
