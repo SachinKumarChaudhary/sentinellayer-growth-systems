@@ -484,9 +484,17 @@ class TinyFishEnrichmentProvider:
             if purpose not in {"leadership", "decision_makers", "leadership_external"}:
                 continue
             for result in results:
+                result_text = result.snippet + "\n" + result.title
+                if purpose == "leadership_external":
+                    identity = (
+                        company_label.casefold(),
+                        domain.casefold().removeprefix("www."),
+                    )
+                    lowered = result_text.casefold()
+                    if not any(token in lowered for token in identity):
+                        continue
                 candidate = cls._extract_decision_makers_from_text(
-                    result.snippet + "\
-" + result.title, result.url, observed_at, "tinyfish_search"
+                    result_text, result.url, observed_at, "tinyfish_search"
                 )
                 for dm in candidate:
                     key = (dm.full_name.casefold(), (dm.title or "").casefold())
@@ -519,7 +527,9 @@ class TinyFishEnrichmentProvider:
                     role_priority=priority,
                     rationale="Public professional or company-source evidence associated with the company.",
                     confidence=0.9 if source_type == "tinyfish_fetch" else 0.75,
-                    contacts=cls._social_contact(source_url, observed_at, clean_name),
+                    contacts=cls._social_contact(
+                        source_url, observed_at, clean_name, text, source_type
+                    ),
                     evidence=[
                         Evidence(
                             claim_type="public_decision_maker",
@@ -540,6 +550,7 @@ class TinyFishEnrichmentProvider:
         observed_at: datetime,
         name: str,
         text: str,
+        source_type: str,
     ) -> list[ContactMethod]:
         parsed = urlparse(source_url)
         host = parsed.netloc.lower().removeprefix("www.")
@@ -575,7 +586,7 @@ class TinyFishEnrichmentProvider:
                     channel="email",
                     value=email,
                     normalized_value=email.casefold(),
-                    source=source_type if (source_type := "tinyfish_fetch") else None,
+                    source=source_type,
                     source_url=source_url,
                     confidence=0.75,
                 )
