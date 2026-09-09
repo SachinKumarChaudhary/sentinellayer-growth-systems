@@ -14,7 +14,12 @@ _STOPWORDS = {
     "the", "and", "company", "co", "corp", "corporation", "inc", "llc", "ltd",
     "limited", "group", "holdings", "international", "global",
 }
-_REJECTED_NAME_TOKENS = {"linkedin", "official", "team", "predictions", "profile", "page"}
+_REJECTED_NAME_TOKENS = {
+    "linkedin", "official", "team", "predictions", "profile", "page",
+    # Search/snippet fragments that can be parsed as a person's name when
+    # TinyFish returns prose such as "As Co-CEO, Darina...".
+    "as", "co", "ceo", "cto", "ciso", "cfo", "coo", "cio",
+}
 
 
 @dataclass(frozen=True)
