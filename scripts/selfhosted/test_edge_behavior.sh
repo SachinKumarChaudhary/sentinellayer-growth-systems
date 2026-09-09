@@ -18,7 +18,12 @@ cleanup() {
 }
 trap cleanup EXIT
 
-"${COMPOSE[@]}" up -d --wait
+timeout 60s "${COMPOSE[@]}" up -d
+for _ in $(seq 1 30); do
+  if curl -fsS -o /dev/null "$BASE/healthz"; then break; fi
+  sleep 1
+done
+curl -fsS -o /dev/null "$BASE/healthz"
 
 printf '%s\n' "[1/8] health/readiness"
 test "$(curl -fsS -o /dev/null -w '%{http_code}' "$BASE/healthz")" = 200
@@ -29,11 +34,11 @@ test "$(curl -fsS -o /dev/null -w '%{http_code}' "$BASE/t/$TOKEN")" = 200
 test "$(curl -fsS -o /dev/null -w '%{http_code}' -X POST --data "$BODY_MARKER" "$BASE/t/$TOKEN")" = 200
 
 printf '%s\n' "[3/8] burst traffic is rate limited"
-seq 1 50 | xargs -P50 -I{} curl -sS -o /dev/null -w '%{http_code}\n' "$BASE/t/rate-{}-123456789012345" > /tmp/rate-statuses
+timeout 20s bash -c 'seq 1 50 | xargs -P50 -I{} curl -sS -o /dev/null -w "%{http_code}\n" "$0/t/rate-{}-123456789012345" > /tmp/rate-statuses' "$BASE"
 awk '$1 == 503 { rejected++ } END { exit(rejected > 0 ? 0 : 1) }' /tmp/rate-statuses
 
 printf '%s\n' "[4/8] concurrent connections are capped"
-seq 1 64 | xargs -P64 -I{} curl -sS --max-time 5 -o /dev/null -w '%{http_code}\n' "$BASE/c/slow-{}-123456789012345" > /tmp/conn-statuses || true
+timeout 20s bash -c 'seq 1 64 | xargs -P64 -I{} curl -sS --max-time 5 -o /dev/null -w "%{http_code}\n" "$0/c/slow-{}-123456789012345" > /tmp/conn-statuses' "$BASE" || true
 awk '$1 == 503 { rejected++ } END { exit(rejected > 0 ? 0 : 1) }' /tmp/conn-statuses
 
 printf '%s\n' "[5/8] oversized requests are rejected at the edge"
