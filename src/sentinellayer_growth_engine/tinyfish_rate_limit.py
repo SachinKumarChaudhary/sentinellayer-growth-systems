@@ -27,8 +27,6 @@ class TinyFishRateLimitPolicy:
             self.max_retry_attempts,
         ) <= 0:
             raise ValueError("TinyFish rate limits must be positive")
-        if self.search_per_minute * 60 > self.search_per_hour:
-            raise ValueError("search_per_minute exceeds hourly search budget")
 
 
 class TinyFishRateLimiter:
