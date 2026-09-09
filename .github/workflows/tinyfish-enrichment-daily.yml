@@ -48,8 +48,9 @@ jobs:
           test -n "$SL_TINYFISH_API_KEY"
           test "$SL_REAL_EMAIL_ENABLED" = "false"
           python - <<'PY'
+          import os
           from sentinellayer_growth_engine.config import Settings
-          s = Settings(database_url="$SL_DATABASE_URL")
+          s = Settings(database_url=os.environ["SL_DATABASE_URL"])
           s.assert_safe()
           assert s.tinyfish_search_per_minute <= 30
           assert s.tinyfish_search_per_hour <= 500
