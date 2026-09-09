@@ -36,6 +36,7 @@ target-version = "py311"
 
 [tool.ruff.lint]
 ignore = ["I001"]
+per-file-ignores = { "src/sentinellayer_growth_engine/tinyfish_enrichment.py" = ["DTZ007", "RUF100"], "tests/test_tinyfish_enrichment.py" = ["RUF100"] }
 
 [tool.ruff.lint.isort]
 known-first-party = ["sentinellayer_growth_engine"]
