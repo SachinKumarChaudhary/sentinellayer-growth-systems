@@ -28,11 +28,13 @@ def run(*, fix: bool) -> int:
         )
         dms = cur.fetchall()
         invalid_dm_ids: list[Any] = []
+        invalid_dm_names: list[str] = []
         for dm_id, _company_id, company_name, _domain, full_name, title in dms:
             quality = is_valid_decision_maker(company_name, full_name, title)
             if not quality.valid:
                 print(f"INVALID_DM {dm_id} {full_name!r}: {quality.reason}")
                 invalid_dm_ids.append(dm_id)
+                invalid_dm_names.append(full_name)
 
         cur.execute(
             """
@@ -49,7 +51,10 @@ def run(*, fix: bool) -> int:
                 print(f"INVALID_COMPANY_EMAIL {contact_id} {value!r} for {domain}")
                 invalid_contact_ids.append(contact_id)
 
-        print(f"quality_gate invalid_decision_makers={len(invalid_dm_ids)} invalid_company_emails={len(invalid_contact_ids)}")
+        print(
+            f"quality_gate invalid_decision_makers={len(invalid_dm_ids)} "
+            f"invalid_company_emails={len(invalid_contact_ids)}"
+        )
         if not fix:
             return 1 if invalid_dm_ids or invalid_contact_ids else 0
 
@@ -62,6 +67,15 @@ def run(*, fix: bool) -> int:
                 "DELETE FROM intelligence.evidence WHERE decision_maker_id = ANY(%s)",
                 (invalid_dm_ids,),
             )
+            if invalid_dm_names:
+                cur.execute(
+                    """
+                    DELETE FROM intelligence.evidence
+                    WHERE claim_type = 'public_decision_maker'
+                      AND claim->>'name' = ANY(%s)
+                    """,
+                    (invalid_dm_names,),
+                )
             cur.execute(
                 "DELETE FROM growth.decision_makers WHERE decision_maker_id = ANY(%s)",
                 (invalid_dm_ids,),
