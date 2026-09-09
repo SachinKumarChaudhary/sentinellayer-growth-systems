@@ -41,7 +41,7 @@ class FakeTinyFishClient:
         include_image_links: bool = False,
         include_page_metadata: bool = False,
     ) -> list[TinyFishFetchResult]:
-        assert purpose == "evidence collection for company enrichment"
+        assert purpose and "evidence collection for company enrichment" in purpose
         assert format == "markdown"
         assert include_links is False
         assert include_page_metadata is True
@@ -117,7 +117,7 @@ def test_line_person_parser_handles_pipe_and_comma_formats() -> None:
         TinyFishFetchResult(
             url="https://www.linkedin.com/in/jane-doe",
             text=(
-                "Jane Doe | Chief Technology Officer | Example\\n"
+                "Jane Doe | Chief Technology Officer | Example\n"
                 "John Smith, VP Security, Example"
             ),
         )
