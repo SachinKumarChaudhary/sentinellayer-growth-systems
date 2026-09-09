@@ -477,7 +477,10 @@ class TinyFishEnrichmentProvider:
         observed_at: datetime,
     ) -> None:
         found: dict[tuple[str, str], DecisionMaker] = {
-            (dm.full_name.casefold(), (dm.title or "").casefold()): dm
+            (
+                dm.full_name.casefold(),
+                (dm.role_family or (dm.title or "")).casefold(),
+            ): dm
             for dm in packet.decision_makers
         }
         for purpose, results in searches:
@@ -497,7 +500,10 @@ class TinyFishEnrichmentProvider:
                     result_text, result.url, observed_at, "tinyfish_search"
                 )
                 for dm in candidate:
-                    key = (dm.full_name.casefold(), (dm.title or "").casefold())
+                    key = (
+                        dm.full_name.casefold(),
+                        (dm.role_family or (dm.title or "")).casefold(),
+                    )
                     existing = found.get(key)
                     if existing is not None:
                         continue
