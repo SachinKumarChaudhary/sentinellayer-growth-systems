@@ -363,6 +363,27 @@ class EnrichmentRepository:
             ),
         )
 
+    def next_enrichment_company_ids(self, limit: int = 40) -> list[int]:
+        """Return the next bounded set for the autonomous daily enrichment worker."""
+        if not 1 <= limit <= 40:
+            raise ValueError("next_enrichment_company_ids limit must be between 1 and 40")
+        with self._connection_factory() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT c.id
+                FROM public.companies AS c
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM intelligence.enrichment_runs AS er
+                    WHERE er.company_id = c.id AND er.status = 'completed'
+                )
+                ORDER BY c.id
+                LIMIT %s
+                """,
+                (limit,),
+            )
+            return [row[0] for row in cur.fetchall()]
+
     def next_companies(self, limit: int = 3) -> list[int]:
         if not 1 <= limit <= 3:
             raise ValueError("next_companies limit must be between 1 and 3")
