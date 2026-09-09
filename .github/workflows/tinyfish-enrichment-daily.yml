@@ -6,7 +6,6 @@ on:
   push:
     branches:
       - ops/manual-enrichment
-      - fix/enrichment-dm-quality
   workflow_dispatch:
     inputs:
       limit:
