@@ -42,7 +42,7 @@ _RE_LINE_PERSON = re.compile(
     r"(?im)^[*-]?\s*([A-Z][A-Za-z'’.-]+(?:\s+[A-Z][A-Za-z'’.-]+){1,3})\s*(?:\||,)\s*"
     r"((?:Chief|President|Founder|Co-Founder|VP|Vice President|Head|Director|"
     r"SVP|EVP|CTO|CISO|CFO|COO|CEO|Officer|Security|Technology|Engineering|Product|"
-    r"Risk|Fraud|Information)[^\n|.;]{2,120})$"
+    r"Risk|Fraud|Information)[^\n.;]{2,120})$"
 )
 
 _ROLE_FAMILIES: tuple[tuple[str, str, int], ...] = (
