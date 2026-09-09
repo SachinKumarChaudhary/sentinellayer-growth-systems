@@ -9,6 +9,7 @@ from urllib.parse import urlparse
 from .enrichment_contracts import (
     CompanyContact,
     CompanyFacts,
+    ContactMethod,
     DecisionMaker,
     EnrichmentPacket,
     Evidence,
@@ -29,14 +30,27 @@ _RE_US_DATE = re.compile(
     re.IGNORECASE,
 )
 _RE_HEADING_PERSON = re.compile(
-    r"(?:^|\n)#{2,4}\s+([A-Z][A-Za-z'’.-]+(?:\s+[A-Z][A-Za-z'’.-]+){1,3})"
-    r"\s*\n\s*([A-Z][A-Za-z&/ ,.'’()-]{2,100})\s*(?=\n|$)",
+    r"(?:^|
+)#{2,4}\s+([A-Z][A-Za-z'’.-]+(?:\s+[A-Z][A-Za-z'’.-]+){1,3})"
+    r"\s*
+\s*([A-Z][A-Za-z&/ ,.'’()-]{2,100})\s*(?=
+|$)",
 )
 _RE_DASH_PERSON = re.compile(
     r"\b([A-Z][A-Za-z'’.-]+(?:\s+[A-Z][A-Za-z'’.-]+){1,3})\s*[—–-]\s*"
     r"((?:Chief|President|Founder|Co-Founder|VP|Vice President|Head|Director|"
-    r"SVP|EVP|CTO|CISO|CFO|COO|CEO)[^\n.;]{2,100})",
-)\n_RE_LINE_PERSON = re.compile(\n    r"(?m)\\b([A-Z][A-Za-z'’.-]+(?:\\s+[A-Z][A-Za-z'’.-]+){1,3})\\s*(?:\\||,)\\s*"\n    r"((?:Chief|President|Founder|Co-Founder|VP|Vice President|Head|Director|"\n    r"SVP|EVP|CTO|CISO|CFO|COO|CEO|Officer|Security|Technology|Engineering|Product|"\n    r"Risk|Fraud|Information)[^\\n|.;]{2,120})"\n)\n\n_ROLE_FAMILIES: tuple[tuple[str, str, int], ...] = (
+    r"SVP|EVP|CTO|CISO|CFO|COO|CEO)[^
+.;]{2,100})",
+)
+_RE_LINE_PERSON = re.compile(
+    r"(?m)\\b([A-Z][A-Za-z'’.-]+(?:\\s+[A-Z][A-Za-z'’.-]+){1,3})\\s*(?:\\||,)\\s*"
+    r"((?:Chief|President|Founder|Co-Founder|VP|Vice President|Head|Director|"
+    r"SVP|EVP|CTO|CISO|CFO|COO|CEO|Officer|Security|Technology|Engineering|Product|"
+    r"Risk|Fraud|Information)[^\
+|.;]{2,120})"
+)
+
+_ROLE_FAMILIES: tuple[tuple[str, str, int], ...] = (
     ("ciso", "security", 1),
     ("chief information security", "security", 1),
     ("security", "security", 1),
@@ -337,7 +351,8 @@ class TinyFishEnrichmentProvider:
     def _has_login(fetched: list[TinyFishFetchResult]) -> bool:
         terms = ("sign in", "log in", "login", "create an account", "customer account")
         return any(
-            any(term in f"{item.title or ''}\n{item.text}".lower() for term in terms)
+            any(term in f"{item.title or ''}
+{item.text}".lower() for term in terms)
             for item in fetched
         )
 
@@ -470,7 +485,8 @@ class TinyFishEnrichmentProvider:
                 continue
             for result in results:
                 candidate = cls._extract_decision_makers_from_text(
-                    result.snippet + "\\n" + result.title, result.url, observed_at, "tinyfish_search"
+                    result.snippet + "\
+" + result.title, result.url, observed_at, "tinyfish_search"
                 )
                 for dm in candidate:
                     key = (dm.full_name.casefold(), (dm.title or "").casefold())
