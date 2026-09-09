@@ -129,7 +129,7 @@ class TinyFishEnrichmentProvider:
         company_label = merchant_name or normalized_domain
         searches: list[tuple[str, list[TinyFishSearchResult]]] = []
         for purpose, suffix in self.SEARCH_PURPOSES:
-            query = f""{company_label}" {normalized_domain} {suffix}"
+            query = f'"{company_label}" {normalized_domain} {suffix}'
             results = self._client.search(query, purpose=purpose)
             searches.append((purpose, results))
 
@@ -524,7 +524,7 @@ class TinyFishEnrichmentProvider:
         host = parsed.netloc.lower().removeprefix("www.")
         if host == "linkedin.com" or host.endswith(".linkedin.com"):
             return [
-                __import__("sentinellayer_growth_engine.enrichment_contracts", fromlist=["ContactMethod"]).ContactMethod(
+                ContactMethod(
                     channel="linkedin",
                     value=source_url,
                     normalized_value=source_url,
