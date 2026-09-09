@@ -1,0 +1,28 @@
+services:
+  upstream:
+    image: python:3.11-alpine
+    command: ["python", "/fixture/test_upstream.py"]
+    volumes:
+      - ./test_upstream.py:/fixture/test_upstream.py:ro
+
+  edge:
+    image: nginx:1.29-alpine
+    depends_on:
+      - upstream
+    ports:
+      - "18080:8080"
+    volumes:
+      - ./test.conf:/etc/nginx/nginx.conf:ro
+      - edge-logs:/var/log/nginx
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+volumes:
+  edge-logs:
