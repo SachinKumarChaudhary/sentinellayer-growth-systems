@@ -11,7 +11,7 @@ def test_rejects_marketing_copy_as_decision_maker() -> None:
         "Guard yourself from early indicators of risk.",
     )
     assert result.valid is False
-    assert result.reason == "title_lacks_explicit_executive_role"
+    assert result.reason == "name_contains_search_label"
 
 
 def test_rejects_company_name_as_person() -> None:
