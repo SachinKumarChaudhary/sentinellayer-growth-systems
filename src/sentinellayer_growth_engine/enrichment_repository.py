@@ -94,6 +94,10 @@ class EnrichmentRepository:
                        company_contact.normalized_value, company_contact.label, company_contact.source,
                        company_contact.source_url, company_contact.confidence, now))
 
+    @staticmethod
+    def _decision_maker_key(full_name: str, title: str | None) -> str:
+        return f"{full_name.casefold()}::{(title or '').casefold()}"
+
     def _upsert_decision_makers(self, cur: Any, packet: EnrichmentPacket, now: datetime) -> dict[str, Any]:
         ids: dict[str, Any] = {}
         for decision_maker in packet.decision_makers:
@@ -114,7 +118,7 @@ class EnrichmentRepository:
             if row is None:
                 raise RuntimeError("decision-maker upsert did not return an id")
             decision_maker_id = row[0]
-            ids[decision_maker.full_name.casefold()] = decision_maker_id
+            ids[self._decision_maker_key(decision_maker.full_name, decision_maker.title)] = decision_maker_id
             for contact in decision_maker.contacts:
                 cur.execute("""
                     INSERT INTO growth.decision_maker_contact_methods
@@ -135,7 +139,9 @@ class EnrichmentRepository:
     def _insert_packet_evidence(cur: Any, packet: EnrichmentPacket, enrichment_run_id: Any, now: datetime, *, decision_maker_ids: dict[str, Any] | None = None) -> None:
         decision_maker_ids = decision_maker_ids or {}
         for decision_maker in packet.decision_makers:
-            decision_maker_id = decision_maker_ids.get(decision_maker.full_name.casefold())
+            decision_maker_id = decision_maker_ids.get(
+                EnrichmentRepository._decision_maker_key(decision_maker.full_name, decision_maker.title)
+            )
             for evidence in decision_maker.evidence:
                 EnrichmentRepository._insert_evidence(cur, evidence, packet.company_id, enrichment_run_id, now, decision_maker_id=decision_maker_id)
         for company_contact in packet.company_contacts:
