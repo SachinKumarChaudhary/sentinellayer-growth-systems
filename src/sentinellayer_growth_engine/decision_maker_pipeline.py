@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from urllib.parse import urlparse
 
 from .decision_maker_resolution import (
@@ -24,8 +25,23 @@ def _domain_matches(url: str | None, domain: str) -> bool:
     return bool(host and target and (host == target or host.endswith("." + target)))
 
 
+def _normalize_name(value: str) -> tuple[str, ...]:
+    return tuple(re.findall(r"[a-z0-9]+", value.casefold()))
+
+
+def _linkedin_slug_matches_name(linkedin_url: str | None, full_name: str) -> bool:
+    if not linkedin_url:
+        return False
+    slug = urlparse(linkedin_url).path.rstrip("/").split("/")[-1].casefold()
+    slug_tokens = tuple(re.findall(r"[a-z0-9]+", slug))
+    name_tokens = _normalize_name(full_name)
+    if len(name_tokens) < 2 or len(slug_tokens) < 2:
+        return False
+    return all(token in slug_tokens for token in name_tokens) or slug_tokens == name_tokens
+
+
 def _title_matches(dm: DecisionMaker) -> bool:
-    return bool(dm.title or dm.role_family)
+    return bool(dm.title and dm.title.strip()) or bool(dm.role_family and dm.role_family.strip())
 
 
 def _linkedin_contact(dm: DecisionMaker) -> tuple[str | None, object | None]:
@@ -52,13 +68,31 @@ def _candidate_from_decision_maker(dm: DecisionMaker, packet: EnrichmentPacket) 
     )
     source_types = tuple(dict.fromkeys(e.source_type for e in dm.evidence if e.source_type))
     non_linkedin_hosts = {
-        _host(url) for url in source_urls if url and _host(url) not in {"linkedin.com"}
+        _host(url)
+        for url in source_urls
+        if url and _host(url) not in {"linkedin.com"}
     }
     company_site_support = any(_domain_matches(url, packet.domain) for url in source_urls)
     independent_support = len(non_linkedin_hosts) >= 2
-    name_matches = bool(dm.full_name.strip())
+    name_observation_count = len(
+        {
+            _host(e.source_url)
+            for e in dm.evidence
+            if e.source_url and _host(e.source_url) not in {"linkedin.com"}
+        }
+    )
+    name_matches = _linkedin_slug_matches_name(linkedin_url, dm.full_name) or name_observation_count >= 2
     current_company_matches = company_site_support or any(
-        "company" in (e.claim_type or "").lower() and bool(e.claim) for e in dm.evidence
+        ("company" in (e.claim_type or "").casefold())
+        and bool(e.claim.get("company_name") or e.claim.get("company_domain"))
+        and (
+            str(e.claim.get("company_domain", "")).casefold().removeprefix("www.")
+            == packet.domain.casefold().removeprefix("www.")
+            or str(e.claim.get("company_name", "")).casefold() == packet.merchant_name.casefold()
+            if packet.merchant_name
+            else False
+        )
+        for e in dm.evidence
     )
     title_matches = _title_matches(dm)
     identity, reasons = score_identity(
@@ -68,8 +102,15 @@ def _candidate_from_decision_maker(dm: DecisionMaker, packet: EnrichmentPacket) 
         company_site_supports_person=company_site_support,
         independent_source_supports_person=independent_support,
     )
-    employer_confidence = 0.85 if company_site_support else (0.75 if current_company_matches else 0.0)
-    linkedin_confidence = 0.95 if linkedin_url else 0.0
+    if company_site_support and independent_support:
+        employer_confidence = 0.95
+    elif company_site_support:
+        employer_confidence = 0.85
+    elif current_company_matches:
+        employer_confidence = 0.75
+    else:
+        employer_confidence = 0.0
+    linkedin_confidence = 0.95 if linkedin_url and _linkedin_slug_matches_name(linkedin_url, dm.full_name) else (0.80 if linkedin_url else 0.0)
     overall = min(1.0, identity * 0.65 + employer_confidence * 0.20 + linkedin_confidence * 0.15)
     status = outreach_status(
         overall,
@@ -99,20 +140,39 @@ def resolve_decision_makers(packet: EnrichmentPacket) -> EnrichmentPacket:
     resolved = packet.model_copy(deep=True)
     candidates = [_candidate_from_decision_maker(dm, resolved) for dm in resolved.decision_makers]
     ranked = rank_candidates(candidates)
-    by_name = {c.full_name.casefold(): c for c in ranked}
+    by_key = {
+        (c.full_name.casefold(), (c.title or "").casefold()): c
+        for c in ranked
+    }
     output: list[DecisionMaker] = []
 
     for dm in resolved.decision_makers:
-        candidate = by_name[dm.full_name.casefold()]
+        candidate = by_key[(dm.full_name.casefold(), (dm.title or "").casefold())]
         contacts = list(dm.contacts)
         if candidate.linkedin_url:
+            linkedin_found = False
             for contact in contacts:
                 if contact.channel == "linkedin":
                     contact.normalized_value = candidate.linkedin_url
                     contact.value = candidate.linkedin_url
                     contact.confidence = candidate.linkedin_confidence
                     contact.verification_status = "candidate"
+                    linkedin_found = True
                     break
+            if not linkedin_found:
+                from .enrichment_contracts import ContactMethod
+
+                contacts.append(
+                    ContactMethod(
+                        channel="linkedin",
+                        value=candidate.linkedin_url,
+                        normalized_value=candidate.linkedin_url,
+                        source="deterministic_resolution",
+                        source_url=candidate.linkedin_url,
+                        verification_status="candidate",
+                        confidence=candidate.linkedin_confidence,
+                    )
+                )
         evidence = list(dm.evidence)
         if candidate.source_urls:
             evidence.append(
@@ -142,7 +202,7 @@ def resolve_decision_makers(packet: EnrichmentPacket) -> EnrichmentPacket:
 
     resolved.decision_makers = sorted(
         output,
-        key=lambda item: by_name[item.full_name.casefold()].overall_confidence,
+        key=lambda item: by_key[(item.full_name.casefold(), (item.title or "").casefold())].overall_confidence,
         reverse=True,
     )
     return resolved
