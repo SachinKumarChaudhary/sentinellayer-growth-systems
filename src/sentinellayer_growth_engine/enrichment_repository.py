@@ -279,6 +279,12 @@ class EnrichmentRepository:
                     (company_id, signal_type, signal_date, weight, half_life_days,
                      confidence, created_at)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (company_id, signal_type, signal_date) DO UPDATE SET
+                    detected_at = now(),
+                    weight = EXCLUDED.weight,
+                    half_life_days = EXCLUDED.half_life_days,
+                    confidence = EXCLUDED.confidence,
+                    status = 'active'
                 """,
                 (
                     packet.company_id,
