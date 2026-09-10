@@ -103,11 +103,12 @@ def score_identity(
         score += 0.10
         reasons.append("independent_source_support")
     if former_employee:
-        score -= 0.30
+        score -= 0.25
         reasons.append("former_employee_penalty")
-    elif stale_employment:
-        score -= 0.15
+    if stale_employment:
         reasons.append("stale_employment_penalty")
+        if not former_employee:
+            score -= 0.15
     if ambiguous_name:
         score -= 0.20
         reasons.append("ambiguous_name_penalty")
