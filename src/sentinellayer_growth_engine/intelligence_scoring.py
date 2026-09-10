@@ -169,12 +169,13 @@ def route_priority(
     else:
         priority = "P4"
 
+    priority_rank = {"P1": 1, "P2": 2, "P3": 3, "P4": 4}
     modifiers: list[str] = []
-    if "corporate_route_only" in flags:
-        priority = min(priority, "P3")
+    if "corporate_route_only" in flags and priority_rank[priority] < priority_rank["P3"]:
+        priority = "P3"
         modifiers.append("corporate_route_cap")
-    if "ma_freeze" in flags:
-        priority = min(priority, "P2")
+    if "ma_freeze" in flags and priority_rank[priority] < priority_rank["P2"]:
+        priority = "P2"
         modifiers.append("ma_freeze_cap")
 
     if india_bridge and priority in ("P3", "P2"):
