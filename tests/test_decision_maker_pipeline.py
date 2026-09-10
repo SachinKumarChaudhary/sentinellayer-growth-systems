@@ -148,3 +148,42 @@ def test_resolution_keeps_same_name_different_title_candidates_distinct() -> Non
         "Chief Technology Officer",
         "Chief Product Officer",
     }
+
+
+def test_company_page_without_person_claim_does_not_count_as_person_support() -> None:
+    packet = EnrichmentPacket(
+        company_id=1,
+        domain="example.com",
+        merchant_name="Example",
+        decision_makers=[
+            DecisionMaker(
+                full_name="Jane Doe",
+                title="Chief Technology Officer",
+                contacts=[
+                    ContactMethod(
+                        channel="linkedin",
+                        value="https://www.linkedin.com/in/jane-doe",
+                        normalized_value="https://www.linkedin.com/in/jane-doe",
+                        source="tinyfish_search",
+                        source_url="https://www.linkedin.com/in/jane-doe",
+                    )
+                ],
+                evidence=[
+                    Evidence(
+                        claim_type="company_profile",
+                        claim={"company_name": "Example", "company_domain": "example.com"},
+                        source_url="https://example.com/about",
+                        source_type="tinyfish_fetch",
+                        observed_at=OBSERVED_AT,
+                        confidence=0.95,
+                    )
+                ],
+            )
+        ],
+    )
+
+    resolved = resolve_decision_makers(packet)
+    dm = resolved.decision_makers[0]
+
+    assert dm.confidence is not None
+    assert dm.confidence < 0.75
