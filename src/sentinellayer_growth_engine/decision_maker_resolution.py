@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 
@@ -41,7 +41,6 @@ def normalize_linkedin_url(value: str) -> str | None:
     if host != "linkedin.com" or not _LINKEDIN_PROFILE_RE.match(parsed.path):
         return None
     slug = parsed.path.rstrip("/").split("/")[-1]
-    # Keep only benign profile query parameters; tracking parameters are discarded.
     safe_query = [(k, v) for k, v in parse_qsl(parsed.query, keep_blank_values=False) if k in {"locale"}]
     query = urlencode(safe_query)
     return urlunparse(("https", "www.linkedin.com", f"/in/{slug}", "", query, ""))
