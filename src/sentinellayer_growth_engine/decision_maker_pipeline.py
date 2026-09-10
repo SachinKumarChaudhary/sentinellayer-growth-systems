@@ -47,8 +47,11 @@ def _candidate_from_decision_maker(dm: DecisionMaker, packet: EnrichmentPacket) 
         )
     )
     source_types = tuple(dict.fromkeys(e.source_type for e in dm.evidence if e.source_type))
+    non_linkedin_hosts = {
+        _host(url) for url in source_urls if url and _host(url) not in {"linkedin.com"}
+    }
     company_site_support = any(_domain_matches(url, packet.domain) for url in source_urls)
-    independent_support = len({_host(url) for url in source_urls if url and _host(url) not in {"linkedin.com"}}) >= 2
+    independent_support = len(non_linkedin_hosts) >= 2
     name_matches = bool(dm.full_name.strip())
     current_company_matches = company_site_support or any(
         "company" in (e.claim_type or "").lower() and bool(e.claim) for e in dm.evidence
@@ -133,7 +136,22 @@ def resolve_decision_makers(packet: EnrichmentPacket) -> EnrichmentPacket:
             )
         )
 
-    resolved.decision_makers = [
-        dm for dm in sorted(output, key=lambda item: by_name[item.full_name.casefold()].overall_confidence, reverse=True)
-    ]
+    resolved.decision_makers = sorted(
+        output,
+        key=lambda item: by_name[item.full_name.casefold()].overall_confidence,
+        reverse=True,
+    )
     return resolved
+
+
+class ResolvedTinyFishProvider:
+    """Adapter that makes deterministic DM resolution part of TinyFish enrichment."""
+
+    def __init__(self, provider: object) -> None:
+        self._provider = provider
+
+    def build_packet(self, **kwargs: object) -> EnrichmentPacket:
+        packet = self._provider.build_packet(**kwargs)  # type: ignore[attr-defined]
+        if not isinstance(packet, EnrichmentPacket):
+            raise TypeError("TinyFish provider returned an invalid enrichment packet")
+        return resolve_decision_makers(packet)
