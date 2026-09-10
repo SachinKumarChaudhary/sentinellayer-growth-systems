@@ -51,29 +51,16 @@ NEGATIVE_ADJUSTMENTS: tuple[tuple[str, float, tuple[str, ...]], ...] = (
 )
 
 INTENT_RULES: dict[str, tuple[float, int]] = {
-    "funding": (3, 21),
-    "new_c_suite": (2, 45),
-    "security_hiring": (2, 30),
-    "tech_migration": (2, 45),
-    "competitor_mention": (2, 60),
-    "dark_funnel": (2, 14),
-    "seasonal_window": (1, 9999),
-    "franchise_launch": (2, 60),
-    "new_market": (2, 90),
-    "regulated_expansion": (2, 60),
-    "award": (1, 90),
-    "pricing_visit": (4, 7),
-    "trial_install": (5, 14),
-    "docs_visit": (4, 7),
+    "funding": (3, 21), "new_c_suite": (2, 45), "security_hiring": (2, 30),
+    "tech_migration": (2, 45), "competitor_mention": (2, 60), "dark_funnel": (2, 14),
+    "seasonal_window": (1, 9999), "franchise_launch": (2, 60), "new_market": (2, 90),
+    "regulated_expansion": (2, 60), "award": (1, 90), "pricing_visit": (4, 7),
+    "trial_install": (5, 14), "docs_visit": (4, 7),
 }
 
 COMPLIANCE_INTENT: dict[str, tuple[float, int]] = {
-    "pci": (3, 9999),
-    "ca_breach": (3, 9999),
-    "ftc_click_to_cancel": (3, 9999),
-    "dpdp": (2, 9999),
-    "gdpr": (2, 9999),
-    "soc2_requirement": (2, 9999),
+    "pci": (3, 9999), "ca_breach": (3, 9999), "ftc_click_to_cancel": (3, 9999),
+    "dpdp": (2, 9999), "gdpr": (2, 9999), "soc2_requirement": (2, 9999),
 }
 
 
@@ -113,28 +100,19 @@ def compute_fit(*, employee_count: int | None, monthly_sessions: int | None, has
     raw = 0.0
     attrs: list[str] = []
     negatives: list[str] = []
-
     if employee_count is not None and 50 <= employee_count <= 500:
-        raw += 1
-        attrs.append("employee_band")
+        raw += 1; attrs.append("employee_band")
     if monthly_sessions is not None and 100_000 <= monthly_sessions <= 5_000_000:
-        raw += 1
-        attrs.append("traffic_band")
+        raw += 1; attrs.append("traffic_band")
     if has_login:
-        raw += 1
-        attrs.append("login_surface")
-
+        raw += 1; attrs.append("login_surface")
     text = notes.lower()
     for key, points, keywords in FIT_AMPLIFIERS:
         if _contains_any(text, keywords):
-            raw += points
-            attrs.append(key)
-
+            raw += points; attrs.append(key)
     for key, points, keywords in NEGATIVE_ADJUSTMENTS:
         if _contains_any(text, keywords):
-            raw += points
-            negatives.append(key)
-
+            raw += points; negatives.append(key)
     raw = max(0.0, raw)
     return _normalize_0_10(raw), raw, tuple(attrs), tuple(negatives)
 
@@ -148,18 +126,11 @@ def compute_intent(*, signals: Iterable[IntentSignalInput], today: date) -> floa
     return _normalize_0_10(total)
 
 
-def route_priority(
-    *,
-    fit_score: float,
-    intent_score: float,
-    behavior_override: bool,
-    negative_flags: Iterable[str],
-    india_bridge: bool,
-) -> tuple[str, tuple[str, ...]]:
+def route_priority(*, fit_score: float, intent_score: float, behavior_override: bool,
+                   negative_flags: Iterable[str], india_bridge: bool) -> tuple[str, tuple[str, ...]]:
     flags = tuple(negative_flags)
     if behavior_override:
         return "P1", ("behavior_override",)
-
     if fit_score > 5 and intent_score > 5:
         priority = "P1"
     elif fit_score > 5:
@@ -168,55 +139,34 @@ def route_priority(
         priority = "P3"
     else:
         priority = "P4"
-
     priority_rank = {"P1": 1, "P2": 2, "P3": 3, "P4": 4}
     modifiers: list[str] = []
-    if "corporate_route_only" in flags and priority_rank[priority] < priority_rank["P3"]:
+    if "corporate_route_only" in flags and priority_rank[priority] > priority_rank["P3"]:
         priority = "P3"
         modifiers.append("corporate_route_cap")
-    if "ma_freeze" in flags and priority_rank[priority] < priority_rank["P2"]:
+    if "ma_freeze" in flags and priority_rank[priority] > priority_rank["P2"]:
         priority = "P2"
         modifiers.append("ma_freeze_cap")
-
     if india_bridge and priority in ("P3", "P2"):
         priority = "P2" if priority == "P3" else "P1"
         modifiers.append("india_bridge")
-
     return priority, tuple(modifiers)
 
 
-def score_company(
-    *,
-    employee_count: int | None,
-    monthly_sessions: int | None,
-    has_login: bool,
-    notes: str,
-    signals: Iterable[IntentSignalInput],
-    today: date,
-    behavior_override: bool = False,
-    india_bridge: bool = False,
-) -> ScoreResult:
+def score_company(*, employee_count: int | None, monthly_sessions: int | None, has_login: bool,
+                  notes: str, signals: Iterable[IntentSignalInput], today: date,
+                  behavior_override: bool = False, india_bridge: bool = False) -> ScoreResult:
     fit_score, fit_raw, attrs, negatives = compute_fit(
-        employee_count=employee_count,
-        monthly_sessions=monthly_sessions,
-        has_login=has_login,
-        notes=notes,
+        employee_count=employee_count, monthly_sessions=monthly_sessions,
+        has_login=has_login, notes=notes,
     )
     intent_score = compute_intent(signals=signals, today=today)
     priority, modifiers = route_priority(
-        fit_score=fit_score,
-        intent_score=intent_score,
-        behavior_override=behavior_override,
-        negative_flags=negatives,
-        india_bridge=india_bridge,
+        fit_score=fit_score, intent_score=intent_score,
+        behavior_override=behavior_override, negative_flags=negatives, india_bridge=india_bridge,
     )
     return ScoreResult(
-        fit_score=fit_score,
-        fit_raw=fit_raw,
-        intent_score=intent_score,
-        priority=priority,
-        behavior_override=behavior_override,
-        negative_flags=negatives,
-        modifiers=modifiers,
+        fit_score=fit_score, fit_raw=fit_raw, intent_score=intent_score, priority=priority,
+        behavior_override=behavior_override, negative_flags=negatives, modifiers=modifiers,
         fit_attributes=attrs,
     )
