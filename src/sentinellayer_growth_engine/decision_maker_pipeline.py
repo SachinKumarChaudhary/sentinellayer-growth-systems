@@ -44,6 +44,15 @@ def _title_matches(dm: DecisionMaker) -> bool:
     return bool(dm.title and dm.title.strip()) or bool(dm.role_family and dm.role_family.strip())
 
 
+def _person_evidence(evidence: Evidence, full_name: str) -> bool:
+    """Require the company URL to actually attest to this person, not merely the company."""
+    claim = evidence.claim or {}
+    name = str(claim.get("name") or claim.get("full_name") or "").strip()
+    if not name:
+        return False
+    return _normalize_name(name) == _normalize_name(full_name)
+
+
 def _linkedin_contact(dm: DecisionMaker) -> tuple[str | None, object | None]:
     for contact in dm.contacts:
         if contact.channel != "linkedin":
@@ -67,20 +76,17 @@ def _candidate_from_decision_maker(dm: DecisionMaker, packet: EnrichmentPacket) 
         )
     )
     source_types = tuple(dict.fromkeys(e.source_type for e in dm.evidence if e.source_type))
+    person_evidence = [e for e in dm.evidence if _person_evidence(e, dm.full_name)]
     non_linkedin_hosts = {
         _host(url)
-        for url in source_urls
+        for url in [e.source_url for e in person_evidence if e.source_url]
         if url and _host(url) not in {"linkedin.com"}
     }
-    company_site_support = any(_domain_matches(url, packet.domain) for url in source_urls)
-    independent_support = len(non_linkedin_hosts) >= 2
-    name_observation_count = len(
-        {
-            _host(e.source_url)
-            for e in dm.evidence
-            if e.source_url and _host(e.source_url) not in {"linkedin.com"}
-        }
+    company_site_support = any(
+        _domain_matches(e.source_url, packet.domain) for e in person_evidence
     )
+    independent_support = len(non_linkedin_hosts) >= 2
+    name_observation_count = len(non_linkedin_hosts)
     name_matches = _linkedin_slug_matches_name(linkedin_url, dm.full_name) or name_observation_count >= 2
     current_company_matches = company_site_support or any(
         ("company" in (e.claim_type or "").casefold())
@@ -92,7 +98,7 @@ def _candidate_from_decision_maker(dm: DecisionMaker, packet: EnrichmentPacket) 
             if packet.merchant_name
             else False
         )
-        for e in dm.evidence
+        for e in person_evidence
     )
     title_matches = _title_matches(dm)
     identity, reasons = score_identity(
