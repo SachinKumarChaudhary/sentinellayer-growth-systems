@@ -43,7 +43,11 @@ def _candidate_from_decision_maker(dm: DecisionMaker, packet: EnrichmentPacket) 
     source_urls = tuple(
         dict.fromkeys(
             [e.source_url for e in dm.evidence if e.source_url]
-            + [getattr(linkedin_contact, "source_url", None)]
+            + [
+                source_url
+                for source_url in [getattr(linkedin_contact, "source_url", None)]
+                if source_url
+            ]
         )
     )
     source_types = tuple(dict.fromkeys(e.source_type for e in dm.evidence if e.source_type))
