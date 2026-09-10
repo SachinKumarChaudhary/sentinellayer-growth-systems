@@ -10,6 +10,7 @@ import psycopg
 
 from .config import Settings
 from .db import Database
+from .decision_maker_pipeline import ResolvedTinyFishProvider
 from .enrichment_contracts import EnrichmentBatch
 from .enrichment_repository import EnrichmentRepository
 from .health import check as health_check
@@ -93,10 +94,14 @@ def _tinyfish_client(settings: Settings) -> TinyFishClient:
     )
 
 
+def _resolved_tinyfish_provider(settings: Settings) -> ResolvedTinyFishProvider:
+    return ResolvedTinyFishProvider(TinyFishEnrichmentProvider(_tinyfish_client(settings)))
+
+
 def cmd_enrichment_research(args: argparse.Namespace) -> int:
     try:
         settings = _settings()
-        provider = TinyFishEnrichmentProvider(_tinyfish_client(settings))
+        provider = _resolved_tinyfish_provider(settings)
         packet = provider.build_packet(
             company_id=args.company_id,
             domain=args.domain,
@@ -113,7 +118,7 @@ def cmd_enrichment_tinyfish_next(args: argparse.Namespace) -> int:
     try:
         settings = _settings()
         repository = EnrichmentRepository(_connection_factory)
-        provider = TinyFishEnrichmentProvider(_tinyfish_client(settings))
+        provider = _resolved_tinyfish_provider(settings)
         enricher = TinyFishBatchEnricher(
             repository=repository,
             provider=provider,
@@ -132,7 +137,7 @@ def cmd_enrichment_tinyfish_daily(args: argparse.Namespace) -> int:
         settings = _settings()
         print("TinyFish daily: initializing enrichment worker", flush=True)
         repository = EnrichmentRepository(_connection_factory)
-        provider = TinyFishEnrichmentProvider(_tinyfish_client(settings))
+        provider = _resolved_tinyfish_provider(settings)
         print("TinyFish daily: resolving next company slice", flush=True)
         result = TinyFishDailyEnricher(
             repository=repository,
@@ -151,7 +156,7 @@ def cmd_enrichment_tinyfish_refresh(args: argparse.Namespace) -> int:
         settings = _settings()
         print("TinyFish refresh: initializing enrichment worker", flush=True)
         repository = EnrichmentRepository(_connection_factory)
-        provider = TinyFishEnrichmentProvider(_tinyfish_client(settings))
+        provider = _resolved_tinyfish_provider(settings)
         result = TinyFishRefreshEnricher(
             repository=repository,
             provider=provider,
