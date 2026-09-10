@@ -1,98 +1,55 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>SentinelLayer — Enrichment Quality</title>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SentinelLayer — Enrichment Explorer</title>
   <style>
-    :root { color-scheme: dark; --bg:#090b10; --panel:#11151c; --line:#252b35; --text:#edf1f7; --muted:#8f9aaa; --good:#7ddc9a; --warn:#f1c75b; --bad:#ef7777; }
-    * { box-sizing:border-box; }
-    body { margin:0; font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; background:var(--bg); color:var(--text); }
-    main { max-width:1220px; margin:0 auto; padding:28px 20px 50px; }
-    header { display:flex; justify-content:space-between; gap:16px; align-items:flex-end; margin-bottom:24px; }
-    h1 { margin:0 0 6px; font-size:28px; } h2 { margin:0 0 14px; font-size:18px; }
-    .sub,.note { color:var(--muted); font-size:14px; } .updated { color:var(--muted); font-size:12px; text-align:right; }
-    .grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:12px; }
-    .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:17px; }
-    .label { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.06em; }
-    .value { font-size:29px; font-weight:700; margin-top:7px; }
-    .section { margin-top:12px; } .quality-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
-    .metric { border:1px solid var(--line); border-radius:10px; padding:13px; }
-    .metric-head { display:flex; justify-content:space-between; gap:10px; font-size:13px; } .metric-value { font-weight:700; }
-    .bar { height:7px; background:#20252d; border-radius:999px; overflow:hidden; margin-top:9px; } .fill { height:100%; background:#8ec5ff; }
-    .good { color:var(--good); } .warn { color:var(--warn); } .bad { color:var(--bad); }
-    .alert { padding:9px 11px; border-left:3px solid var(--warn); background:#17171a; margin:6px 0; font-size:13px; }
-    table { width:100%; border-collapse:collapse; font-size:13px; } th,td { padding:10px; border-bottom:1px solid var(--line); text-align:left; }
-    th { color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:.05em; }
-    .pill { display:inline-block; border-radius:999px; padding:3px 8px; font-size:11px; border:1px solid var(--line); }
-    .completed { color:var(--good); } .running { color:var(--warn); } .failed { color:var(--bad); }
-    .table-wrap { overflow-x:auto; } .empty { color:var(--muted); padding:18px 0; }
-    @media (max-width:800px) { .grid { grid-template-columns:repeat(2,1fr); } .quality-grid { grid-template-columns:1fr; } header { align-items:flex-start; flex-direction:column; } .updated { text-align:left; } }
-    @media (max-width:520px) { .grid { grid-template-columns:1fr 1fr; } table { min-width:820px; } }
+    :root{color-scheme:dark;--bg:#090b10;--panel:#11151c;--line:#252b35;--text:#edf1f7;--muted:#8f9aaa;--good:#7ddc9a;--warn:#f1c75b;--bad:#ef7777;--link:#8ec5ff}
+    *{box-sizing:border-box} body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text)} main{max-width:1240px;margin:0 auto;padding:26px 18px 60px}
+    header{display:flex;justify-content:space-between;gap:18px;align-items:flex-end;margin-bottom:22px} h1{margin:0 0 6px;font-size:28px} h2{margin:0 0 14px;font-size:18px}.sub,.note{color:var(--muted);font-size:13px}.updated{color:var(--muted);font-size:12px;text-align:right}
+    .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:10px}.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}.label{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em}.value{font-size:28px;font-weight:700;margin-top:7px}
+    .section{margin-top:10px}.quality-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}.metric{border:1px solid var(--line);border-radius:9px;padding:11px}.metric-head{display:flex;justify-content:space-between;gap:10px;font-size:12px}.metric-value{font-weight:700}.bar{height:6px;background:#20252d;border-radius:999px;overflow:hidden;margin-top:8px}.fill{height:100%;background:var(--link)}
+    .alert{padding:8px 10px;border-left:3px solid var(--warn);background:#17171a;margin:5px 0;font-size:12px}.good{color:var(--good)}.bad{color:var(--bad)}.warn{color:var(--warn)}
+    .explorer{display:grid;grid-template-columns:330px 1fr;gap:14px}.search{width:100%;background:#0c0f14;border:1px solid var(--line);border-radius:8px;color:var(--text);padding:10px;font-size:13px}.company-list{max-height:650px;overflow:auto;margin-top:8px;border:1px solid var(--line);border-radius:8px}.company-item{display:block;width:100%;text-align:left;background:transparent;border:0;border-bottom:1px solid var(--line);color:var(--text);padding:10px 11px;cursor:pointer}.company-item:hover,.company-item.active{background:#191e27}.company-item strong{display:block;font-size:13px}.company-item span{display:block;color:var(--muted);font-size:11px;margin-top:3px}
+    .detail-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.detail-title{font-size:22px;font-weight:700}.links a{color:var(--link);margin-right:12px;font-size:12px}.detail-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin:13px 0}.kv{border:1px solid var(--line);border-radius:8px;padding:10px}.kv .k{color:var(--muted);font-size:10px;text-transform:uppercase}.kv .v{font-size:13px;margin-top:4px;word-break:break-word}.detail-section{margin-top:14px}.detail-section h3{font-size:14px;margin:0 0 8px}.record{border:1px solid var(--line);border-radius:8px;padding:11px;margin:7px 0}.record-head{display:flex;justify-content:space-between;gap:10px}.record-title{font-weight:650;font-size:13px}.record-body{font-size:12px;line-height:1.5;margin-top:7px}.record-body pre{white-space:pre-wrap;word-break:break-word;background:#0c0f14;border-radius:6px;padding:8px;margin:6px 0}.record a{color:var(--link)}
+    table{width:100%;border-collapse:collapse;font-size:12px}th,td{padding:9px;border-bottom:1px solid var(--line);text-align:left}th{color:var(--muted);font-size:10px;text-transform:uppercase}.table-wrap{overflow-x:auto}.pill{display:inline-block;border-radius:999px;padding:3px 7px;font-size:10px;border:1px solid var(--line)}.completed{color:var(--good)}.running{color:var(--warn)}.failed{color:var(--bad)}.empty{color:var(--muted);padding:16px}
+    @media(max-width:900px){.grid{grid-template-columns:repeat(2,1fr)}.explorer{grid-template-columns:1fr}.company-list{max-height:260px}.detail-grid{grid-template-columns:repeat(2,1fr)}} @media(max-width:520px){.grid{grid-template-columns:1fr 1fr}.quality-grid,.detail-grid{grid-template-columns:1fr}.updated{text-align:left}header{align-items:flex-start;flex-direction:column}}
   </style>
 </head>
-<body>
-<main>
-  <header><div><h1>SentinelLayer — Enrichment Quality</h1><div class="sub">Observed quality and evidence coverage of completed enrichment records.</div></div><div class="updated" id="updated">Loading…</div></header>
-
+<body><main>
+  <header><div><h1>SentinelLayer — Enrichment Explorer</h1><div class="sub">Inspect the actual persisted enrichment record for each completed company.</div></div><div class="updated" id="updated">Loading…</div></header>
   <section class="grid">
-    <div class="card"><div class="label">Source companies</div><div class="value" id="companies">—</div></div>
-    <div class="card"><div class="label">Completed enrichment</div><div class="value" id="enriched">—</div></div>
-    <div class="card"><div class="label">Enrichment coverage</div><div class="value" id="coverage">—</div></div>
-    <div class="card"><div class="label">Scored</div><div class="value" id="scored">—</div></div>
+    <div class="card"><div class="label">Source companies</div><div class="value" id="companies">—</div></div><div class="card"><div class="label">Completed enrichment</div><div class="value" id="enriched">—</div></div><div class="card"><div class="label">Coverage</div><div class="value" id="coverage">—</div></div><div class="card"><div class="label">Scored</div><div class="value" id="scored">—</div></div>
   </section>
-
-  <section class="card section">
-    <h2>Quality dimensions</h2>
-    <div class="quality-grid" id="qualityGrid"></div>
-    <div class="note" style="margin-top:12px">These are observed coverage/integrity measures, not an invented model confidence score. A missing decision maker, intent signal, or email is shown as missing data rather than treated as proof that the company has none.</div>
-  </section>
-
+  <section class="card section"><h2>Company explorer</h2><div class="explorer"><div><input id="companySearch" class="search" placeholder="Search company or domain…"><div id="companyList" class="company-list"></div></div><div id="detail"><div class="empty">Select an enriched company.</div></div></div></section>
+  <section class="card section"><h2>Quality dimensions</h2><div class="quality-grid" id="qualityGrid"></div></section>
   <section class="card section"><h2>Quality gaps</h2><div id="alerts"></div></section>
-
-  <section class="card section"><h2>Company-level quality</h2><div class="table-wrap"><table><thead><tr><th>Company</th><th>Evidence</th><th>Avg evidence confidence</th><th>DMs</th><th>DM evidence</th><th>Intent</th><th>Intent evidence</th><th>DM email</th><th>Facts</th><th>Score</th></tr></thead><tbody id="qualityTable"></tbody></table></div></section>
-
+  <section class="card section"><h2>Company-level quality</h2><div class="table-wrap"><table><thead><tr><th>Company</th><th>Evidence</th><th>Evidence confidence</th><th>DMs</th><th>DM evidence</th><th>Intent</th><th>Intent evidence</th><th>DM email</th><th>Facts</th><th>Score</th></tr></thead><tbody id="qualityTable"></tbody></table></div></section>
   <section class="card section"><div class="label">Recent enrichment activity</div><div class="table-wrap"><table><thead><tr><th>Company</th><th>Domain</th><th>Status</th><th>Completed</th><th>Evidence</th><th>DMs</th><th>Intent</th></tr></thead><tbody id="companiesTable"></tbody></table></div></section>
   <section class="card section"><div class="label">Recent runs</div><div class="table-wrap"><table><thead><tr><th>Company</th><th>Provider</th><th>Status</th><th>Started</th><th>Completed</th></tr></thead><tbody id="runsTable"></tbody></table></div></section>
 </main>
 <script>
-const fmt = v => v == null ? '—' : new Intl.NumberFormat().format(v);
-const pct = (n,d) => d ? (Number(n)/Number(d)*100) : 0;
-const dt = v => v ? new Date(v).toLocaleString() : '—';
-const esc = v => String(v ?? '').replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[s]));
-function metric(label, value, denominator) { const p = pct(value, denominator); return `<div class="metric"><div class="metric-head"><span>${label}</span><span class="metric-value">${p.toFixed(1)}%</span></div><div class="bar"><div class="fill" style="width:${Math.min(100,p).toFixed(1)}%"></div></div><div class="note" style="margin-top:6px">${fmt(value)} of ${fmt(denominator)}</div></div>`; }
-async function load() {
-  try {
-    const r = await fetch('data.json?ts=' + Date.now(), {cache:'no-store'}); if (!r.ok) throw new Error('dashboard data unavailable');
-    const d = await r.json(), q = d.quality, m = d.metrics, total = q.enriched;
-    document.getElementById('updated').textContent = 'Snapshot: ' + dt(d.generated_at);
-    document.getElementById('companies').textContent = fmt(m.companies); document.getElementById('enriched').textContent = fmt(m.enriched_companies);
-    document.getElementById('coverage').textContent = pct(m.enriched_companies,m.companies).toFixed(1)+'%'; document.getElementById('scored').textContent = fmt(m.scored_companies);
-    document.getElementById('qualityGrid').innerHTML = [
-      metric('Company facts present',q.with_facts,total), metric('At least 1 evidence row',q.with_evidence,total),
-      metric('At least 2 evidence rows',q.with_2plus_evidence,total), metric('Evidence has source URL',q.evidence_url_covered,total),
-      metric('High-confidence evidence present',q.with_high_conf_evidence,total), metric('At least 1 decision maker',q.with_dm,total),
-      metric('At least 2 decision makers',q.with_2plus_dm,total), metric('Decision maker has linked evidence',q.with_dm_evidence,total),
-      metric('Companies with intent signal',q.with_intent,total), metric('Intent signals linked to evidence',q.intent_evidence_linked,Math.max(q.with_intent,1)),
-      metric('Intent signals dated',q.intent_dated,Math.max(q.with_intent,1)), metric('Companies with DM email candidate',q.with_dm_email,total),
-      metric('Companies with verified DM email',q.with_verified_dm_email,total), metric('Company score present',q.with_score,total)
-    ].join('');
-    const alerts = [];
-    if (q.with_evidence < total) alerts.push(`<div class="alert bad">${fmt(total-q.with_evidence)} completed companies have no persisted evidence rows.</div>`);
-    if (q.with_2plus_evidence < total) alerts.push(`<div class="alert warn">${fmt(total-q.with_2plus_evidence)} completed companies have fewer than 2 evidence rows.</div>`);
-    if (q.with_dm < total) alerts.push(`<div class="alert warn">${fmt(total-q.with_dm)} completed companies have no decision maker record.</div>`);
-    if (q.with_2plus_dm < total) alerts.push(`<div class="alert warn">${fmt(total-q.with_2plus_dm)} completed companies have fewer than 2 decision makers.</div>`);
-    if (q.with_dm_evidence < q.with_dm) alerts.push(`<div class="alert warn">${fmt(q.with_dm-q.with_dm_evidence)} companies with decision makers have no decision-maker-linked evidence.</div>`);
-    if (q.with_intent > 0 && q.intent_evidence_linked < q.with_intent) alerts.push(`<div class="alert bad">${fmt(q.with_intent-q.intent_evidence_linked)} intent-bearing companies have no intent evidence link.</div>`);
-    if (q.with_dm_email === 0) alerts.push(`<div class="alert warn">No decision-maker email candidates are currently persisted.</div>`);
-    if (q.with_score < total) alerts.push(`<div class="alert warn">${fmt(total-q.with_score)} completed companies have no company score.</div>`);
-    document.getElementById('alerts').innerHTML = alerts.join('') || '<div class="good">No observed quality gaps in the displayed checks.</div>';
-    document.getElementById('qualityTable').innerHTML = d.quality_companies.length ? d.quality_companies.map(x => `<tr><td>${esc(x.name)}<br><span class="note">${esc(x.domain)}</span></td><td>${fmt(x.evidence)}${x.evidence_with_url ? ` / ${fmt(x.evidence_with_url)} URL` : ''}</td><td>${(x.avg_evidence_conf*100).toFixed(0)}%</td><td>${fmt(x.decision_makers)}</td><td>${fmt(x.dm_with_evidence)}</td><td>${fmt(x.intent_signals)}</td><td>${fmt(x.intent_with_evidence)}</td><td>${x.dm_email_candidates ? fmt(x.dm_email_candidates) : '—'}</td><td>${x.has_facts ? 'yes' : 'no'}</td><td>${x.has_score ? 'yes' : 'no'}</td></tr>`).join('') : '<tr><td colspan="10" class="empty">No completed enrichment records.</td></tr>';
-    document.getElementById('companiesTable').innerHTML = d.recent_companies.length ? d.recent_companies.map(x => `<tr><td>${esc(x.name)}</td><td>${esc(x.domain)}</td><td class="${esc(x.status)}"><span class="pill">${esc(x.status)}</span></td><td>${dt(x.completed_at)}</td><td>${fmt(x.evidence)}</td><td>${fmt(x.decision_makers)}</td><td>${fmt(x.intent_signals)}</td></tr>`).join('') : '<tr><td colspan="7" class="empty">No enrichment activity recorded.</td></tr>';
-    document.getElementById('runsTable').innerHTML = d.recent_runs.length ? d.recent_runs.map(x => `<tr><td>${esc(x.company_name)}</td><td>${esc(x.provider)}</td><td class="${esc(x.status)}"><span class="pill">${esc(x.status)}</span></td><td>${dt(x.started_at)}</td><td>${dt(x.completed_at)}</td></tr>`).join('') : '<tr><td colspan="5" class="empty">No runs recorded.</td></tr>';
-  } catch (e) { document.getElementById('updated').textContent = 'Unable to load current snapshot'; }
-}
+const fmt=v=>v==null?'—':new Intl.NumberFormat().format(v);const pct=(n,d)=>d?(Number(n)/Number(d)*100):0;const dt=v=>v?new Date(v).toLocaleString():'—';
+const esc=v=>String(v??'').replace(/[&<>"']/g,s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[s]));
+const json=v=>esc(JSON.stringify(v,null,2));
+let DATA=null;
+function metric(label,value,den){const p=pct(value,den);return `<div class="metric"><div class="metric-head"><span>${label}</span><span class="metric-value">${p.toFixed(1)}%</span></div><div class="bar"><div class="fill" style="width:${Math.min(100,p).toFixed(1)}%"></div></div><div class="note" style="margin-top:6px">${fmt(value)} of ${fmt(den)}</div></div>`}
+function renderList(){const term=document.getElementById('companySearch').value.toLowerCase().trim();const entries=Object.entries(DATA.company_details).filter(([_,d])=>!term||`${d.company.name} ${d.company.domain}`.toLowerCase().includes(term)).sort((a,b)=>a[1].company.name.localeCompare(b[1].company.name));document.getElementById('companyList').innerHTML=entries.length?entries.map(([id,d])=>`<button class="company-item" data-id="${id}"><strong>${esc(d.company.name)}</strong><span>${esc(d.company.domain)} · ${d.evidence.length} evidence · ${d.decision_makers.length} DMs · ${d.intent_signals.length} intent</span></button>`).join(''):'<div class="empty">No matching enriched company.</div>';document.querySelectorAll('.company-item').forEach(b=>b.onclick=()=>renderDetail(b.dataset.id));}
+function renderDetail(id){const d=DATA.company_details[id];if(!d)return;document.querySelectorAll('.company-item').forEach(b=>b.classList.toggle('active',b.dataset.id===String(id)));const c=d.company,f=d.facts||{},s=d.score||{};
+ let html=`<div class="detail-head"><div><div class="detail-title">${esc(c.name)}</div><div class="sub">${esc(c.domain||'')}</div><div class="links">${c.website?`<a href="${esc(c.website)}" target="_blank" rel="noopener">Website</a>`:''}${c.company_linkedin?`<a href="${esc(c.company_linkedin)}" target="_blank" rel="noopener">LinkedIn</a>`:''}</div></div><div class="pill">Company ID ${esc(c.id)}</div></div>`;
+ html+=`<div class="detail-grid">${[['Segment',c.segment],['Country',c.country],['City',c.city],['Revenue estimate',c.revenue_est],['Visits estimate',c.visits_est],['MX status',c.mx_status],['Mail provider',c.mail_provider],['Catch-all risk',c.catchall_risk],['Source',c.source],['Facts updated',f.updated_at]].map(x=>`<div class="kv"><div class="k">${esc(x[0])}</div><div class="v">${esc(x[1])}</div></div>`).join('')}</div>`;
+ if(c.notes)html+=`<div class="detail-section"><h3>Company notes</h3><div class="record-body">${esc(c.notes)}</div></div>`;
+ html+=`<div class="detail-section"><h3>Company facts</h3><div class="record"><pre>${json(f)}</pre></div></div>`;
+ html+=`<div class="detail-section"><h3>Score</h3><div class="record"><pre>${json(s)}</pre></div></div>`;
+ html+=`<div class="detail-section"><h3>Decision makers (${d.decision_makers.length})</h3>`+(d.decision_makers.length?d.decision_makers.map(x=>`<div class="record"><div class="record-head"><div><div class="record-title">${esc(x.full_name)}</div><div class="sub">${esc(x.title)} · ${esc(x.role_family)}</div></div><div class="pill">${esc(x.status||'unknown')}</div></div><div class="record-body">Priority: ${esc(x.role_priority)} · Confidence: ${x.confidence==null?'—':(x.confidence*100).toFixed(0)+'%'}<br>${esc(x.rationale||'')}<br>Research: ${esc(x.research_status||'—')} · Last verified: ${dt(x.last_verified_at)}</div>${x.contact_methods.length?`<div class="note" style="margin-top:7px">Contact methods: ${x.contact_methods.map(cm=>`${esc(cm.channel)} — ${esc(cm.verification_status||'unknown')} (${esc(cm.source||'unknown')})`).join(' · ')}</div>`:''}</div>`).join(''):'<div class="empty">No decision-maker records persisted.</div>')+`</div>`;
+ html+=`<div class="detail-section"><h3>Evidence (${d.evidence.length})</h3>`+(d.evidence.length?d.evidence.map(x=>`<div class="record"><div class="record-head"><div class="record-title">${esc(x.claim_type||'claim')}</div><div>${x.confidence==null?'—':(x.confidence*100).toFixed(0)+'%'}</div></div><div class="record-body"><pre>${json(x.claim)}</pre><div>Observed: ${dt(x.observed_at)} · Event date: ${esc(x.event_date||'—')} · Source type: ${esc(x.source_type||'—')}</div>${x.source_url?`<a href="${esc(x.source_url)}" target="_blank" rel="noopener">Open evidence source</a>`:''}</div></div>`).join(''):'<div class="empty">No evidence records persisted.</div>')+`</div>`;
+ html+=`<div class="detail-section"><h3>Buying intent (${d.intent_signals.length})</h3>`+(d.intent_signals.length?d.intent_signals.map(x=>`<div class="record"><div class="record-head"><div class="record-title">${esc(x.signal_type)}</div><div>${x.confidence==null?'—':(x.confidence*100).toFixed(0)+'%'}</div></div><div class="record-body">Signal date: ${esc(x.signal_date||'—')} · Detected: ${dt(x.detected_at)}<br>Weight: ${esc(x.weight)} · Half-life: ${esc(x.half_life_days)} days · Status: ${esc(x.status)}<br>Evidence link: ${x.evidence_id?esc(x.evidence_id):'<span class="warn">none</span>'}</div></div>`).join(''):'<div class="empty">No intent signals persisted.</div>')+`</div>`;
+ html+=`<div class="detail-section"><h3>Enrichment runs (${d.runs.length})</h3>`+(d.runs.length?d.runs.map(x=>`<div class="record"><div class="record-head"><div class="record-title">${esc(x.run_type)} · ${esc(x.provider)}</div><span class="pill ${esc(x.status)}">${esc(x.status)}</span></div><div class="record-body">Agent: ${esc(x.model_or_agent||'—')}<br>Started: ${dt(x.started_at)} · Completed: ${dt(x.completed_at)}${x.error_code?`<br><span class="bad">Error: ${esc(x.error_code)}</span>`:''}</div></div>`).join(''):'<div class="empty">No enrichment runs persisted.</div>')+`</div>`;
+ document.getElementById('detail').innerHTML=html;}
+async function load(){try{const r=await fetch('data.json?ts='+Date.now(),{cache:'no-store'});if(!r.ok)throw Error();DATA=await r.json();const m=DATA.metrics,q=DATA.quality,total=q.enriched;document.getElementById('updated').textContent='Snapshot: '+dt(DATA.generated_at);document.getElementById('companies').textContent=fmt(m.companies);document.getElementById('enriched').textContent=fmt(m.enriched_companies);document.getElementById('coverage').textContent=pct(m.enriched_companies,m.companies).toFixed(1)+'%';document.getElementById('scored').textContent=fmt(m.scored_companies);
+document.getElementById('qualityGrid').innerHTML=[metric('Company facts present',q.with_facts,total),metric('At least 1 evidence row',q.with_evidence,total),metric('At least 2 evidence rows',q.with_2plus_evidence,total),metric('Evidence has source URL',q.evidence_url_covered,total),metric('High-confidence evidence present',q.with_high_conf_evidence,total),metric('At least 1 decision maker',q.with_dm,total),metric('At least 2 decision makers',q.with_2plus_dm,total),metric('Decision maker has linked evidence',q.with_dm_evidence,total),metric('Companies with intent signal',q.with_intent,total),metric('Intent linked to evidence',q.intent_evidence_linked,Math.max(q.with_intent,1)),metric('Intent signals dated',q.intent_dated,Math.max(q.with_intent,1)),metric('Companies with DM email candidate',q.with_dm_email,total),metric('Companies with verified DM email',q.with_verified_dm_email,total),metric('Company score present',q.with_score,total)].join('');
+const alerts=[];if(q.with_evidence<total)alerts.push(`<div class="alert bad">${fmt(total-q.with_evidence)} completed companies have no persisted evidence.</div>`);if(q.with_2plus_evidence<total)alerts.push(`<div class="alert warn">${fmt(total-q.with_2plus_evidence)} completed companies have fewer than 2 evidence rows.</div>`);if(q.with_dm<total)alerts.push(`<div class="alert warn">${fmt(total-q.with_dm)} completed companies have no decision maker record.</div>`);if(q.with_2plus_dm<total)alerts.push(`<div class="alert warn">${fmt(total-q.with_2plus_dm)} completed companies have fewer than 2 decision makers.</div>`);if(q.with_intent>0&&q.intent_evidence_linked<q.with_intent)alerts.push(`<div class="alert bad">${fmt(q.with_intent-q.intent_evidence_linked)} intent-bearing companies have no intent evidence link.</div>`);if(q.with_dm_email===0)alerts.push('<div class="alert warn">No decision-maker email candidates are currently persisted.</div>');document.getElementById('alerts').innerHTML=alerts.join('')||'<div class="good">No observed gaps in the displayed checks.</div>';
+document.getElementById('qualityTable').innerHTML=DATA.quality_companies.map(x=>`<tr><td><strong>${esc(x.name)}</strong><br><span class="note">${esc(x.domain)}</span></td><td>${fmt(x.evidence)} / ${fmt(x.evidence_with_url)} URL</td><td>${(x.avg_evidence_conf*100).toFixed(0)}%</td><td>${fmt(x.decision_makers)}</td><td>${fmt(x.dm_with_evidence)}</td><td>${fmt(x.intent_signals)}</td><td>${fmt(x.intent_with_evidence)}</td><td>${x.dm_email_candidates?fmt(x.dm_email_candidates):'—'}</td><td>${x.has_facts?'yes':'no'}</td><td>${x.has_score?'yes':'no'}</td></tr>`).join('');
+document.getElementById('companiesTable').innerHTML=DATA.recent_companies.map(x=>`<tr><td>${esc(x.name)}</td><td>${esc(x.domain)}</td><td class="${esc(x.status)}"><span class="pill">${esc(x.status)}</span></td><td>${dt(x.completed_at)}</td><td>${fmt(x.evidence)}</td><td>${fmt(x.decision_makers)}</td><td>${fmt(x.intent_signals)}</td></tr>`).join('');document.getElementById('runsTable').innerHTML=DATA.recent_runs.map(x=>`<tr><td>${esc(x.company_name)}</td><td>${esc(x.provider)}</td><td class="${esc(x.status)}"><span class="pill">${esc(x.status)}</span></td><td>${dt(x.started_at)}</td><td>${dt(x.completed_at)}</td></tr>`).join('');renderList();document.getElementById('companySearch').oninput=renderList();}catch(e){document.getElementById('updated').textContent='Unable to load current snapshot';}}
 load();
-</script>
-</body>
-</html>
+</script></body></html>
