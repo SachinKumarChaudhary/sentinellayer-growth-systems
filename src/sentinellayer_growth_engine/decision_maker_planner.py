@@ -30,6 +30,7 @@ def plan_buyer_roles(
                 1,
                 "Security leadership overrides company-size ordering.",
             )
+        )
 
     if corporate_owned:
         roles.append(BuyerRole("parent_operator", ("Operating Partner", "Operating Executive", "Portfolio Operations"), 2, "Corporate/PE-owned accounts may route through the parent operating layer."))
