@@ -9,9 +9,6 @@ def _dm(name: str, title: str, family: str, priority: int, status: str = "unknow
         normalized_value=f"{name.lower().replace(' ', '.')}@example.com",
     )
     if status != "unknown":
-        # Verified/invalid/stale are validation-pipeline states, not AI input states.
-        # model_copy preserves the already-validated contract while simulating the
-        # state after the verification boundary for ranking tests.
         contact = contact.model_copy(update={"verification_status": status})
     return DecisionMaker(
         full_name=name,
@@ -40,17 +37,16 @@ def test_ranking_prefers_security_and_verified_contacts() -> None:
     assert ranked[0].score > ranked[1].score
 
 
-def test_ciso_is_suppressed_and_never_ranked_as_eligible() -> None:
+def test_ciso_is_first_security_owner_target() -> None:
     ranked = rank_decision_makers(
         [
             _dm("CISO", "CISO", "security", 1, "verified"),
             _dm("Identity Head", "Head of Identity", "identity", 2, "verified"),
         ]
     )
-    assert ranked[0].decision_maker.full_name == "Identity Head"
-    ciso = next(item for item in ranked if item.decision_maker.full_name == "CISO")
-    assert ciso.eligible is False
-    assert ciso.reason == "ciso_suppressed_by_policy"
+    assert ranked[0].decision_maker.full_name == "CISO"
+    assert ranked[0].eligible is True
+    assert ranked[0].reason == "security_owner_priority"
 
 
 def test_limit_keeps_operator_queue_bounded() -> None:

@@ -35,7 +35,9 @@ class EnrichmentRepository:
                 self._upsert_company_facts(cur, packet, now)
                 self._upsert_company_contacts(cur, packet, now)
                 decision_maker_ids = self._upsert_decision_makers(cur, packet, now)
-                self._insert_packet_evidence(cur, packet, enrichment_run_id, now)
+                self._insert_packet_evidence(
+                    cur, packet, enrichment_run_id, now, decision_maker_ids=decision_maker_ids
+                )
                 self._insert_intent_signals(cur, packet, now)
                 score = self._upsert_company_score(cur, packet, now)
                 self._complete_run(cur, enrichment_run_id, now)
@@ -200,12 +202,24 @@ class EnrichmentRepository:
 
     @staticmethod
     def _insert_packet_evidence(
-        cur: Any, packet: EnrichmentPacket, enrichment_run_id: Any, now: datetime
+        cur: Any,
+        packet: EnrichmentPacket,
+        enrichment_run_id: Any,
+        now: datetime,
+        *,
+        decision_maker_ids: dict[str, Any] | None = None,
     ) -> None:
+        decision_maker_ids = decision_maker_ids or {}
         for decision_maker in packet.decision_makers:
+            decision_maker_id = decision_maker_ids.get(decision_maker.full_name.casefold())
             for evidence in decision_maker.evidence:
                 EnrichmentRepository._insert_evidence(
-                    cur, evidence, packet.company_id, enrichment_run_id, now
+                    cur,
+                    evidence,
+                    packet.company_id,
+                    enrichment_run_id,
+                    now,
+                    decision_maker_id=decision_maker_id,
                 )
         for company_contact in packet.company_contacts:
             for evidence in company_contact.evidence:

@@ -80,18 +80,6 @@ def rank_decision_makers(
 
     ranked: list[RankedDecisionMaker] = []
     for decision_maker in decision_makers:
-        title = _normalized_title(decision_maker.title)
-        if title in CISO_TITLES:
-            ranked.append(
-                RankedDecisionMaker(
-                    decision_maker=decision_maker,
-                    score=0.0,
-                    eligible=False,
-                    reason="ciso_suppressed_by_policy",
-                )
-            )
-            continue
-
         score = _role_score(decision_maker)
         score += _seniority_score(decision_maker.title)
         score += _verification_score(decision_maker)
@@ -99,20 +87,28 @@ def rank_decision_makers(
         if decision_maker.role_priority is not None:
             score += max(0.0, 6.0 - min(decision_maker.role_priority, 6))
 
+        title = _normalized_title(decision_maker.title)
+        reason = "ranked_for_human_review"
+        if title in CISO_TITLES:
+            reason = "security_owner_priority"
+
         ranked.append(
             RankedDecisionMaker(
                 decision_maker=decision_maker,
                 score=round(score, 2),
                 eligible=True,
-                reason="ranked_for_human_review",
+                reason=reason,
             )
         )
 
+    # The playbook makes an actual CISO a hard ordering rule, not merely a
+    # scoring preference. Keep the normal score ordering for all other roles.
     ranked.sort(
         key=lambda item: (
-            item.eligible,
+            _normalized_title(item.decision_maker.title) in CISO_TITLES,
             item.score,
-            item.decision_maker.role_priority or 999,
+            item.decision_maker.role_priority is not None,
+            -(item.decision_maker.role_priority or 999),
             item.decision_maker.full_name.lower(),
         ),
         reverse=True,
