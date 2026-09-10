@@ -93,10 +93,31 @@ def test_decision_maker_and_contact_upsert_use_canonical_relationship() -> None:
     repository = EnrichmentRepository(lambda: None)  # type: ignore[arg-type]
     ids = repository._upsert_decision_makers(cursor, _packet(), datetime.now(UTC))
 
-    assert ids["jane doe"] == decision_maker_id
+    assert ids["jane doe::cto"] == decision_maker_id
     assert "growth.decision_makers" in cursor.executed[0][0]
     assert "growth.decision_maker_contact_methods" in cursor.executed[1][0]
     assert cursor.executed[1][1][0] == decision_maker_id
+
+
+def test_same_name_different_titles_receive_distinct_persistence_keys() -> None:
+    packet = _packet()
+    packet.decision_makers.append(
+        DecisionMaker(
+            full_name="Jane Doe",
+            title="CPO",
+            role_family="product",
+            role_priority=2,
+            confidence=0.8,
+        )
+    )
+    ids = [uuid4(), uuid4()]
+    cursor = FakeCursor(rows=[(ids[0],), (ids[1],)])
+    repository = EnrichmentRepository(lambda: None)  # type: ignore[arg-type]
+
+    result = repository._upsert_decision_makers(cursor, packet, datetime.now(UTC))
+
+    assert result["jane doe::cto"] == ids[0]
+    assert result["jane doe::cpo"] == ids[1]
 
 
 def test_decision_maker_evidence_is_linked_to_persisted_decision_maker_id() -> None:
@@ -109,7 +130,7 @@ def test_decision_maker_evidence_is_linked_to_persisted_decision_maker_id() -> N
         _packet(),
         uuid4(),
         datetime.now(UTC),
-        decision_maker_ids={"jane doe": decision_maker_id},
+        decision_maker_ids={"jane doe::cto": decision_maker_id},
     )
 
     query, params = cursor.executed[0]
