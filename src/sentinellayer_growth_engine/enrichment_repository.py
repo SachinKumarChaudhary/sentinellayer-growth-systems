@@ -71,10 +71,14 @@ class EnrichmentRepository:
                  ownership_type, india_bridge, data_sensitivity, updated_at)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (company_id) DO UPDATE SET
-                employee_count = EXCLUDED.employee_count, monthly_sessions = EXCLUDED.monthly_sessions,
-                has_login = EXCLUDED.has_login, vertical = EXCLUDED.vertical,
-                ownership_type = EXCLUDED.ownership_type, india_bridge = EXCLUDED.india_bridge,
-                data_sensitivity = EXCLUDED.data_sensitivity, updated_at = EXCLUDED.updated_at
+                employee_count = COALESCE(EXCLUDED.employee_count, intelligence.company_facts.employee_count),
+                monthly_sessions = COALESCE(EXCLUDED.monthly_sessions, intelligence.company_facts.monthly_sessions),
+                has_login = CASE WHEN EXCLUDED.has_login THEN TRUE ELSE intelligence.company_facts.has_login END,
+                vertical = COALESCE(EXCLUDED.vertical, intelligence.company_facts.vertical),
+                ownership_type = COALESCE(EXCLUDED.ownership_type, intelligence.company_facts.ownership_type),
+                india_bridge = CASE WHEN EXCLUDED.india_bridge THEN TRUE ELSE intelligence.company_facts.india_bridge END,
+                data_sensitivity = COALESCE(EXCLUDED.data_sensitivity, intelligence.company_facts.data_sensitivity),
+                updated_at = EXCLUDED.updated_at
             """, (packet.company_id, facts.employee_count, facts.monthly_sessions, facts.has_login,
                    facts.vertical, facts.ownership_type, facts.india_bridge, facts.data_sensitivity, now))
 
@@ -154,7 +158,7 @@ class EnrichmentRepository:
     @staticmethod
     def _insert_evidence(cur: Any, evidence: Evidence, company_id: int, enrichment_run_id: Any, now: datetime, *, decision_maker_id: Any = None) -> None:
         payload = evidence.model_dump(mode="json")
-        evidence_hash = EnrichmentRepository._hash_evidence(payload)
+        evidence_hash = EnrichmentRepository._hash_evidence(payload, company_id=company_id, decision_maker_id=decision_maker_id)
         cur.execute("""
             INSERT INTO intelligence.evidence
                 (company_id, enrichment_run_id, decision_maker_id, claim_type, claim,
@@ -202,8 +206,18 @@ class EnrichmentRepository:
         return score.__dict__
 
     @staticmethod
-    def _hash_evidence(payload: dict[str, Any]) -> str:
-        canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
+    def _hash_evidence(payload: dict[str, Any], *, company_id: int | None = None, decision_maker_id: Any = None) -> str:
+        """Hash stable evidence identity, not volatile observation metadata."""
+        stable_payload = {
+            "company_id": company_id,
+            "decision_maker_id": str(decision_maker_id) if decision_maker_id is not None else None,
+            "claim_type": payload.get("claim_type"),
+            "claim": payload.get("claim", {}),
+            "source_url": payload.get("source_url"),
+            "source_type": payload.get("source_type"),
+            "event_date": payload.get("event_date"),
+        }
+        canonical = json.dumps(stable_payload, sort_keys=True, separators=(",", ":"), default=str)
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
     @staticmethod
