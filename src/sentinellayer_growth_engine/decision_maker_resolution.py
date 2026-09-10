@@ -38,7 +38,7 @@ def normalize_linkedin_url(value: str) -> str | None:
         raw = "https://" + raw
     parsed = urlparse(raw)
     host = parsed.netloc.lower().removeprefix("www.")
-    if host != "linkedin.com" or not _LINKEDIN_PROFILE_RE.match(parsed.path):
+    if host not in _LINKEDIN_HOSTS or not _LINKEDIN_PROFILE_RE.match(parsed.path):
         return None
     slug = parsed.path.rstrip("/").split("/")[-1]
     safe_query = [(k, v) for k, v in parse_qsl(parsed.query, keep_blank_values=False) if k in {"locale"}]
@@ -105,12 +105,12 @@ def score_identity(
     if former_employee:
         score -= 0.30
         reasons.append("former_employee_penalty")
+    elif stale_employment:
+        score -= 0.15
+        reasons.append("stale_employment_penalty")
     if ambiguous_name:
         score -= 0.20
         reasons.append("ambiguous_name_penalty")
-    if stale_employment:
-        score -= 0.15
-        reasons.append("stale_employment_penalty")
     return max(0.0, min(1.0, score)), tuple(reasons)
 
 
