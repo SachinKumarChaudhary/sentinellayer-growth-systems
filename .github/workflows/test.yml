@@ -69,3 +69,4 @@ jobs:
 # CI validation trigger for conversation-analysis changes.
 # Final provider smoke trigger after sales task binding fix.
 # Final multichannel growth foundation validation trigger.
+# Validate the current decision-maker resolution branch head.
