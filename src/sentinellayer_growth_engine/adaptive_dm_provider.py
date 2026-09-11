@@ -65,7 +65,7 @@ class AdaptiveDecisionMakerProvider(ResolvedTinyFishProvider):
                 )
                 TinyFishEnrichmentProvider._augment_decision_makers_from_search(
                     packet,
-                    [(f"decision_maker_role_{role.key}", results)],
+                    [("decision_makers", results)],
                     packet.domain,
                     company_label,
                     datetime.now(UTC),
