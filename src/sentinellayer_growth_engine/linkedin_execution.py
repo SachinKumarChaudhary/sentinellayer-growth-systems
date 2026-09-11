@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Mapping
+from typing import Any
 
 from .linkedin_outreach import LinkedInContact, LinkedInProvider, LinkedInTouchpoint, OperatorProvider
 
@@ -27,13 +28,7 @@ def execute_touchpoint(
     touchpoint: LinkedInTouchpoint,
     now: datetime,
 ) -> ExecutionResult:
-    """Execute one already-approved LinkedIn touchpoint through a provider.
-
-    The function deliberately has no database side effects. Callers persist the
-    returned provider result and execution attempt in the canonical tables.
-    OperatorProvider is the default safe path when no real provider capability
-    exists; it never claims that an action was sent.
-    """
+    """Execute one already-approved LinkedIn touchpoint through a provider."""
     if now.tzinfo is None:
         raise LinkedInExecutionError("now must be timezone-aware")
     if touchpoint.channel != "linkedin":
@@ -65,7 +60,6 @@ def execute_touchpoint(
         raise LinkedInExecutionError(f"unsupported touchpoint type: {action!r}")
 
     if required_capability not in capabilities:
-        # Never call a provider method that it has not declared capable of.
         operator = OperatorProvider()
         result = (
             operator.send_connection_request(linkedin_url=contact.linkedin_url, message=message)
