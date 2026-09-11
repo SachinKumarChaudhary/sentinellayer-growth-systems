@@ -45,12 +45,29 @@ def _title_matches(dm: DecisionMaker) -> bool:
 
 
 def _person_evidence(evidence: Evidence, full_name: str) -> bool:
-    """Require the company URL to actually attest to this person, not merely the company."""
+    """Require the source claim to attest to this person, not merely the company."""
     claim = evidence.claim or {}
     name = str(claim.get("name") or claim.get("full_name") or "").strip()
     if not name:
         return False
     return _normalize_name(name) == _normalize_name(full_name)
+
+
+def _employment_flags(evidence: list[Evidence]) -> tuple[bool, bool]:
+    """Detect explicit former/stale employment markers without guessing from age alone."""
+    former = False
+    stale = False
+    for item in evidence:
+        claim = item.claim or {}
+        claim_type = (item.claim_type or "").casefold()
+        text = " ".join(str(value).casefold() for value in claim.values())
+        if any(token in claim_type or token in text for token in ("former", "ex-", "previous employer", "past employer")):
+            former = True
+        if any(key in claim for key in ("end_date", "ended_at", "employment_end")):
+            stale = True
+        if claim.get("current") is False or claim.get("is_current") is False:
+            stale = True
+    return former, stale
 
 
 def _linkedin_contact(dm: DecisionMaker) -> tuple[str | None, object | None]:
@@ -68,13 +85,10 @@ def _candidate_from_decision_maker(dm: DecisionMaker, packet: EnrichmentPacket) 
     source_urls = tuple(
         dict.fromkeys(
             [e.source_url for e in dm.evidence if e.source_url]
-            + [
-                source_url
-                for source_url in [getattr(linkedin_contact, "source_url", None)]
-                if source_url
-            ]
+            + [getattr(linkedin_contact, "source_url", None)]
         )
     )
+    source_urls = tuple(url for url in source_urls if url)
     source_types = tuple(dict.fromkeys(e.source_type for e in dm.evidence if e.source_type))
     person_evidence = [e for e in dm.evidence if _person_evidence(e, dm.full_name)]
     non_linkedin_hosts = {
@@ -82,9 +96,7 @@ def _candidate_from_decision_maker(dm: DecisionMaker, packet: EnrichmentPacket) 
         for url in [e.source_url for e in person_evidence if e.source_url]
         if url and _host(url) not in {"linkedin.com"}
     }
-    company_site_support = any(
-        _domain_matches(e.source_url, packet.domain) for e in person_evidence
-    )
+    company_site_support = any(_domain_matches(e.source_url, packet.domain) for e in person_evidence)
     independent_support = len(non_linkedin_hosts) >= 2
     name_observation_count = len(non_linkedin_hosts)
     name_matches = _linkedin_slug_matches_name(linkedin_url, dm.full_name) or name_observation_count >= 2
@@ -94,12 +106,16 @@ def _candidate_from_decision_maker(dm: DecisionMaker, packet: EnrichmentPacket) 
         and (
             str(e.claim.get("company_domain", "")).casefold().removeprefix("www.")
             == packet.domain.casefold().removeprefix("www.")
-            or str(e.claim.get("company_name", "")).casefold() == packet.merchant_name.casefold()
-            if packet.merchant_name
-            else False
+            or (
+                packet.merchant_name
+                and str(e.claim.get("company_name", "")).casefold() == packet.merchant_name.casefold()
+            )
         )
         for e in person_evidence
     )
+    former_employee, stale_employment = _employment_flags(person_evidence)
+    if former_employee or stale_employment:
+        current_company_matches = False
     title_matches = _title_matches(dm)
     identity, reasons = score_identity(
         name_matches=name_matches,
@@ -107,8 +123,12 @@ def _candidate_from_decision_maker(dm: DecisionMaker, packet: EnrichmentPacket) 
         title_matches=title_matches,
         company_site_supports_person=company_site_support,
         independent_source_supports_person=independent_support,
+        former_employee=former_employee,
+        stale_employment=stale_employment,
     )
-    if company_site_support and independent_support:
+    if former_employee or stale_employment:
+        employer_confidence = 0.0
+    elif company_site_support and independent_support:
         employer_confidence = 0.95
     elif company_site_support:
         employer_confidence = 0.85
@@ -118,11 +138,7 @@ def _candidate_from_decision_maker(dm: DecisionMaker, packet: EnrichmentPacket) 
         employer_confidence = 0.0
     linkedin_confidence = 0.95 if linkedin_url and _linkedin_slug_matches_name(linkedin_url, dm.full_name) else (0.80 if linkedin_url else 0.0)
     overall = min(1.0, identity * 0.65 + employer_confidence * 0.20 + linkedin_confidence * 0.15)
-    status = outreach_status(
-        overall,
-        linkedin_url=linkedin_url,
-        current_company_confidence=employer_confidence,
-    )
+    status = outreach_status(overall, linkedin_url=linkedin_url, current_company_confidence=employer_confidence)
     return DecisionMakerCandidate(
         full_name=dm.full_name,
         title=dm.title,
@@ -146,10 +162,7 @@ def resolve_decision_makers(packet: EnrichmentPacket) -> EnrichmentPacket:
     resolved = packet.model_copy(deep=True)
     candidates = [_candidate_from_decision_maker(dm, resolved) for dm in resolved.decision_makers]
     ranked = rank_candidates(candidates)
-    by_key = {
-        (c.full_name.casefold(), (c.title or "").casefold()): c
-        for c in ranked
-    }
+    by_key = {(c.full_name.casefold(), (c.title or "").casefold()): c for c in ranked}
     output: list[DecisionMaker] = []
 
     for dm in resolved.decision_makers:
@@ -167,44 +180,35 @@ def resolve_decision_makers(packet: EnrichmentPacket) -> EnrichmentPacket:
                     break
             if not linkedin_found:
                 from .enrichment_contracts import ContactMethod
-
-                contacts.append(
-                    ContactMethod(
-                        channel="linkedin",
-                        value=candidate.linkedin_url,
-                        normalized_value=candidate.linkedin_url,
-                        source="deterministic_resolution",
-                        source_url=candidate.linkedin_url,
-                        verification_status="candidate",
-                        confidence=candidate.linkedin_confidence,
-                    )
-                )
+                contacts.append(ContactMethod(
+                    channel="linkedin",
+                    value=candidate.linkedin_url,
+                    normalized_value=candidate.linkedin_url,
+                    source="deterministic_resolution",
+                    source_url=candidate.linkedin_url,
+                    verification_status="candidate",
+                    confidence=candidate.linkedin_confidence,
+                ))
         evidence = list(dm.evidence)
         if candidate.source_urls:
-            evidence.append(
-                Evidence(
-                    claim_type="decision_maker_identity_resolution",
-                    claim={
-                        "identity_confidence": round(candidate.identity_confidence, 4),
-                        "current_employer_confidence": round(candidate.current_employer_confidence, 4),
-                        "linkedin_confidence": round(candidate.linkedin_confidence, 4),
-                        "outreach_status": candidate.status,
-                        "reasons": list(candidate.reasons),
-                    },
-                    source_url=candidate.source_urls[0],
-                    source_type="deterministic_resolution",
-                    confidence=candidate.overall_confidence,
-                )
-            )
-        output.append(
-            dm.model_copy(
-                update={
-                    "confidence": candidate.overall_confidence,
-                    "contacts": contacts,
-                    "evidence": evidence,
-                }
-            )
-        )
+            evidence.append(Evidence(
+                claim_type="decision_maker_identity_resolution",
+                claim={
+                    "identity_confidence": round(candidate.identity_confidence, 4),
+                    "current_employer_confidence": round(candidate.current_employer_confidence, 4),
+                    "linkedin_confidence": round(candidate.linkedin_confidence, 4),
+                    "outreach_status": candidate.status,
+                    "reasons": list(candidate.reasons),
+                },
+                source_url=candidate.source_urls[0],
+                source_type="deterministic_resolution",
+                confidence=candidate.overall_confidence,
+            ))
+        output.append(dm.model_copy(update={
+            "confidence": candidate.overall_confidence,
+            "contacts": contacts,
+            "evidence": evidence,
+        }))
 
     resolved.decision_makers = sorted(
         output,
