@@ -4,8 +4,29 @@ from datetime import UTC, datetime
 
 from .decision_maker_pipeline import ResolvedTinyFishProvider, resolve_decision_makers
 from .dm_discovery import discovery_query_plan
-from .enrichment_contracts import EnrichmentPacket
+from .enrichment_contracts import DecisionMaker, EnrichmentPacket
 from .tinyfish_enrichment import TinyFishEnrichmentProvider
+
+
+def _role_key_for_candidate(dm: DecisionMaker) -> str | None:
+    """Map an existing candidate's role/title to the discovery planner family."""
+    if dm.role_family:
+        return dm.role_family.strip().lower()
+    title = (dm.title or "").casefold()
+    if not title:
+        return None
+    role_aliases = {
+        "security": ("ciso", "chief information security officer", "head of security", "vp security"),
+        "technology": ("cto", "chief technology officer", "vp engineering", "head of engineering", "vp technology"),
+        "executive": ("ceo", "chief executive officer", "founder", "co-founder", "president"),
+        "product": ("cpo", "chief product officer", "vp product", "head of product"),
+        "operations": ("coo", "chief operating officer", "vp operations", "head of operations"),
+        "finance": ("cfo", "chief financial officer", "vp finance", "procurement", "head of procurement"),
+    }
+    for role_key, aliases in role_aliases.items():
+        if any(alias in title for alias in aliases):
+            return role_key
+    return None
 
 
 class AdaptiveDecisionMakerProvider(ResolvedTinyFishProvider):
@@ -25,7 +46,11 @@ class AdaptiveDecisionMakerProvider(ResolvedTinyFishProvider):
             employee_count=employee_count,
             has_login=has_login,
         )
-        existing_roles = {dm.role_family for dm in packet.decision_makers if dm.role_family}
+        existing_roles = {
+            role_key
+            for dm in packet.decision_makers
+            if (role_key := _role_key_for_candidate(dm)) is not None
+        }
         client = getattr(self._provider, "_client", None)
         if client is None:
             return resolve_decision_makers(packet)
@@ -45,7 +70,11 @@ class AdaptiveDecisionMakerProvider(ResolvedTinyFishProvider):
                     company_label,
                     datetime.now(UTC),
                 )
-                existing_roles = {dm.role_family for dm in packet.decision_makers if dm.role_family}
+                existing_roles = {
+                    role_key
+                    for dm in packet.decision_makers
+                    if (role_key := _role_key_for_candidate(dm)) is not None
+                }
                 if role.key in existing_roles or alias_index == 1:
                     break
 
