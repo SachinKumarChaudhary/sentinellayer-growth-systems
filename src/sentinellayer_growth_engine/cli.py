@@ -8,9 +8,9 @@ from pathlib import Path
 
 import psycopg
 
+from .adaptive_dm_provider import AdaptiveDecisionMakerProvider
 from .config import Settings
 from .db import Database
-from .decision_maker_pipeline import ResolvedTinyFishProvider
 from .enrichment_contracts import EnrichmentBatch
 from .enrichment_repository import EnrichmentRepository
 from .health import check as health_check
@@ -94,8 +94,8 @@ def _tinyfish_client(settings: Settings) -> TinyFishClient:
     )
 
 
-def _resolved_tinyfish_provider(settings: Settings) -> ResolvedTinyFishProvider:
-    return ResolvedTinyFishProvider(TinyFishEnrichmentProvider(_tinyfish_client(settings)))
+def _resolved_tinyfish_provider(settings: Settings) -> AdaptiveDecisionMakerProvider:
+    return AdaptiveDecisionMakerProvider(TinyFishEnrichmentProvider(_tinyfish_client(settings)))
 
 
 def cmd_enrichment_research(args: argparse.Namespace) -> int:
