@@ -1,3 +1,3 @@
 RUN-CONVERSATION-ANALYSIS
-fix=387c98f644faf8f9a75377f417fa56b350ec1946
-diagnostic=dm-linkedin-mypy-retrigger
+fix=e099024c9a17f3e1da6235b2f250bc468fcfef33
+diagnostic=dm-linkedin-adaptive-parser-fix
