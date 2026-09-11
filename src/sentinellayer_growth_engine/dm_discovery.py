@@ -34,11 +34,10 @@ def buyer_roles_for_company(*, employee_count: int | None, has_login: bool | Non
             roles.extend(BUYER_ROLES[4:6])
         elif employee_count >= 100:
             roles.append(BUYER_ROLES[4])
-    if has_login:
+    if has_login and BUYER_ROLES[3] not in roles:
         # Product/technology are useful for account/authentication surfaces, but
         # do not displace security or executive roles.
-        if BUYER_ROLES[3] not in roles:
-            roles.append(BUYER_ROLES[3])
+        roles.append(BUYER_ROLES[3])
     return tuple(sorted(set(roles), key=lambda role: role.priority))
 
 
