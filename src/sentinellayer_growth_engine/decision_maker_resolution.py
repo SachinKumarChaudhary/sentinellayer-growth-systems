@@ -115,11 +115,19 @@ def score_identity(
     return max(0.0, min(1.0, score)), tuple(reasons)
 
 
-def outreach_status(confidence: float, *, linkedin_url: str | None, current_company_confidence: float) -> str:
+def outreach_status(
+    confidence: float,
+    *,
+    linkedin_url: str | None,
+    current_company_confidence: float,
+    title_confidence: float = 1.0,
+) -> str:
     """Determine the operational state before a person is eligible for outreach."""
     if not linkedin_url:
         return "review"
     if current_company_confidence < 0.75:
+        return "review"
+    if title_confidence < 0.75:
         return "review"
     if confidence >= 0.90:
         return "outreach_ready"
