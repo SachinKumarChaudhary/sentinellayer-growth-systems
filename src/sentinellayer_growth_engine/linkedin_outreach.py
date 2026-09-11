@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Mapping, Protocol, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Mapping, Protocol, Sequence
+from typing import Any
 from urllib.parse import urlparse
 from uuid import UUID, uuid4
 
