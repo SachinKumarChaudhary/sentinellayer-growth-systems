@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from .decision_maker_pipeline import ResolvedTinyFishProvider
+from .decision_maker_pipeline import ResolvedTinyFishProvider, resolve_decision_makers
 from .dm_discovery import discovery_query_plan
 from .enrichment_contracts import EnrichmentPacket
 from .tinyfish_enrichment import TinyFishEnrichmentProvider
@@ -28,7 +28,7 @@ class AdaptiveDecisionMakerProvider(ResolvedTinyFishProvider):
         existing_roles = {dm.role_family for dm in packet.decision_makers if dm.role_family}
         client = getattr(self._provider, "_client", None)
         if client is None:
-            return packet
+            return resolve_decision_makers(packet)
 
         for role, queries in plan:
             if role.key in existing_roles:
@@ -49,4 +49,4 @@ class AdaptiveDecisionMakerProvider(ResolvedTinyFishProvider):
                 if role.key in existing_roles or alias_index == 1:
                     break
 
-        return packet
+        return resolve_decision_makers(packet)
