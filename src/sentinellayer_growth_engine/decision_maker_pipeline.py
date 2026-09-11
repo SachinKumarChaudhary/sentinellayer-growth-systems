@@ -99,7 +99,8 @@ def _candidate_from_decision_maker(dm: DecisionMaker, packet: EnrichmentPacket) 
     company_site_support = any(_domain_matches(e.source_url, packet.domain) for e in person_evidence)
     independent_support = len(non_linkedin_hosts) >= 2
     name_observation_count = len(non_linkedin_hosts)
-    name_matches = _linkedin_slug_matches_name(linkedin_url, dm.full_name) or name_observation_count >= 2
+    linkedin_name_match = _linkedin_slug_matches_name(linkedin_url, dm.full_name)
+    name_matches = linkedin_name_match or name_observation_count >= 2
     current_company_matches = company_site_support or any(
         ("company" in (e.claim_type or "").casefold())
         and bool(e.claim.get("company_name") or e.claim.get("company_domain"))
@@ -125,6 +126,7 @@ def _candidate_from_decision_maker(dm: DecisionMaker, packet: EnrichmentPacket) 
         independent_source_supports_person=independent_support,
         former_employee=former_employee,
         stale_employment=stale_employment,
+        ambiguous_name=bool(linkedin_url and not linkedin_name_match),
     )
     if former_employee or stale_employment:
         employer_confidence = 0.0
@@ -136,7 +138,7 @@ def _candidate_from_decision_maker(dm: DecisionMaker, packet: EnrichmentPacket) 
         employer_confidence = 0.75
     else:
         employer_confidence = 0.0
-    linkedin_confidence = 0.95 if linkedin_url and _linkedin_slug_matches_name(linkedin_url, dm.full_name) else (0.80 if linkedin_url else 0.0)
+    linkedin_confidence = 0.95 if linkedin_url and linkedin_name_match else (0.80 if linkedin_url else 0.0)
     overall = min(1.0, identity * 0.65 + employer_confidence * 0.20 + linkedin_confidence * 0.15)
     status = outreach_status(overall, linkedin_url=linkedin_url, current_company_confidence=employer_confidence)
     return DecisionMakerCandidate(
