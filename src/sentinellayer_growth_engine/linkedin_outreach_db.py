@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from typing import Any, Mapping
 from uuid import UUID
@@ -89,7 +90,7 @@ class LinkedInOutreachDatabase:
                          provider, idempotency_key, metadata)
                     values
                         (%s, %s, %s, %s, 'linkedin', %s, %s, %s,
-                         %s, %s, %s)
+                         %s, %s, %s::jsonb)
                     on conflict (idempotency_key) do nothing
                     """,
                     (
@@ -102,7 +103,7 @@ class LinkedInOutreachDatabase:
                         point.scheduled_at,
                         "operator",
                         point.idempotency_key,
-                        metadata,
+                        json.dumps(metadata),
                     ),
                 )
                 inserted += cur.rowcount
@@ -192,7 +193,7 @@ class LinkedInOutreachDatabase:
                     status,
                     provider,
                     provider_reference,
-                    dict(metadata),
+                    json.dumps(dict(metadata)),
                     executed_at,
                     touchpoint_id,
                 ),
