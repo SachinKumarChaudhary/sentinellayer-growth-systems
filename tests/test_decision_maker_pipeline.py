@@ -114,3 +114,19 @@ def test_former_employee_evidence_is_not_outreach_ready() -> None:
     packet.decision_makers[0].evidence[0] = Evidence(claim_type="former_leadership_person", claim={"name": "Jane Doe", "title": "Chief Technology Officer"}, source_url="https://example.com/alumni", source_type="tinyfish_fetch", observed_at=OBSERVED_AT, confidence=0.9)
     dm = resolve_decision_makers(packet).decision_makers[0]
     assert dm.confidence is not None and dm.confidence < 0.90
+
+
+def test_stale_operating_title_is_not_outreach_ready() -> None:
+    packet = _packet()
+    packet.decision_makers[0].evidence.append(Evidence(
+        claim_type="leadership_person",
+        claim={"name": "Jane Doe", "title": "Co-Founder, Non-Executive Board Director"},
+        source_url="https://craft.co/example/executives",
+        source_type="tinyfish_search",
+        observed_at=OBSERVED_AT,
+        confidence=0.9,
+    ))
+    dm = resolve_decision_makers(packet).decision_makers[0]
+    resolution = next(e for e in dm.evidence if e.claim_type == "decision_maker_identity_resolution")
+    assert resolution.claim["outreach_status"] == "review"
+    assert "current_title_conflict" in resolution.claim["reasons"]
