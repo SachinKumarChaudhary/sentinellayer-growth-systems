@@ -10,7 +10,7 @@ from .decision_maker_resolution import (
     rank_candidates,
     score_identity,
 )
-from .enrichment_contracts import DecisionMaker, EnrichmentPacket, Evidence
+from .enrichment_contracts import ContactMethod, DecisionMaker, EnrichmentPacket, Evidence
 
 
 def _host(value: str | None) -> str:
@@ -70,7 +70,7 @@ def _employment_flags(evidence: list[Evidence]) -> tuple[bool, bool]:
     return former, stale
 
 
-def _linkedin_contact(dm: DecisionMaker) -> tuple[str | None, object | None]:
+def _linkedin_contact(dm: DecisionMaker) -> tuple[str | None, ContactMethod | None]:
     for contact in dm.contacts:
         if contact.channel != "linkedin":
             continue
@@ -82,13 +82,10 @@ def _linkedin_contact(dm: DecisionMaker) -> tuple[str | None, object | None]:
 
 def _candidate_from_decision_maker(dm: DecisionMaker, packet: EnrichmentPacket) -> DecisionMakerCandidate:
     linkedin_url, linkedin_contact = _linkedin_contact(dm)
-    source_urls = tuple(
-        dict.fromkeys(
-            [e.source_url for e in dm.evidence if e.source_url]
-            + [getattr(linkedin_contact, "source_url", None)]
-        )
-    )
-    source_urls = tuple(url for url in source_urls if url)
+    observed_urls = [e.source_url for e in dm.evidence if e.source_url]
+    if linkedin_contact and linkedin_contact.source_url:
+        observed_urls.append(linkedin_contact.source_url)
+    source_urls = tuple(dict.fromkeys(observed_urls))
     source_types = tuple(dict.fromkeys(e.source_type for e in dm.evidence if e.source_type))
     person_evidence = [e for e in dm.evidence if _person_evidence(e, dm.full_name)]
     non_linkedin_hosts = {
@@ -181,7 +178,6 @@ def resolve_decision_makers(packet: EnrichmentPacket) -> EnrichmentPacket:
                     linkedin_found = True
                     break
             if not linkedin_found:
-                from .enrichment_contracts import ContactMethod
                 contacts.append(ContactMethod(
                     channel="linkedin",
                     value=candidate.linkedin_url,
