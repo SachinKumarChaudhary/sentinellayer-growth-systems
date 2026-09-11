@@ -187,3 +187,110 @@ def test_company_page_without_person_claim_does_not_count_as_person_support() ->
 
     assert dm.confidence is not None
     assert dm.confidence < 0.75
+
+
+def test_linkedin_slug_mismatch_blocks_outreach_ready() -> None:
+    packet = _packet(linkedin="https://www.linkedin.com/in/john-smith")
+    resolved = resolve_decision_makers(packet)
+    dm = resolved.decision_makers[0]
+
+    assert dm.contacts[0].normalized_value == "https://www.linkedin.com/in/john-smith"
+    assert dm.confidence is not None
+    assert dm.confidence < 0.90
+    assert dm.contacts[0].verification_status == "candidate"
+
+
+def test_linkedin_alone_does_not_prove_current_employer() -> None:
+    packet = EnrichmentPacket(
+        company_id=1,
+        domain="example.com",
+        merchant_name="Example",
+        decision_makers=[
+            DecisionMaker(
+                full_name="Jane Doe",
+                title="Chief Technology Officer",
+                contacts=[
+                    ContactMethod(
+                        channel="linkedin",
+                        value="https://www.linkedin.com/in/jane-doe",
+                        normalized_value="https://www.linkedin.com/in/jane-doe",
+                        source="tinyfish_search",
+                        source_url="https://www.linkedin.com/in/jane-doe",
+                    )
+                ],
+                evidence=[],
+            )
+        ],
+    )
+
+    resolved = resolve_decision_makers(packet)
+    dm = resolved.decision_makers[0]
+
+    assert dm.confidence is not None
+    assert dm.confidence < 0.75
+
+
+def test_person_evidence_for_wrong_company_does_not_establish_current_employer() -> None:
+    packet = EnrichmentPacket(
+        company_id=1,
+        domain="example.com",
+        merchant_name="Example",
+        decision_makers=[
+            DecisionMaker(
+                full_name="Jane Doe",
+                title="Chief Technology Officer",
+                contacts=[
+                    ContactMethod(
+                        channel="linkedin",
+                        value="https://www.linkedin.com/in/jane-doe",
+                        normalized_value="https://www.linkedin.com/in/jane-doe",
+                        source="tinyfish_search",
+                        source_url="https://www.linkedin.com/in/jane-doe",
+                    )
+                ],
+                evidence=[
+                    Evidence(
+                        claim_type="leadership_person_company",
+                        claim={"name": "Jane Doe", "company_name": "Other Corp", "company_domain": "other.com"},
+                        source_url="https://other.com/team",
+                        source_type="tinyfish_fetch",
+                        observed_at=OBSERVED_AT,
+                        confidence=0.95,
+                    ),
+                    Evidence(
+                        claim_type="leadership_person_company",
+                        claim={"name": "Jane Doe", "company_name": "Other Corp", "company_domain": "other.com"},
+                        source_url="https://www.crunchbase.com/person/jane-doe",
+                        source_type="tinyfish_search",
+                        observed_at=OBSERVED_AT,
+                        confidence=0.9,
+                    ),
+                ],
+            )
+        ],
+    )
+
+    resolved = resolve_decision_makers(packet)
+    dm = resolved.decision_makers[0]
+
+    assert dm.current_employer_confidence == 0.0
+    assert dm.confidence is not None
+    assert dm.confidence < 0.75
+
+
+def test_former_employee_evidence_is_not_outreach_ready() -> None:
+    packet = _packet()
+    packet.decision_makers[0].evidence[0] = Evidence(
+        claim_type="former_leadership_person",
+        claim={"name": "Jane Doe", "title": "Chief Technology Officer"},
+        source_url="https://example.com/alumni",
+        source_type="tinyfish_fetch",
+        observed_at=OBSERVED_AT,
+        confidence=0.9,
+    )
+
+    resolved = resolve_decision_makers(packet)
+    dm = resolved.decision_makers[0]
+
+    assert dm.confidence is not None
+    assert dm.confidence < 0.90
