@@ -36,8 +36,7 @@ def normalize_domain(value: str) -> str:
         v = urlsplit(v).hostname or v
     else:
         v = v.split("/", 1)[0]
-    if v.startswith("www."):
-        v = v[4:]
+    v = v.removeprefix("www.")
     return v.rstrip(".")
 
 
