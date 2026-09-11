@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+# Adaptive discovery intentionally stops a role after a successful alias match.
+
 from dataclasses import dataclass
 
 from sentinellayer_growth_engine.adaptive_dm_provider import AdaptiveDecisionMakerProvider
