@@ -57,7 +57,8 @@ def test_adaptive_provider_keeps_role_budget_bounded_when_no_results() -> None:
     provider.build_packet(company_id=1, domain="example.com", merchant_name="Example")
 
     role_queries = [purpose for _, purpose in client.queries if purpose.startswith("decision_maker_role_")]
-    assert len(role_queries) == 6
+    assert len(role_queries) == 5
+    assert all(role_queries.count(role) <= 2 for role in set(role_queries))
 
 
 def test_adaptive_provider_maps_baseline_role_families_to_discovery_roles() -> None:
