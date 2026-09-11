@@ -44,6 +44,23 @@ def _title_matches(dm: DecisionMaker) -> bool:
     return bool(dm.title and dm.title.strip()) or bool(dm.role_family and dm.role_family.strip())
 
 
+def _title_conflict(evidence: list[Evidence], title: str | None) -> bool:
+    """Detect explicit evidence that an operating title is no longer current."""
+    normalized_title = (title or "").casefold()
+    if not normalized_title:
+        return False
+    operating_role = any(token in normalized_title for token in ("cto", "chief technology", "vp engineering", "head of engineering", "ciso", "chief information security", "head of security", "coo", "chief operating", "cfo", "chief financial", "vp finance", "head of finance"))
+    if not operating_role:
+        return False
+    for item in evidence:
+        text = " ".join(str(value).casefold() for value in (item.claim or {}).values())
+        if "non-executive board director" in text or "non executive board director" in text:
+            return True
+        if re.search(r"\b(?:former|ex|previously)\s+(?:cto|ciso|coo|cfo|chief technology officer|chief information security officer|chief operating officer|chief financial officer)\b", text):
+            return True
+    return False
+
+
 def _person_evidence(evidence: Evidence, full_name: str) -> bool:
     """Require the source claim to attest to this person, not merely the company."""
     claim = evidence.claim or {}
@@ -112,6 +129,7 @@ def _candidate_from_decision_maker(dm: DecisionMaker, packet: EnrichmentPacket) 
         for e in person_evidence
     )
     former_employee, stale_employment = _employment_flags(person_evidence)
+    title_stale = _title_conflict(person_evidence, dm.title)
     if former_employee or stale_employment:
         current_company_matches = False
     title_matches = _title_matches(dm)
@@ -125,6 +143,8 @@ def _candidate_from_decision_maker(dm: DecisionMaker, packet: EnrichmentPacket) 
         stale_employment=stale_employment,
         ambiguous_name=bool(linkedin_url and not linkedin_name_match),
     )
+    if title_stale:
+        reasons = (*reasons, "current_title_conflict")
     if former_employee or stale_employment:
         employer_confidence = 0.0
     elif company_site_support and independent_support:
@@ -136,8 +156,14 @@ def _candidate_from_decision_maker(dm: DecisionMaker, packet: EnrichmentPacket) 
     else:
         employer_confidence = 0.0
     linkedin_confidence = 0.95 if linkedin_url and linkedin_name_match else (0.80 if linkedin_url else 0.0)
+    title_confidence = 0.0 if title_stale else (1.0 if title_matches else 0.0)
     overall = min(1.0, identity * 0.65 + employer_confidence * 0.20 + linkedin_confidence * 0.15)
-    status = outreach_status(overall, linkedin_url=linkedin_url, current_company_confidence=employer_confidence)
+    status = outreach_status(
+        overall,
+        linkedin_url=linkedin_url,
+        current_company_confidence=employer_confidence,
+        title_confidence=title_confidence,
+    )
     return DecisionMakerCandidate(
         full_name=dm.full_name,
         title=dm.title,
@@ -147,7 +173,7 @@ def _candidate_from_decision_maker(dm: DecisionMaker, packet: EnrichmentPacket) 
         source_urls=source_urls,
         source_types=source_types,
         current_employer_confidence=employer_confidence,
-        title_confidence=1.0 if title_matches else 0.0,
+        title_confidence=title_confidence,
         identity_confidence=identity,
         linkedin_confidence=linkedin_confidence,
         overall_confidence=overall,
