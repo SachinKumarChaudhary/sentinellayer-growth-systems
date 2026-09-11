@@ -179,7 +179,7 @@ class LinkedInOutreachDatabase:
         with self._connection() as conn, conn.cursor() as cur:
             cur.execute(
                 """
-                select execution_attempt_id
+                select touchpoint_id
                   from outreach.touchpoints
                  where touchpoint_id = %s
                  for update
@@ -303,7 +303,6 @@ class LinkedInOutreachDatabase:
             inbound = bool(observation.get("inbound_message", False))
             last_contacted_at = now if event in {"connection_request_sent", "message_sent"} else None
             last_replied_at = now if inbound else None
-            notes = update.reason
             cur.execute(
                 """
                 update growth.contact_campaign_states
@@ -321,7 +320,7 @@ class LinkedInOutreachDatabase:
                     update.next_action_at,
                     last_contacted_at,
                     last_replied_at,
-                    notes,
+                    update.reason,
                     touchpoint["enrollment_id"],
                     touchpoint["decision_maker_id"],
                 ),
