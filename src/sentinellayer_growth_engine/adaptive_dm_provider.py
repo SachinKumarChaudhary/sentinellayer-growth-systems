@@ -11,7 +11,20 @@ from .tinyfish_enrichment import TinyFishEnrichmentProvider
 def _role_key_for_candidate(dm: DecisionMaker) -> str | None:
     """Map an existing candidate's role/title to the discovery planner family."""
     if dm.role_family:
-        return dm.role_family.strip().lower()
+        normalized = dm.role_family.strip().lower()
+        role_family_aliases = {
+            "security": "security",
+            "engineering": "technology",
+            "technology": "technology",
+            "founder": "executive",
+            "executive": "executive",
+            "product": "product",
+            "operations": "operations",
+            "finance": "finance",
+        }
+        mapped = role_family_aliases.get(normalized)
+        if mapped is not None:
+            return mapped
     title = (dm.title or "").casefold()
     if not title:
         return None
