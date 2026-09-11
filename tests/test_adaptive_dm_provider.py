@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from sentinellayer_growth_engine.adaptive_dm_provider import AdaptiveDecisionMakerProvider
-from sentinellayer_growth_engine.enrichment_contracts import CompanyFacts, EnrichmentPacket
+from sentinellayer_growth_engine.enrichment_contracts import CompanyFacts, DecisionMaker, EnrichmentPacket
 from sentinellayer_growth_engine.tinyfish_client import TinyFishSearchResult
 
 
@@ -58,3 +58,34 @@ def test_adaptive_provider_keeps_role_budget_bounded_when_no_results() -> None:
 
     role_queries = [purpose for _, purpose in client.queries if purpose.startswith("decision_maker_role_")]
     assert len(role_queries) == 6
+
+
+def test_adaptive_provider_maps_baseline_role_families_to_discovery_roles() -> None:
+    client = FakeClient(queries=[])
+    provider = AdaptiveDecisionMakerProvider(FakeProvider(client))
+    packet = FakeProvider(client).build_packet()
+    packet.decision_makers = [
+        DecisionMaker(
+            full_name="Alex CTO",
+            title="Chief Technology Officer",
+            role_family="engineering",
+            role_priority=2,
+            rationale="baseline",
+            confidence=0.8,
+        ),
+        DecisionMaker(
+            full_name="Sam Founder",
+            title="Founder",
+            role_family="founder",
+            role_priority=2,
+            rationale="baseline",
+            confidence=0.8,
+        ),
+    ]
+
+    provider._provider.build_packet = lambda **_: packet  # type: ignore[method-assign]
+    provider.build_packet(company_id=1, domain="example.com", merchant_name="Example")
+
+    role_queries = [purpose for _, purpose in client.queries if purpose.startswith("decision_maker_role_")]
+    assert "decision_maker_role_technology" not in role_queries
+    assert "decision_maker_role_executive" not in role_queries
