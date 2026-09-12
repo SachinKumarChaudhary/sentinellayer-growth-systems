@@ -196,7 +196,10 @@ class LinkedInOutreachDatabase:
                 """,
                 (touchpoint_id,),
             )
-            attempt_number = int(cur.fetchone()["next_attempt"])
+            attempt_row = cur.fetchone()
+            if attempt_row is None:
+                raise LinkedInOutreachDatabaseError("could not determine next execution attempt")
+            attempt_number = int(attempt_row["next_attempt"])
             cur.execute(
                 """
                 insert into outreach.execution_attempts
