@@ -20,7 +20,6 @@ jobs:
     env:
       SL_ENVIRONMENT: development
       SL_REAL_EMAIL_ENABLED: "false"
-      PYTHONPATH: src
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -42,9 +41,9 @@ jobs:
       - name: MyPy
         run: python -m mypy src
       - name: Unit and repository tests
-        run: python -m pytest -q
+        run: PYTHONPATH="${GITHUB_WORKSPACE}/src" python -m pytest -q
       - name: Contract tests
-        run: python -m pytest -q tests/contracts
+        run: PYTHONPATH="${GITHUB_WORKSPACE}/src" python -m pytest -q tests/contracts
       - name: Docker build
         run: docker build --pull -t sentinellayer-growth-engine:ci .
       - name: Verify container runs as non-root
