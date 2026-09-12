@@ -20,6 +20,7 @@ jobs:
     env:
       SL_ENVIRONMENT: development
       SL_REAL_EMAIL_ENABLED: "false"
+      PYTHONPATH: src
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
