@@ -41,9 +41,9 @@ jobs:
       - name: MyPy
         run: python -m mypy src
       - name: Unit and repository tests
-        run: python -m pytest -q --import-mode=importlib
+        run: python -c "import sentinellayer_growth_engine, pytest; raise SystemExit(pytest.main(['-q']))"
       - name: Contract tests
-        run: python -m pytest -q tests/contracts --import-mode=importlib
+        run: python -c "import sentinellayer_growth_engine, pytest; raise SystemExit(pytest.main(['-q', 'tests/contracts']))"
       - name: Docker build
         run: docker build --pull -t sentinellayer-growth-engine:ci .
       - name: Verify container runs as non-root
