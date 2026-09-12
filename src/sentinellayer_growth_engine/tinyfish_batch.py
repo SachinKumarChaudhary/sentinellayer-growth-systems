@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from .decision_maker_pipeline import resolve_decision_makers
 from .enrichment_contracts import EnrichmentBatch, EnrichmentPacket
 
 
@@ -89,13 +90,12 @@ class TinyFishBatchEnricher:
         packets: list[EnrichmentPacket] = []
         for company_id in company_ids:
             seed = self._seed_resolver.resolve(company_id)
-            packets.append(
-                self._provider.build_packet(
-                    company_id=seed.company_id,
-                    domain=seed.domain,
-                    merchant_name=seed.merchant_name,
-                )
+            packet = self._provider.build_packet(
+                company_id=seed.company_id,
+                domain=seed.domain,
+                merchant_name=seed.merchant_name,
             )
+            packets.append(resolve_decision_makers(packet))
         return EnrichmentBatch(packets=packets)
 
     def run_next(self, *, limit: int = 3, persist: bool = True) -> dict[str, object]:
@@ -166,7 +166,7 @@ class TinyFishDailyEnricher:
                     merchant_name=seed.merchant_name,
                 )
                 self._repository.persist_batch(
-                    EnrichmentBatch(packets=[packet]),
+                    EnrichmentBatch(packets=[resolve_decision_makers(packet)]),
                     provider="tinyfish",
                 )
                 succeeded += 1
@@ -228,7 +228,7 @@ class TinyFishRefreshEnricher:
                     max_fetch_urls=8,
                 )
                 self._repository.persist_batch(
-                    EnrichmentBatch(packets=[packet]),
+                    EnrichmentBatch(packets=[resolve_decision_makers(packet)]),
                     provider="tinyfish_refresh",
                 )
                 succeeded += 1
