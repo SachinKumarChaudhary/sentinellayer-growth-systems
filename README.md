@@ -14,6 +14,8 @@ Leads -> Campaigns -> Scheduler -> Mail Provider -> Events -> Replies -> Hermes 
 - n8n: integration glue, not campaign orchestration.
 - GitHub Actions: automated quality gates.
 
+Decision-maker enrichment now includes a conservative LinkedIn resolution stage before canonical persistence. Public LinkedIn profiles are normalized and ranked using person/company identity evidence; outreach eligibility remains separate from discovery.
+
 ## Development boundary
 
 Development uses synthetic leads and a mock mail provider. Real outbound domains, mailboxes and prospect email are deferred until automated tests and end-to-end simulation pass.
