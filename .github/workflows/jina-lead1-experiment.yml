@@ -1,0 +1,43 @@
+name: jina-lead1-experiment
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/jina_lead1_experiment.py"
+      - ".github/workflows/jina-lead1-experiment.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jina-lead1-experiment
+  cancel-in-progress: true
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    env:
+      JINA_API_KEY: ${{ secrets.JINA_API_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Credential gate
+        run: |
+          set -euo pipefail
+          test -n "$JINA_API_KEY"
+      - name: Run Jina-only Lead #1 experiment
+        run: python scripts/jina_lead1_experiment.py
+      - name: Upload Jina benchmark artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: jina-lead1-results
+          path: jina_lead1_output/
+          if-no-files-found: error
+          retention-days: 14
