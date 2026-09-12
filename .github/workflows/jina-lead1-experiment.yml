@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - "scripts/jina_lead1_experiment.py"
+      - "scripts/jina_lead1_experiment_v2.py"
       - ".github/workflows/jina-lead1-experiment.yml"
   workflow_dispatch:
 
@@ -32,8 +33,8 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$JINA_API_KEY"
-      - name: Run Jina-only Lead #1 experiment
-        run: python scripts/jina_lead1_experiment.py
+      - name: Run evidence-aware Jina-only Lead #1 experiment
+        run: python scripts/jina_lead1_experiment_v2.py
       - name: Upload Jina benchmark artifact
         uses: actions/upload-artifact@v4
         with:
