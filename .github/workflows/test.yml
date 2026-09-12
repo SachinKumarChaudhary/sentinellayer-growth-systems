@@ -41,9 +41,9 @@ jobs:
       - name: MyPy
         run: python -m mypy src
       - name: Unit and repository tests
-        run: python -m pytest -q
+        run: python -m pytest -q --import-mode=importlib
       - name: Contract tests
-        run: python -m pytest -q tests/contracts
+        run: python -m pytest -q tests/contracts --import-mode=importlib
       - name: Docker build
         run: docker build --pull -t sentinellayer-growth-engine:ci .
       - name: Verify container runs as non-root
