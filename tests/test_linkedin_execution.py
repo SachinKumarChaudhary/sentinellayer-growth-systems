@@ -2,7 +2,11 @@ from datetime import UTC, datetime
 
 import pytest
 
-from sentinellayer_growth_engine.linkedin_execution import LinkedInExecutionError, execute_touchpoint
+from sentinellayer_growth_engine.linkedin_execution import (
+    LinkedInExecutionError,
+    execute_and_persist_touchpoint,
+    execute_touchpoint,
+)
 from sentinellayer_growth_engine.linkedin_outreach import LinkedInContact, build_touchpoints, validate_sequence
 
 
@@ -36,6 +40,19 @@ class FakeProvider:
 
     def observe(self, *, linkedin_url: str) -> dict[str, object]:
         return {"status": "ok", "linkedin_url": linkedin_url}
+
+
+class FakePersistence:
+    def __init__(self) -> None:
+        self.attempts: list[dict[str, object]] = []
+        self.observations: list[dict[str, object]] = []
+
+    def record_execution_attempt(self, **kwargs: object) -> int:
+        self.attempts.append(kwargs)
+        return len(self.attempts)
+
+    def record_touchpoint_observation(self, **kwargs: object) -> None:
+        self.observations.append(kwargs)
 
 
 def point(action: str = "connection_request"):
@@ -72,3 +89,35 @@ def test_operator_review_never_executes_provider():
     result = execute_touchpoint(provider=provider, contact=CONTACT, touchpoint=point("operator_review"), now=NOW)
     assert result.status == "operator_required"
     assert provider.calls == []
+
+
+def test_execute_and_persist_records_delivery_and_observation():
+    provider = FakeProvider({"linkedin.connection_request"})
+    persistence = FakePersistence()
+    result = execute_and_persist_touchpoint(
+        provider=provider,
+        contact=CONTACT,
+        touchpoint=point(),
+        now=NOW,
+        persistence=persistence,
+    )
+    assert result.status == "sent"
+    assert persistence.attempts[0]["result"] == "sent"
+    assert persistence.attempts[0]["provider"] == "linkedin_provider"
+    assert persistence.observations[0]["status"] == "sent"
+    assert persistence.observations[0]["provider_reference"] == "li-123"
+
+
+def test_execute_and_persist_operator_required_is_not_recorded_as_delivery():
+    provider = FakeProvider(set())
+    persistence = FakePersistence()
+    result = execute_and_persist_touchpoint(
+        provider=provider,
+        contact=CONTACT,
+        touchpoint=point(),
+        now=NOW,
+        persistence=persistence,
+    )
+    assert result.status == "operator_required"
+    assert persistence.attempts[0]["result"] == "operator_required"
+    assert persistence.observations == []
