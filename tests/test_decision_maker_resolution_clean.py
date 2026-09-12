@@ -1,4 +1,9 @@
-from sentinallayer_growth_engine.decision_maker_resolution import (
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+from sentinellayer_growth_engine.decision_maker_resolution import (
     DecisionMakerCandidate,
     merge_candidate_sources,
     normalize_linkedin_url,
