@@ -10,10 +10,6 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -30,6 +26,9 @@ jobs:
         run: |
           python -m pip install --upgrade pip 'setuptools>=83,<84'
           python -m pip install -e '.[dev]'
+      - name: Diagnose Python package path
+        run: |
+          python -c "import os,sys; print('cwd=', os.getcwd()); print('src=', os.path.exists('src/sentinellayer_growth_engine/__init__.py')); print('sys.path=', sys.path); import sentinellayer_growth_engine; print('package=', sentinellayer_growth_engine.__file__)"
       - name: Operations CI safety gate
         run: bash scripts/ci-gate.sh
       - name: Dependency audit
@@ -41,9 +40,9 @@ jobs:
       - name: MyPy
         run: python -m mypy src
       - name: Unit and repository tests
-        run: PYTHONPATH="${GITHUB_WORKSPACE}/src" python -m pytest -q
+        run: python -m pytest -q
       - name: Contract tests
-        run: PYTHONPATH="${GITHUB_WORKSPACE}/src" python -m pytest -q tests/contracts
+        run: python -m pytest -q tests/contracts
       - name: Docker build
         run: docker build --pull -t sentinellayer-growth-engine:ci .
       - name: Verify container runs as non-root
