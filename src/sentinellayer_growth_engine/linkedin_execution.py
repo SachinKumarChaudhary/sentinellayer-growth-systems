@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Protocol
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -19,6 +19,35 @@ class ExecutionResult:
 
 class LinkedInExecutionError(ValueError):
     """Raised when a LinkedIn touchpoint cannot be executed safely."""
+
+
+class LinkedInExecutionPersistence(Protocol):
+    """Persistence boundary used after provider execution."""
+
+    def record_execution_attempt(
+        self,
+        *,
+        touchpoint_id: str,
+        provider: str | None,
+        result: str,
+        provider_error_code: str | None,
+        started_at: datetime | None,
+        finished_at: datetime | None,
+        metadata: Mapping[str, Any],
+    ) -> int:
+        ...
+
+    def record_touchpoint_observation(
+        self,
+        *,
+        touchpoint_id: str,
+        status: str,
+        provider: str,
+        provider_reference: str | None,
+        metadata: Mapping[str, Any],
+        executed_at: datetime | None,
+    ) -> None:
+        ...
 
 
 def execute_touchpoint(
@@ -90,3 +119,53 @@ def execute_touchpoint(
         metadata=dict(result),
         executed_at=now,
     )
+
+
+def execute_and_persist_touchpoint(
+    *,
+    provider: LinkedInProvider,
+    contact: LinkedInContact,
+    touchpoint: LinkedInTouchpoint,
+    now: datetime,
+    persistence: LinkedInExecutionPersistence,
+) -> ExecutionResult:
+    """Execute a touchpoint and persist only provider-observed execution facts."""
+    try:
+        result = execute_touchpoint(
+            provider=provider,
+            contact=contact,
+            touchpoint=touchpoint,
+            now=now,
+        )
+    except LinkedInExecutionError as exc:
+        persistence.record_execution_attempt(
+            touchpoint_id=touchpoint.touchpoint_id,
+            provider=type(provider).__name__,
+            result="failed",
+            provider_error_code=None,
+            started_at=now,
+            finished_at=now,
+            metadata={"error": str(exc)},
+        )
+        raise
+
+    persistence.record_execution_attempt(
+        touchpoint_id=touchpoint.touchpoint_id,
+        provider=result.provider,
+        result=result.status,
+        provider_error_code=None,
+        started_at=now,
+        finished_at=result.executed_at,
+        metadata=result.metadata,
+    )
+
+    if result.status in {"sent", "delivered"}:
+        persistence.record_touchpoint_observation(
+            touchpoint_id=touchpoint.touchpoint_id,
+            status=result.status,
+            provider=result.provider,
+            provider_reference=result.provider_reference,
+            metadata=result.metadata,
+            executed_at=result.executed_at,
+        )
+    return result
