@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Mapping, Protocol, Sequence
+from typing import Any, Protocol
 from urllib.parse import urlparse
 from uuid import UUID, uuid4
 
@@ -80,13 +81,17 @@ class StateUpdate:
 class LinkedInProvider(Protocol):
     """Capability boundary for any concrete LinkedIn execution provider."""
 
-    def capabilities(self) -> set[str]: ...
+    def capabilities(self) -> set[str]:
+        ...
 
-    def send_connection_request(self, *, linkedin_url: str, message: str) -> Mapping[str, Any]: ...
+    def send_connection_request(self, *, linkedin_url: str, message: str) -> Mapping[str, Any]:
+        ...
 
-    def send_message(self, *, linkedin_url: str, message: str) -> Mapping[str, Any]: ...
+    def send_message(self, *, linkedin_url: str, message: str) -> Mapping[str, Any]:
+        ...
 
-    def observe(self, *, linkedin_url: str) -> Mapping[str, Any]: ...
+    def observe(self, *, linkedin_url: str) -> Mapping[str, Any]:
+        ...
 
 
 class OperatorProvider:

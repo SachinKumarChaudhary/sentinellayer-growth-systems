@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Import the immutable ScraperCity company CSV into growth.company_source_data.
 
 The command validates the complete CSV before any database write. It preserves
@@ -12,7 +11,6 @@ import csv
 import json
 import os
 import re
-import sys
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -29,6 +27,7 @@ EXPECTED_COLUMNS = [
 
 SOURCE_FILE = "Store Leads Shopify - US - ScraperCity.csv"
 
+
 def normalize_domain(value: str) -> str:
     v = (value or "").strip().lower()
     if not v:
@@ -37,9 +36,9 @@ def normalize_domain(value: str) -> str:
         v = urlsplit(v).hostname or v
     else:
         v = v.split("/", 1)[0]
-    if v.startswith("www."):
-        v = v[4:]
+    v = v.removeprefix("www.")
     return v.rstrip(".")
+
 
 def clean_int(value: str):
     v = (value or "").strip()
@@ -47,11 +46,13 @@ def clean_int(value: str):
         return None
     return int(float(re.sub(r"[^0-9.-]", "", v)))
 
+
 def clean_num(value: str):
     v = (value or "").strip()
     if not v:
         return None
     return float(re.sub(r"[^0-9.-]", "", v))
+
 
 def main() -> int:
     ap = argparse.ArgumentParser()
@@ -122,6 +123,7 @@ def main() -> int:
         conn.commit()
     print(json.dumps({"rows_imported": 1200, "source_file": args.source_file, "status": "ok"}))
     return 0
+
 
 if __name__ == "__main__":
     raise SystemExit(main())
