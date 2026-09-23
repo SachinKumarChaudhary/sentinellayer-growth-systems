@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS growth.lead_source_records (
     CHECK (raw_fingerprint ~ '^[0-9a-f]{64}$')
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS lead_source_records_source_fingerprint_uq
+CREATE INDEX IF NOT EXISTS lead_source_records_source_fingerprint_idx
     ON growth.lead_source_records (source_name, raw_fingerprint);
 
 CREATE TABLE IF NOT EXISTS growth.lead_processing_state (
