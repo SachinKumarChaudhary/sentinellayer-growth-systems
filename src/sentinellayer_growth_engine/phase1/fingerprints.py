@@ -80,10 +80,13 @@ def derive_source_record_id(
     source_record_key: str | None,
     raw_fp: str,
 ) -> str:
+    # Prefer the provider's stable native record key. Raw content is only the
+    # documented fallback when the provider supplies no stable key.
     identity_material = {
         "source_name": source_name.strip().lower(),
-        "source_record_key": source_record_key,
-        "raw_fingerprint": raw_fp,
+        "source_record_key": source_record_key
+        if source_record_key is not None
+        else f"raw:{raw_fp}",
     }
     return f"sr_{fingerprint(identity_material)[:40]}"
 
