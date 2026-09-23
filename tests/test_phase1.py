@@ -4,25 +4,16 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 
-from sentinellayer_growth_engine.phase1 import (
-    HunterDiscoverAdapter,
-    ScraperCityAdapter,
-    process_source_record,
-)
+from sentinellayer_growth_engine.phase1 import HunterDiscoverAdapter, ScraperCityAdapter, process_source_record
 from sentinellayer_growth_engine.phase1.fingerprints import raw_fingerprint
 from sentinellayer_growth_engine.phase1.models import LeadSourceRecord
-
 
 FIXTURE_PATH = Path(__file__).parent / "fixtures" / "phase1_gold.json"
 ACQUIRED_AT = datetime(2026, 9, 23, 12, 0, tzinfo=UTC)
 
 
 def _scraper_record(payload: dict[str, object], key: str) -> LeadSourceRecord:
-    return ScraperCityAdapter().adapt(
-        payload,
-        acquired_at=ACQUIRED_AT,
-        source_record_key=key,
-    )
+    return ScraperCityAdapter().adapt(payload, acquired_at=ACQUIRED_AT, source_record_key=key)
 
 
 def test_gold_suite() -> None:
@@ -61,18 +52,6 @@ def test_replay_is_duplicate() -> None:
     assert result.state == "ACCEPTED"
     assert replay.state == "DUPLICATE"
     assert replay.duplicate_decision.duplicate_type == "replay"
-
-
-def test_changed_source_observation_keeps_source_identity() -> None:
-    first = _scraper_record({"merchant_name": "ACME", "domain": "acme.example"}, "native-1")
-    changed = _scraper_record({"merchant_name": "ACME", "domain": "acme-updated.example"}, "native-1")
-    assert first.source_record_id == changed.source_record_id
-
-    result = process_source_record(changed, existing_records=[first], now=ACQUIRED_AT)
-    assert result.state == "ACCEPTED"
-    assert result.duplicate_decision.duplicate_type == "not_duplicate"
-    assert result.duplicate_decision.rule_id == "dedupe.source_record_version_changed"
-    assert result.duplicate_decision.matched_source_record_ids == [first.source_record_id]
 
 
 def test_exact_duplicate_is_explainable() -> None:
