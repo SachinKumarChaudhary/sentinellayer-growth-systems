@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-\${{ github.workflow }}-\${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -66,7 +66,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ci-metadata-\${{ github.run_id }}
+          name: ci-metadata-${{ github.run_id }}
           path: test-results/ci-metadata.txt
           if-no-files-found: error
 # CI validation trigger for conversation-analysis changes.
