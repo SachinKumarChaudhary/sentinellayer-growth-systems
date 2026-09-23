@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sentinellayer_growth_engine.contracts import validate_contract
 from sentinellayer_growth_engine.phase1 import ScraperCityAdapter, process_source_record
 
 
 def test_phase1_contracts_accept_realistic_handoff() -> None:
-    now = datetime(2026, 9, 23, 12, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 9, 23, 12, 0, tzinfo=UTC)
     record = ScraperCityAdapter().adapt(
         {
             "merchant_name": "ACME Inc.",
