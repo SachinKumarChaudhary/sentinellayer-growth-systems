@@ -322,7 +322,7 @@ def contract_fixtures() -> dict[str, dict[str, object]]:
             "normalization_version": "phase1.v1",
             "canonical_fingerprint": "0000000000000000000000000000000000000000000000000000000000000000",
             "contract_version": "phase1.handoff.v1",
-            "downstream_eligible": true,
+            "downstream_eligible": True,
             "completed_at": UTC_NOW,
         },
 
