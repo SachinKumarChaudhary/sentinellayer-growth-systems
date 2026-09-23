@@ -3,6 +3,12 @@
   "registry_version": "v1",
   "supported": {
     "event-envelope": ["v1"],
-    "rendered-send-treatment": ["v1"]
+    "rendered-send-treatment": ["v1"],
+    "lead-source-record": ["v1"],
+    "field-observation": ["v1"],
+    "canonical-lead": ["v1"],
+    "validation-finding": ["v1"],
+    "duplicate-decision": ["v1"],
+    "phase1-handoff": ["v1"]
   }
 }

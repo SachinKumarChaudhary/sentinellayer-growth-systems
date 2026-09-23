@@ -7,6 +7,12 @@ this registry validates compatibility policy.
 SUPPORTED_SCHEMA_VERSIONS = {
     "event-envelope": frozenset({"v1"}),
     "rendered-send-treatment": frozenset({"v1"}),
+    "lead-source-record": frozenset({"v1"}),
+    "field-observation": frozenset({"v1"}),
+    "canonical-lead": frozenset({"v1"}),
+    "validation-finding": frozenset({"v1"}),
+    "duplicate-decision": frozenset({"v1"}),
+    "phase1-handoff": frozenset({"v1"}),
 }
 
 

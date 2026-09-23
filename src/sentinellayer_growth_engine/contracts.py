@@ -23,6 +23,12 @@ CONTRACT_SCHEMAS: dict[str, str] = {
     "sales_handoff": "sales-handoff.schema.json",
     "attribution_context": "attribution-context.schema.json",
     "conversation_analysis": "conversation-analysis.schema.json",
+    "lead_source_record": "lead-source-record.schema.json",
+    "field_observation": "field-observation.schema.json",
+    "canonical_lead": "canonical-lead.schema.json",
+    "validation_finding": "validation-finding.schema.json",
+    "duplicate_decision": "duplicate-decision.schema.json",
+    "phase1_handoff": "phase1-handoff.schema.json",
 }
 
 

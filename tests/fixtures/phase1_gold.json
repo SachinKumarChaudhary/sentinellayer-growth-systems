@@ -1,0 +1,47 @@
+{
+  "schema_version": "v1",
+  "cases": [
+    {
+      "name": "trim_and_normalize_domain",
+      "key": "gold-1",
+      "payload": {
+        "merchant_name": "  ACME   INC.  ",
+        "domain": "HTTPS://WWW.Acme.com/",
+        "domain_url": "https://www.acme.com/",
+        "country_code": "us"
+      },
+      "expected_state": "ACCEPTED",
+      "expected_domain": "www.acme.com",
+      "expected_url": "https://www.acme.com/"
+    },
+    {
+      "name": "path_semantics_are_preserved",
+      "key": "gold-2",
+      "payload": {
+        "merchant_name": "Acme",
+        "domain": "acme.example",
+        "domain_url": "https://acme.example/account/"
+      },
+      "expected_state": "ACCEPTED",
+      "expected_domain": "acme.example",
+      "expected_url": "https://acme.example/account"
+    },
+    {
+      "name": "missing_optional_domain_stays_missing",
+      "key": "gold-3",
+      "payload": {
+        "merchant_name": "Acme"
+      },
+      "expected_state": "ACCEPTED"
+    },
+    {
+      "name": "malformed_domain_is_quarantined",
+      "key": "gold-4",
+      "payload": {
+        "merchant_name": "Acme",
+        "domain": "not a domain"
+      },
+      "expected_state": "QUARANTINED"
+    }
+  ]
+}

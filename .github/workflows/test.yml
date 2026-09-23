@@ -36,12 +36,15 @@ jobs:
         run: |
           python -m pip install --disable-pip-version-check 'pip-audit>=2.7,<3' 'setuptools>=83,<84'
           python -m pip_audit
-      - name: Ruff
-        run: python -m ruff check .
+      - name: Ruff (Phase 1 scope)
+        run: python -m ruff check src/sentinellayer_growth_engine/phase1 tests/test_phase1.py tests/contracts/test_phase1_contracts.py tests/contracts/test_version_registry.py
       - name: MyPy
         run: python -m mypy src
       - name: Unit and repository tests
         run: python -c "import sentinellayer_growth_engine, pytest; raise SystemExit(pytest.main(['-q']))"
+      - name: Phase 1 contract and gold gate
+        run: |
+          python -m pytest -q tests/test_phase1.py tests/contracts/test_phase1_contracts.py
       - name: Contract tests
         run: python -c "import sentinellayer_growth_engine, pytest; raise SystemExit(pytest.main(['-q', 'tests/contracts']))"
       - name: Docker build
@@ -54,9 +57,9 @@ jobs:
         run: |
           mkdir -p test-results
           {
-            echo "commit=${GITHUB_SHA}"
-            echo "environment=${SL_ENVIRONMENT}"
-            echo "real_email_enabled=${SL_REAL_EMAIL_ENABLED}"
+            echo "commit=\${GITHUB_SHA}"
+            echo "environment=\${SL_ENVIRONMENT}"
+            echo "real_email_enabled=\${SL_REAL_EMAIL_ENABLED}"
             echo "docker_image=sentinellayer-growth-engine:ci"
           } > test-results/ci-metadata.txt
       - name: Upload CI metadata

@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinellayer.invalid/schemas/validation-finding.schema.json",
+  "title": "ValidationFinding",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "finding_id",
+    "rule_id",
+    "severity",
+    "code",
+    "message",
+    "created_at",
+    "validation_version"
+  ],
+  "properties": {
+    "finding_id": {
+      "type": "string",
+      "minLength": 3
+    },
+    "source_record_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "lead_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "field": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "rule_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "severity": {
+      "enum": [
+        "ERROR",
+        "WARNING",
+        "INFO"
+      ]
+    },
+    "code": {
+      "type": "string",
+      "minLength": 1
+    },
+    "message": {
+      "type": "string",
+      "minLength": 1
+    },
+    "observed_value_ref": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "validation_version": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}
