@@ -210,7 +210,8 @@ def contract_fixtures() -> dict[str, dict[str, object]]:
             "experiment_id": None,
             "experiment_variant_id": None,
             "send_id": send_id,
-        },        "lead_source_record": {
+        },
+        "lead_source_record": {
             "schema_version": "v1",
             "source_record_id": "source-001",
             "source_name": "synthetic",
