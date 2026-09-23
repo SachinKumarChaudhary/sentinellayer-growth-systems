@@ -6,11 +6,10 @@ from typing import Any, Protocol
 
 import psycopg
 
-from .phase1.models import (
+from .models import (
     CanonicalLead,
     DuplicateDecision,
     FieldObservation,
-    LeadSourceRecord,
     Phase1Handoff,
     Phase1Result,
     ValidationFinding,
