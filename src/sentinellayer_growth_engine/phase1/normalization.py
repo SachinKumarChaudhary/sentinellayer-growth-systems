@@ -17,6 +17,7 @@ from .models import (
     LeadSourceRecord,
     NORMALIZATION_VERSION,
     QualityStatus,
+    ValueState,
 )
 
 _WHITESPACE = re.compile(r"\s+")
@@ -126,7 +127,7 @@ def normalize_source_record(
 
     for binding in record.mapped_fields:
         normalized, reason = _normalize_value(binding.canonical_field, binding.raw_value)
-        state = (
+        state: ValueState = (
             "missing"
             if normalized is None
             else "normalized"
