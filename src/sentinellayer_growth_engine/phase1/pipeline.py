@@ -10,7 +10,6 @@ from .models import (
     LeadSourceRecord,
     Phase1Handoff,
     Phase1Result,
-    QualityStatus,
     RecordState,
 )
 from .normalization import build_canonical_lead
@@ -51,32 +50,15 @@ def _check_duplicate(
     decided_at: datetime,
 ) -> DuplicateDecision:
     for existing in existing_records:
-        if existing.source_record_id != source_record_id:
-            continue
-        if existing.raw_fingerprint == raw_fingerprint:
+        if existing.source_record_id == source_record_id:
             return _duplicate_decision(
                 source_record_id=source_record_id,
                 duplicate_type="replay",
                 rule_id="dedupe.replay.source_record_id",
                 matched_ids=[existing.source_record_id],
-                comparison_keys={
-                    "source_record_id": source_record_id,
-                    "raw_fingerprint": raw_fingerprint,
-                },
+                comparison_keys={"source_record_id": source_record_id},
                 decided_at=decided_at,
             )
-        return _duplicate_decision(
-            source_record_id=source_record_id,
-            duplicate_type="not_duplicate",
-            rule_id="dedupe.source_record_version_changed",
-            matched_ids=[existing.source_record_id],
-            comparison_keys={
-                "source_record_id": source_record_id,
-                "previous_raw_fingerprint": existing.raw_fingerprint,
-                "current_raw_fingerprint": raw_fingerprint,
-            },
-            decided_at=decided_at,
-        )
 
     for existing in existing_records:
         if (
@@ -120,9 +102,7 @@ def process_source_record(
     source_findings = validate_source_record(record, now=processed_at)
     lead_id = derive_lead_id(record.source_record_id)
 
-    provisional_status: QualityStatus = (
-        "QUARANTINED" if has_errors(source_findings) else "ACCEPTED"
-    )
+    provisional_status = "QUARANTINED" if has_errors(source_findings) else "ACCEPTED"
     lead = build_canonical_lead(
         record,
         lead_id=lead_id,
@@ -134,7 +114,7 @@ def process_source_record(
     findings = [*source_findings, *canonical_findings]
 
     if has_errors(findings):
-        quality_status: QualityStatus = "QUARANTINED"
+        quality_status = "QUARANTINED"
         state: RecordState = "QUARANTINED"
     elif has_warnings(findings):
         quality_status = "ACCEPTED_WITH_WARNINGS"
