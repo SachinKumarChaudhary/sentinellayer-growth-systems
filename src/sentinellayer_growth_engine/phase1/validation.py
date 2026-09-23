@@ -4,12 +4,7 @@ import re
 from datetime import UTC, datetime
 
 from .fingerprints import derive_finding_id, raw_fingerprint
-from .models import (
-    CanonicalLead,
-    FindingSeverity,
-    LeadSourceRecord,
-    ValidationFinding,
-)
+from .models import CanonicalLead, FindingSeverity, LeadSourceRecord, ValidationFinding
 
 VALIDATION_VERSION = "phase1.validation.v1"
 _COUNTRY_RE = re.compile(r"^[A-Z]{2}$")
