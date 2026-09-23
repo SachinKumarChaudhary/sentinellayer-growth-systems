@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
-from typing import Any
+from datetime import UTC, datetime
 
 from .fingerprints import derive_finding_id, raw_fingerprint
 from .models import (
@@ -18,7 +17,7 @@ _DOMAIN_RE = re.compile(r"^[a-z0-9](?:[a-z0-9.-]{0,253}[a-z0-9])?$", re.IGNORECA
 
 
 def _now(now: datetime | None) -> datetime:
-    return now or datetime.now(timezone.utc)
+    return now or datetime.now(UTC)
 
 
 def _finding(
