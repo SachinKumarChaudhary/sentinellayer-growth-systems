@@ -47,8 +47,7 @@ def normalize_url(value: str) -> str:
     raw = normalize_text(value)
     if not raw:
         return ""
-    candidate = raw if "://" in raw or raw.startswith("//") else raw
-    parsed = urlsplit(candidate)
+    parsed = urlsplit(raw)
     if not parsed.scheme and not parsed.netloc:
         return raw.rstrip("/")
     scheme = parsed.scheme.lower()
