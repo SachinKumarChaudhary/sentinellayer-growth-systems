@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import datetime
-from typing import Any, Protocol, Mapping
+from typing import Any, ClassVar, Protocol
 
 from .fingerprints import derive_source_record_id, raw_fingerprint
 from .models import LeadSourceRecord, SourceFieldBinding
@@ -23,10 +24,9 @@ class SourceAdapter(Protocol):
 
 
 class _MappedAdapter:
-    source_name: str
-    adapter_version: str
-
-    field_map: dict[str, str]
+    source_name: ClassVar[str]
+    adapter_version: ClassVar[str]
+    field_map: ClassVar[dict[str, str]]
 
     def adapt(
         self,
@@ -62,9 +62,9 @@ class _MappedAdapter:
 
 
 class ScraperCityAdapter(_MappedAdapter):
-    source_name = "scrapercity"
-    adapter_version = "scrapercity.v1"
-    field_map = {
+    source_name: ClassVar[str] = "scrapercity"
+    adapter_version: ClassVar[str] = "scrapercity.v1"
+    field_map: ClassVar[dict[str, str]] = {
         "display_name": "merchant_name",
         "domain": "domain",
         "canonical_url": "domain_url",
@@ -79,7 +79,7 @@ class ScraperCityAdapter(_MappedAdapter):
 
 
 class HunterDiscoverAdapter(_MappedAdapter):
-    source_name = "hunter_discover"
+    source_name: ClassVar[str] = "hunter_discover"
     adapter_version = "hunter_discover.v1"
     field_map = {
         "display_name": "organization",
