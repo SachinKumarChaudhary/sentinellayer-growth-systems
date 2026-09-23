@@ -10,6 +10,7 @@ from .models import (
     LeadSourceRecord,
     Phase1Handoff,
     Phase1Result,
+    QualityStatus,
     RecordState,
 )
 from .normalization import build_canonical_lead
@@ -102,7 +103,9 @@ def process_source_record(
     source_findings = validate_source_record(record, now=processed_at)
     lead_id = derive_lead_id(record.source_record_id)
 
-    provisional_status = "QUARANTINED" if has_errors(source_findings) else "ACCEPTED"
+    provisional_status: QualityStatus = (
+        "QUARANTINED" if has_errors(source_findings) else "ACCEPTED"
+    )
     lead = build_canonical_lead(
         record,
         lead_id=lead_id,
@@ -114,7 +117,7 @@ def process_source_record(
     findings = [*source_findings, *canonical_findings]
 
     if has_errors(findings):
-        quality_status = "QUARANTINED"
+        quality_status: QualityStatus = "QUARANTINED"
         state: RecordState = "QUARANTINED"
     elif has_warnings(findings):
         quality_status = "ACCEPTED_WITH_WARNINGS"
