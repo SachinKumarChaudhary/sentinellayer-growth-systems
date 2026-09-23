@@ -12,7 +12,7 @@
       },
       "expected_state": "ACCEPTED",
       "expected_domain": "www.acme.com",
-      "expected_url": "https://www.acme.com"
+      "expected_url": "https://www.acme.com/"
     },
     {
       "name": "path_semantics_are_preserved",
