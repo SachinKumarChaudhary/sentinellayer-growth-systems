@@ -24,7 +24,8 @@ def test_phase1_storage_has_immutable_observation_tables() -> None:
 def test_phase1_storage_separates_mutable_processing_state() -> None:
     sql = _sql()
     assert "growth.lead_processing_state" in sql
-    assert "ON CONFLICT (source_record_id) DO UPDATE SET" in sql
+    assert "ON CONFLICT (source_record_id) DO UPDATE SET" not in sql
+    assert "growth.lead_processing_state" in sql
     assert "growth.lead_source_records_source_fingerprint_idx" in sql
 
 
