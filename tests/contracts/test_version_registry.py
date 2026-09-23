@@ -13,6 +13,9 @@ from .version_registry import require_supported
         ("event-envelope", "v999"),
         ("rendered-send-treatment", "v2"),
         ("rendered-send-treatment", "v999"),
+        ("lead-source-record", "v2"),
+        ("canonical-lead", "v2"),
+        ("phase1-handoff", "v2"),
     ],
 )
 def test_unsupported_schema_versions_are_rejected(contract: str, version: str) -> None:
@@ -23,3 +26,6 @@ def test_unsupported_schema_versions_are_rejected(contract: str, version: str) -
 def test_supported_v1_contracts_are_accepted() -> None:
     require_supported("event-envelope", "v1")
     require_supported("rendered-send-treatment", "v1")
+    require_supported("lead-source-record", "v1")
+    require_supported("canonical-lead", "v1")
+    require_supported("phase1-handoff", "v1")

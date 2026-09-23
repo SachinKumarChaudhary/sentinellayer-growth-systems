@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinellayer.invalid/schemas/lead-source-record.schema.json",
+  "title": "LeadSourceRecord",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "source_record_id",
+    "source_name",
+    "acquired_at",
+    "source_payload",
+    "mapped_fields",
+    "raw_fingerprint",
+    "adapter_version"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "v1"
+    },
+    "source_record_id": {
+      "type": "string",
+      "minLength": 3
+    },
+    "source_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source_record_key": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "acquired_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "source_payload": {
+      "type": "object",
+      "minProperties": 1
+    },
+    "mapped_fields": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "canonical_field",
+          "source_field_name",
+          "raw_value"
+        ],
+        "properties": {
+          "canonical_field": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source_field_name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "raw_value": {}
+        }
+      }
+    },
+    "raw_fingerprint": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "adapter_version": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

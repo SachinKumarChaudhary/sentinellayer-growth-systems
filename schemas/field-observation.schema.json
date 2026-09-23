@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinellayer.invalid/schemas/field-observation.schema.json",
+  "title": "FieldObservation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "observation_id",
+    "lead_id",
+    "source_record_id",
+    "field",
+    "source_field_name",
+    "raw_value",
+    "normalized_value",
+    "value_state",
+    "observed_at",
+    "adapter_version",
+    "normalization_version",
+    "transformation_reason"
+  ],
+  "properties": {
+    "observation_id": {
+      "type": "string",
+      "minLength": 3
+    },
+    "lead_id": {
+      "type": "string",
+      "minLength": 3
+    },
+    "source_record_id": {
+      "type": "string",
+      "minLength": 3
+    },
+    "field": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_field_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "raw_value": {},
+    "normalized_value": {},
+    "value_state": {
+      "enum": [
+        "observed",
+        "normalized",
+        "missing",
+        "invalid",
+        "conflicting"
+      ]
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "adapter_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "normalization_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "transformation_reason": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

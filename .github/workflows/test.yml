@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-\${{ github.workflow }}-\${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -42,6 +42,9 @@ jobs:
         run: python -m mypy src
       - name: Unit and repository tests
         run: python -c "import sentinellayer_growth_engine, pytest; raise SystemExit(pytest.main(['-q']))"
+      - name: Phase 1 contract and gold gate
+        run: |
+          python -m pytest -q tests/test_phase1.py tests/contracts/test_phase1_contracts.py
       - name: Contract tests
         run: python -c "import sentinellayer_growth_engine, pytest; raise SystemExit(pytest.main(['-q', 'tests/contracts']))"
       - name: Docker build
@@ -54,16 +57,16 @@ jobs:
         run: |
           mkdir -p test-results
           {
-            echo "commit=${GITHUB_SHA}"
-            echo "environment=${SL_ENVIRONMENT}"
-            echo "real_email_enabled=${SL_REAL_EMAIL_ENABLED}"
+            echo "commit=\${GITHUB_SHA}"
+            echo "environment=\${SL_ENVIRONMENT}"
+            echo "real_email_enabled=\${SL_REAL_EMAIL_ENABLED}"
             echo "docker_image=sentinellayer-growth-engine:ci"
           } > test-results/ci-metadata.txt
       - name: Upload CI metadata
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ci-metadata-${{ github.run_id }}
+          name: ci-metadata-\${{ github.run_id }}
           path: test-results/ci-metadata.txt
           if-no-files-found: error
 # CI validation trigger for conversation-analysis changes.

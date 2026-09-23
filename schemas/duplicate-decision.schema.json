@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinellayer.invalid/schemas/duplicate-decision.schema.json",
+  "title": "DuplicateDecision",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "decision_id",
+    "source_record_id",
+    "duplicate_type",
+    "rule_id",
+    "matched_source_record_ids",
+    "comparison_keys",
+    "decided_at",
+    "decision_version"
+  ],
+  "properties": {
+    "decision_id": {
+      "type": "string",
+      "minLength": 3
+    },
+    "source_record_id": {
+      "type": "string",
+      "minLength": 3
+    },
+    "duplicate_type": {
+      "enum": [
+        "replay",
+        "exact_duplicate",
+        "not_duplicate"
+      ]
+    },
+    "rule_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "matched_source_record_ids": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 3
+      }
+    },
+    "comparison_keys": {
+      "type": "object"
+    },
+    "decided_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "decision_version": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

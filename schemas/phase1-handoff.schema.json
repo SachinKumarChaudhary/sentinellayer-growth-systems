@@ -1,0 +1,355 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinellayer.invalid/schemas/phase1-handoff.schema.json",
+  "title": "Phase1Handoff",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "lead_id",
+    "canonical_lead",
+    "source_refs",
+    "field_observations",
+    "quality_status",
+    "quality_findings",
+    "normalization_version",
+    "canonical_fingerprint",
+    "contract_version",
+    "downstream_eligible",
+    "completed_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "v1"
+    },
+    "lead_id": {
+      "type": "string",
+      "minLength": 3
+    },
+    "canonical_lead": {
+      "$ref": "#/$defs/canonicalLead"
+    },
+    "source_refs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 3
+      }
+    },
+    "field_observations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/fieldObservation"
+      }
+    },
+    "quality_status": {
+      "enum": [
+        "ACCEPTED",
+        "ACCEPTED_WITH_WARNINGS",
+        "QUARANTINED",
+        "REJECTED",
+        "DUPLICATE"
+      ]
+    },
+    "quality_findings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/validationFinding"
+      }
+    },
+    "normalization_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "canonical_fingerprint": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "contract_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "downstream_eligible": {
+      "type": "boolean"
+    },
+    "completed_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "$defs": {
+    "fieldObservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "observation_id",
+        "lead_id",
+        "source_record_id",
+        "field",
+        "source_field_name",
+        "raw_value",
+        "normalized_value",
+        "value_state",
+        "observed_at",
+        "adapter_version",
+        "normalization_version",
+        "transformation_reason"
+      ],
+      "properties": {
+        "observation_id": {
+          "type": "string",
+          "minLength": 3
+        },
+        "lead_id": {
+          "type": "string",
+          "minLength": 3
+        },
+        "source_record_id": {
+          "type": "string",
+          "minLength": 3
+        },
+        "field": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_field_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "raw_value": {},
+        "normalized_value": {},
+        "value_state": {
+          "enum": [
+            "observed",
+            "normalized",
+            "missing",
+            "invalid",
+            "conflicting"
+          ]
+        },
+        "observed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "adapter_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "normalization_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "transformation_reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "validationFinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "finding_id",
+        "rule_id",
+        "severity",
+        "code",
+        "message",
+        "created_at",
+        "validation_version"
+      ],
+      "properties": {
+        "finding_id": {
+          "type": "string",
+          "minLength": 3
+        },
+        "source_record_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lead_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "field": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "rule_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "severity": {
+          "enum": [
+            "ERROR",
+            "WARNING",
+            "INFO"
+          ]
+        },
+        "code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        },
+        "observed_value_ref": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "validation_version": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "canonicalLead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "lead_id",
+        "source_refs",
+        "field_observations",
+        "normalization_version",
+        "raw_fingerprint",
+        "source_fingerprint",
+        "canonical_fingerprint",
+        "quality_status",
+        "quality_finding_ids",
+        "created_at",
+        "updated_at"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "v1"
+        },
+        "lead_id": {
+          "type": "string",
+          "minLength": 3
+        },
+        "display_name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "legal_name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "domain": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "canonical_url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "country_code": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "region": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "city": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "postal_code": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "platform": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source_refs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 3
+          }
+        },
+        "field_observations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/fieldObservation"
+          }
+        },
+        "normalization_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "raw_fingerprint": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "source_fingerprint": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "canonical_fingerprint": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "quality_status": {
+          "enum": [
+            "ACCEPTED",
+            "ACCEPTED_WITH_WARNINGS",
+            "QUARANTINED",
+            "REJECTED",
+            "DUPLICATE"
+          ]
+        },
+        "quality_finding_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 3
+          }
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  }
+}
