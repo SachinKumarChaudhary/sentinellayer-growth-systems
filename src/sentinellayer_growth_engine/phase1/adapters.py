@@ -62,9 +62,9 @@ class _MappedAdapter:
 
 
 class ScraperCityAdapter(_MappedAdapter):
-    source_name: ClassVar[str] = "scrapercity"
-    adapter_version: ClassVar[str] = "scrapercity.v1"
-    field_map: ClassVar[dict[str, str]] = {
+    source_name = "scrapercity"
+    adapter_version = "scrapercity.v1"
+    field_map = {
         "display_name": "merchant_name",
         "domain": "domain",
         "canonical_url": "domain_url",
@@ -79,9 +79,9 @@ class ScraperCityAdapter(_MappedAdapter):
 
 
 class HunterDiscoverAdapter(_MappedAdapter):
-    source_name: ClassVar[str] = "hunter_discover"
-    adapter_version: ClassVar[str] = "hunter_discover.v1"
-    field_map: ClassVar[dict[str, str]] = {
+    source_name = "hunter_discover"
+    adapter_version = "hunter_discover.v1"
+    field_map = {
         "display_name": "organization",
         "domain": "domain",
         "canonical_url": "website",
@@ -95,3 +95,4 @@ class HunterDiscoverAdapter(_MappedAdapter):
         "keywords": "keywords",
         "description": "description",
     }
+}
