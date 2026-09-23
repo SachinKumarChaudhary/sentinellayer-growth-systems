@@ -31,7 +31,7 @@ def test_phase1_contracts_accept_realistic_handoff() -> None:
 
 
 def test_phase1_contracts_reject_extra_fields() -> None:
-    now = datetime(2026, 9, 23, 12, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 9, 23, 12, 0, tzinfo=UTC)
     record = ScraperCityAdapter().adapt(
         {"merchant_name": "ACME", "domain": "acme.example"},
         acquired_at=now,
