@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-
 
 from sentinellayer_growth_engine.phase1 import (
     HunterDiscoverAdapter,
@@ -15,7 +14,7 @@ from sentinellayer_growth_engine.phase1.models import LeadSourceRecord
 
 
 FIXTURE_PATH = Path(__file__).parent / "fixtures" / "phase1_gold.json"
-ACQUIRED_AT = datetime(2026, 9, 23, 12, 0, tzinfo=timezone.utc)
+ACQUIRED_AT = datetime(2026, 9, 23, 12, 0, tzinfo=UTC)
 
 
 def _scraper_record(payload: dict[str, object], key: str) -> LeadSourceRecord:
