@@ -11,14 +11,7 @@ from .fingerprints import (
     derive_observation_id,
     source_fingerprint,
 )
-from .models import (
-    CanonicalLead,
-    FieldObservation,
-    LeadSourceRecord,
-    NORMALIZATION_VERSION,
-    QualityStatus,
-    ValueState,
-)
+from .models import CanonicalLead, FieldObservation, LeadSourceRecord, NORMALIZATION_VERSION, QualityStatus
 
 _WHITESPACE = re.compile(r"\s+")
 _PHONE_SEPARATORS = re.compile(r"[\s().-]+")
@@ -127,7 +120,7 @@ def normalize_source_record(
 
     for binding in record.mapped_fields:
         normalized, reason = _normalize_value(binding.canonical_field, binding.raw_value)
-        state: ValueState = (
+        state = (
             "missing"
             if normalized is None
             else "normalized"
