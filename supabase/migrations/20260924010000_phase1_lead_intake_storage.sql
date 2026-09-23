@@ -141,7 +141,7 @@ CREATE TABLE IF NOT EXISTS growth.lead_canonical_projection (
     ))
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS lead_canonical_projection_fingerprint_uq
+CREATE INDEX IF NOT EXISTS lead_canonical_projection_fingerprint_idx
     ON growth.lead_canonical_projection (canonical_fingerprint);
 
 CREATE TABLE IF NOT EXISTS growth.lead_quarantine (
