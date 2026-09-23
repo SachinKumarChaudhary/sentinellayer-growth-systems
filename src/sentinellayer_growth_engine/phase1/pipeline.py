@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from .fingerprints import derive_duplicate_decision_id, derive_lead_id
 from .models import (
@@ -17,7 +17,7 @@ from .validation import has_errors, has_warnings, validate_canonical_lead, valid
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _duplicate_decision(
