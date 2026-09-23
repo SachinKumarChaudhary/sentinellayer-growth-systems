@@ -34,6 +34,43 @@ class Phase1Repository:
         with self._connection_factory() as conn, conn.cursor() as cur:
             cur.execute(
                 """
+                SELECT raw_fingerprint
+                FROM growth.lead_source_records
+                WHERE source_record_id = %s
+                """,
+                (source.source_record_id,),
+            )
+            existing_source = cur.fetchone()
+            if existing_source is not None:
+                if existing_source[0] != source.raw_fingerprint:
+                    raise ValueError(
+                        f"source_record_id collision for {source.source_record_id}"
+                    )
+                cur.execute(
+                    """
+                    SELECT state
+                    FROM growth.lead_processing_state
+                    WHERE source_record_id = %s
+                    """,
+                    (source.source_record_id,),
+                )
+                existing_state = cur.fetchone()
+                if existing_state is not None and existing_state[0] in {
+                    "ACCEPTED",
+                    "ACCEPTED_WITH_WARNINGS",
+                    "DUPLICATE",
+                }:
+                    conn.commit()
+                    return {
+                        "source_record_id": source.source_record_id,
+                        "state": "REPLAY_NOOP",
+                        "lead_id": result.canonical_lead.lead_id
+                        if result.canonical_lead
+                        else None,
+                    }
+
+            cur.execute(
+                """
                 INSERT INTO growth.lead_source_records
                     (source_record_id, schema_version, source_name, source_version,
                      source_record_key, acquired_at, source_payload, mapped_fields,
