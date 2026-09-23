@@ -1,25 +1,28 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 from collections import Counter, defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-import pandas as pd
 
 from sentinellayer_growth_engine.phase1 import ScraperCityAdapter, process_source_record
 
 
 def _payload(row: dict[str, Any]) -> dict[str, Any]:
-    return {key: (None if pd.isna(value) else value) for key, value in row.items()}
+    return {key: (value if value not in ('', None) else None) for key, value in row.items()}
 
 
 def reconcile(path: Path, expected_rows: int | None = None) -> dict[str, Any]:
-    frame = pd.read_csv(path)
-    if expected_rows is not None and len(frame) != expected_rows:
-        raise ValueError(f"expected {expected_rows} rows, found {len(frame)}")
+    with path.open(newline='', encoding='utf-8-sig') as handle:
+        reader = csv.DictReader(handle)
+        columns = list(reader.fieldnames or [])
+        rows = list(reader)
+    if expected_rows is not None and len(rows) != expected_rows:
+        raise ValueError(f"expected {expected_rows} rows, found {len(rows)}")
 
     acquired_at = datetime.now(UTC)
     adapter = ScraperCityAdapter()
@@ -28,9 +31,9 @@ def reconcile(path: Path, expected_rows: int | None = None) -> dict[str, Any]:
     domains: defaultdict[str, list[int]] = defaultdict(list)
     records: list[Any] = []
 
-    for row_number, row in frame.iterrows():
+    for row_number, row in enumerate(rows):
         record = adapter.adapt(
-            _payload(row.to_dict()),
+            _payload(row),
             acquired_at=acquired_at,
             source_record_key=str(row_number),
         )
@@ -52,9 +55,9 @@ def reconcile(path: Path, expected_rows: int | None = None) -> dict[str, Any]:
     return {
         "source": "scrapercity",
         "path": str(path),
-        "row_count": len(frame),
-        "column_count": len(frame.columns),
-        "columns": list(frame.columns),
+        "row_count": len(rows),
+        "column_count": len(columns),
+        "columns": columns,
         "states": dict(states),
         "finding_counts": dict(findings),
         "normalized_domain_count": len(domains),
