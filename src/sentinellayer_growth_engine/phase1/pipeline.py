@@ -51,15 +51,32 @@ def _check_duplicate(
     decided_at: datetime,
 ) -> DuplicateDecision:
     for existing in existing_records:
-        if existing.source_record_id == source_record_id:
+        if existing.source_record_id != source_record_id:
+            continue
+        if existing.raw_fingerprint == raw_fingerprint:
             return _duplicate_decision(
                 source_record_id=source_record_id,
                 duplicate_type="replay",
                 rule_id="dedupe.replay.source_record_id",
                 matched_ids=[existing.source_record_id],
-                comparison_keys={"source_record_id": source_record_id},
+                comparison_keys={
+                    "source_record_id": source_record_id,
+                    "raw_fingerprint": raw_fingerprint,
+                },
                 decided_at=decided_at,
             )
+        return _duplicate_decision(
+            source_record_id=source_record_id,
+            duplicate_type="not_duplicate",
+            rule_id="dedupe.source_record_version_changed",
+            matched_ids=[existing.source_record_id],
+            comparison_keys={
+                "source_record_id": source_record_id,
+                "previous_raw_fingerprint": existing.raw_fingerprint,
+                "current_raw_fingerprint": raw_fingerprint,
+            },
+            decided_at=decided_at,
+        )
 
     for existing in existing_records:
         if (
