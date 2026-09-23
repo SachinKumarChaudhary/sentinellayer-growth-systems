@@ -80,8 +80,8 @@ class ScraperCityAdapter(_MappedAdapter):
 
 class HunterDiscoverAdapter(_MappedAdapter):
     source_name: ClassVar[str] = "hunter_discover"
-    adapter_version = "hunter_discover.v1"
-    field_map = {
+    adapter_version: ClassVar[str] = "hunter_discover.v1"
+    field_map: ClassVar[dict[str, str]] = {
         "display_name": "organization",
         "domain": "domain",
         "canonical_url": "website",
