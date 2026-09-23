@@ -63,6 +63,18 @@ def test_replay_is_duplicate() -> None:
     assert replay.duplicate_decision.duplicate_type == "replay"
 
 
+def test_changed_source_observation_keeps_source_identity() -> None:
+    first = _scraper_record({"merchant_name": "ACME", "domain": "acme.example"}, "native-1")
+    changed = _scraper_record({"merchant_name": "ACME", "domain": "acme-updated.example"}, "native-1")
+    assert first.source_record_id == changed.source_record_id
+
+    result = process_source_record(changed, existing_records=[first], now=ACQUIRED_AT)
+    assert result.state == "ACCEPTED"
+    assert result.duplicate_decision.duplicate_type == "not_duplicate"
+    assert result.duplicate_decision.rule_id == "dedupe.source_record_version_changed"
+    assert result.duplicate_decision.matched_source_record_ids == [first.source_record_id]
+
+
 def test_exact_duplicate_is_explainable() -> None:
     payload = {"merchant_name": "ACME", "domain": "acme.example"}
     first = _scraper_record(payload, "1")
