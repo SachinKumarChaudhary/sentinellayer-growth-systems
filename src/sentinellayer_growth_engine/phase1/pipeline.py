@@ -65,18 +65,11 @@ def _check_duplicate(
                 },
                 decided_at=decided_at,
             )
-        return _duplicate_decision(
-            source_record_id=source_record_id,
-            duplicate_type="not_duplicate",
-            rule_id="dedupe.source_record_version_changed",
-            matched_ids=[existing.source_record_id],
-            comparison_keys={
-                "source_record_id": source_record_id,
-                "previous_raw_fingerprint": existing.raw_fingerprint,
-                "current_raw_fingerprint": raw_fingerprint,
-            },
-            decided_at=decided_at,
-        )
+        # A changed observation cannot collide here because observation IDs
+        # include raw_fingerprint. Keep this branch for compatibility with
+        # callers supplying legacy records, but do not classify it as a
+        # source-version collision.
+        continue
 
     for existing in existing_records:
         if (
@@ -118,7 +111,11 @@ def process_source_record(
 ) -> Phase1Result:
     processed_at = now or _now()
     source_findings = validate_source_record(record, now=processed_at)
-    lead_id = derive_lead_id(record.source_record_id)
+    lead_id = derive_lead_id(
+        record.source_name,
+        record.source_record_key,
+        record.source_record_id,
+    )
 
     provisional_status: QualityStatus = (
         "QUARANTINED" if has_errors(source_findings) else "ACCEPTED"

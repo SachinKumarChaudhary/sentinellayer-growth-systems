@@ -63,16 +63,19 @@ def test_replay_is_duplicate() -> None:
     assert replay.duplicate_decision.duplicate_type == "replay"
 
 
-def test_changed_source_observation_keeps_source_identity() -> None:
+def test_changed_source_observation_gets_new_observation_id_and_stable_lead_id() -> None:
     first = _scraper_record({"merchant_name": "ACME", "domain": "acme.example"}, "native-1")
     changed = _scraper_record({"merchant_name": "ACME", "domain": "acme-updated.example"}, "native-1")
-    assert first.source_record_id == changed.source_record_id
+    assert first.source_record_id != changed.source_record_id
 
+    first_result = process_source_record(first, now=ACQUIRED_AT)
     result = process_source_record(changed, existing_records=[first], now=ACQUIRED_AT)
+    assert first_result.canonical_lead is not None
+    assert result.canonical_lead is not None
+    assert result.canonical_lead.lead_id == first_result.canonical_lead.lead_id
     assert result.state == "ACCEPTED"
     assert result.duplicate_decision.duplicate_type == "not_duplicate"
-    assert result.duplicate_decision.rule_id == "dedupe.source_record_version_changed"
-    assert result.duplicate_decision.matched_source_record_ids == [first.source_record_id]
+    assert result.duplicate_decision.rule_id == "dedupe.no_phase1_exact_match"
 
 
 def test_exact_duplicate_is_explainable() -> None:

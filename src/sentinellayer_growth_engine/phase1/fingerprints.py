@@ -82,17 +82,33 @@ def derive_source_record_id(
 ) -> str:
     # Prefer the provider's stable native record key. Raw content is only the
     # documented fallback when the provider supplies no stable key.
+    # source_record_id is the immutable observation identity. A native provider
+    # key identifies the source entity across observations, while raw content
+    # identifies the specific observation. This keeps changed observations
+    # append-only without breaking replay idempotency.
     identity_material = {
         "source_name": source_name.strip().lower(),
-        "source_record_key": source_record_key
-        if source_record_key is not None
-        else f"raw:{raw_fp}",
+        "source_record_key": source_record_key,
+        "raw_fingerprint": raw_fp,
     }
     return f"sr_{fingerprint(identity_material)[:40]}"
 
 
-def derive_lead_id(source_record_id: str) -> str:
-    return f"lead_{fingerprint(source_record_id)[:40]}"
+def derive_lead_id(
+    source_name: str,
+    source_record_key: str | None,
+    source_record_id: str,
+) -> str:
+    # A stable native key gives observations a stable lead identity. If the
+    # provider has no native key, the observation itself is the only safe
+    # identity available at Phase 1.
+    identity_material = {
+        "source_name": source_name.strip().lower(),
+        "source_record_key": source_record_key,
+    }
+    if source_record_key is None:
+        identity_material["source_record_id"] = source_record_id
+    return f"lead_{fingerprint(identity_material)[:40]}"
 
 
 def derive_observation_id(
