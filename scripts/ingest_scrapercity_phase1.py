@@ -90,6 +90,37 @@ def main() -> int:
     # Duplicate adjudication is intentionally performed against the complete
     # batch so exact duplicate payloads remain explainable before persistence.
     existing_records: list[LeadSourceRecord] = []
+    if not args.dry_run:
+        db_url = os.environ.get("SUPABASE_DB_URL")
+        if not db_url:
+            raise SystemExit("SUPABASE_DB_URL is required for live ingestion")
+        with psycopg.connect(db_url) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT source_record_id, schema_version, source_name, source_version,
+                           source_record_key, acquired_at, source_payload, mapped_fields,
+                           raw_fingerprint, adapter_version
+                    FROM growth.lead_source_records
+                    ORDER BY received_at, source_record_id
+                    """
+                )
+                existing_records = [
+                    LeadSourceRecord.model_validate({
+                        "source_record_id": row[0],
+                        "schema_version": row[1],
+                        "source_name": row[2],
+                        "source_version": row[3],
+                        "source_record_key": row[4],
+                        "acquired_at": row[5],
+                        "source_payload": row[6],
+                        "mapped_fields": row[7],
+                        "raw_fingerprint": row[8],
+                        "adapter_version": row[9],
+                    })
+                    for row in cur.fetchall()
+                ]
+
     results = [
         process_source_record(record, existing_records=[*existing_records, *records[:index]])
         for index, record in enumerate(records)
@@ -111,12 +142,14 @@ def main() -> int:
     if not db_url:
         raise SystemExit("SUPABASE_DB_URL is required for live ingestion")
 
-    with psycopg.connect(db_url) as conn:
-        def connection_factory() -> psycopg.Connection[Any]:
-            return psycopg.connect(db_url)
+    def connection_factory() -> psycopg.Connection[Any]:
+        return psycopg.connect(db_url)
 
-        repository = Phase1Repository(connection_factory)
-        persisted = [repository.persist_result(result) for result in results]
+    repository = Phase1Repository(connection_factory)
+    persisted = [
+        repository.persist_result(result)
+        for result in results
+    ]
 
     _summarize(persisted)
     return 0
