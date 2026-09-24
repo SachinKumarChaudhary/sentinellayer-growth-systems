@@ -31,7 +31,7 @@ def reconcile(path: Path, expected_rows: int | None = None) -> dict[str, Any]:
     domains: defaultdict[str, list[int]] = defaultdict(list)
     records: list[Any] = []
 
-    for row_number, row in enumerate(rows):
+    for row_number, row in enumerate(rows, start=1):
         record = adapter.adapt(
             _payload(row),
             acquired_at=acquired_at,
