@@ -5,7 +5,9 @@ from pathlib import Path
 
 import pytest
 
-from scripts.ingest_scrapercity_phase1 import EXPECTED_COLUMNS, _load_rows
+from datetime import UTC, datetime
+
+from scripts.ingest_scrapercity_phase1 import EXPECTED_COLUMNS, _load_rows, prepare_results
 
 
 def test_scrapercity_loader_preserves_one_based_row_numbers(tmp_path: Path) -> None:
@@ -29,3 +31,19 @@ def test_scrapercity_loader_rejects_schema_drift(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="expected 42 columns"):
         _load_rows(path, 0)
+
+
+
+def test_scrapercity_exact_duplicates_are_adjudicated_before_persistence() -> None:
+    now = datetime(2026, 9, 24, 12, 0, tzinfo=UTC)
+    payload = {"merchant_name": "ACME", "domain": "acme.example"}
+    results = prepare_results(
+        [(1, payload), (2, payload)],
+        acquired_at=now,
+        source_version="Store Leads Shopify - US - ScraperCity.csv",
+    )
+
+    assert results[0].state == "ACCEPTED"
+    assert results[1].state == "DUPLICATE"
+    assert results[1].duplicate_decision.duplicate_type == "exact_duplicate"
+    assert results[1].duplicate_decision.rule_id == "dedupe.exact.source.raw_fingerprint"
