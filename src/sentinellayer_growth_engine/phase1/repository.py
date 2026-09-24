@@ -13,6 +13,7 @@ from .models import (
     Phase1Handoff,
     Phase1Result,
     ValidationFinding,
+    LeadSourceRecord,
 )
 
 
