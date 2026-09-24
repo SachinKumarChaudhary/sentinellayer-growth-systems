@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -11,7 +10,7 @@ import psycopg
 
 from sentinellayer_growth_engine.config import Settings
 from sentinellayer_growth_engine.phase1 import ScraperCityAdapter, process_source_record
-from sentinellayer_growth_engine.phase1.models import LeadSourceRecord
+from sentinellayer_growth_engine.phase1.models import LeadSourceRecord, Phase1Result
 from sentinellayer_growth_engine.phase1.repository import Phase1Repository
 
 SOURCE_NAME = "scrapercity"
@@ -101,7 +100,7 @@ def prepare_results(
     acquired_at: datetime,
     source_version: str,
     existing_records: list[LeadSourceRecord] | None = None,
-) -> list[Any]:
+) -> list[Phase1Result]:
     records = _records(rows, acquired_at, source_version)
     prior = list(existing_records or [])
     results = []
