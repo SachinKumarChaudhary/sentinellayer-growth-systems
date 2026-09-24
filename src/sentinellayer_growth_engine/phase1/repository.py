@@ -14,6 +14,7 @@ from .models import (
     Phase1Result,
     ValidationFinding,
     LeadSourceRecord,
+    SourceFieldBinding,
 )
 
 
@@ -53,6 +54,37 @@ class Phase1Repository:
             "raw_fingerprint": row[8],
             "adapter_version": row[9],
         }) for row in rows]
+
+    def load_source_records(self, source_name: str) -> list[LeadSourceRecord]:
+        """Load immutable source observations needed for Phase 1 exact dedupe."""
+        with self._connection_factory() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT source_record_id, schema_version, source_name, source_version,
+                       source_record_key, acquired_at, source_payload, mapped_fields,
+                       raw_fingerprint, adapter_version
+                FROM growth.lead_source_records
+                WHERE source_name = %s
+                ORDER BY source_record_id
+                """,
+                (source_name,),
+            )
+            rows = cur.fetchall()
+        return [
+            LeadSourceRecord(
+                source_record_id=row[0],
+                schema_version=row[1],
+                source_name=row[2],
+                source_version=row[3],
+                source_record_key=row[4],
+                acquired_at=row[5],
+                source_payload=row[6],
+                mapped_fields=[SourceFieldBinding.model_validate(item) for item in row[7]],
+                raw_fingerprint=row[8],
+                adapter_version=row[9],
+            )
+            for row in rows
+        ]
 
     def persist_result(self, result: Phase1Result) -> dict[str, Any]:
         source = result.source_record
