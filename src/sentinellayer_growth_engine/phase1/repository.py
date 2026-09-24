@@ -13,6 +13,7 @@ from .models import (
     Phase1Handoff,
     Phase1Result,
     ValidationFinding,
+    LeadSourceRecord,
 )
 
 
@@ -26,6 +27,32 @@ class Phase1Repository:
 
     def __init__(self, connection_factory: ConnectionFactory) -> None:
         self._connection_factory = connection_factory
+
+    def list_source_records(self) -> list[LeadSourceRecord]:
+        """Load immutable source observations for deterministic exact-dedupe adjudication."""
+        with self._connection_factory() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT source_record_id, schema_version, source_name, source_version,
+                       source_record_key, acquired_at, source_payload, mapped_fields,
+                       raw_fingerprint, adapter_version
+                FROM growth.lead_source_records
+                ORDER BY received_at, source_record_id
+                """
+            )
+            rows = cur.fetchall()
+        return [LeadSourceRecord.model_validate({
+            "source_record_id": row[0],
+            "schema_version": row[1],
+            "source_name": row[2],
+            "source_version": row[3],
+            "source_record_key": row[4],
+            "acquired_at": row[5],
+            "source_payload": row[6],
+            "mapped_fields": row[7],
+            "raw_fingerprint": row[8],
+            "adapter_version": row[9],
+        }) for row in rows]
 
     def persist_result(self, result: Phase1Result) -> dict[str, Any]:
         source = result.source_record
