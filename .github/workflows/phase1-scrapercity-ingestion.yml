@@ -23,7 +23,7 @@ jobs:
     env:
       SL_ENVIRONMENT: production
       SL_REAL_EMAIL_ENABLED: "false"
-      SL_DATABASE_URL: ${{ secrets.SL_DATABASE_URL }}
+      SL_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
     steps:
       - uses: actions/checkout@v5
 
