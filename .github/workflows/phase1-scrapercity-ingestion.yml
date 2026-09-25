@@ -1,0 +1,58 @@
+name: phase1-scrapercity-ingestion
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Persist Phase 1 results to Supabase"
+        required: true
+        default: false
+        type: boolean
+      limit:
+        description: "Optional row limit for a controlled test run"
+        required: false
+        default: "0"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    env:
+      SL_ENVIRONMENT: production
+      SL_REAL_EMAIL_ENABLED: "false"
+      SL_DATABASE_URL: ${{ secrets.SL_DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip 'setuptools>=83,<84'
+          python -m pip install -e .
+
+      - name: Validate database secret
+        run: |
+          test -n "$SL_DATABASE_URL"
+
+      - name: Run controlled Phase 1 ScraperCity ingestion
+        env:
+          INPUT_LIMIT: ${{ inputs.limit }}
+          INPUT_APPLY: ${{ inputs.apply }}
+        run: |
+          args=(--from-legacy-db)
+          if [ "$INPUT_LIMIT" != "0" ]; then
+            args+=(--limit "$INPUT_LIMIT")
+          fi
+
+          if [ "$INPUT_APPLY" = "true" ]; then
+            python scripts/ingest_scrapercity_phase1.py "${args[@]}"
+          else
+            python scripts/ingest_scrapercity_phase1.py "${args[@]}" --dry-run
+          fi
