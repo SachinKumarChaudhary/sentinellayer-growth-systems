@@ -26,9 +26,7 @@ def test_scrapercity_loader_preserves_one_based_row_numbers(tmp_path: Path) -> N
 
 def test_scrapercity_loader_rejects_schema_drift(tmp_path: Path) -> None:
     path = tmp_path / "bad.csv"
-    path.write_text("a,b
-1,2
-", encoding="utf-8")
+    path.write_text("""a,b\n1,2\n""", encoding="utf-8")
 
     with pytest.raises(ValueError, match="expected 42 columns"):
         _load_csv_rows(path, 0)
