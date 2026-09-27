@@ -63,14 +63,55 @@ class TinyFishClient:
         self._max_retry_attempts = max_retry_attempts
 
     def search(
-        self, query: str, *, purpose: str | None = None
+        self,
+        query: str,
+        *,
+        purpose: str | None = None,
+        location: str | None = None,
+        language: str | None = None,
+        include_domains: tuple[str, ...] = (),
+        exclude_domains: tuple[str, ...] = (),
+        recency_minutes: int | None = None,
+        after_date: str | None = None,
+        before_date: str | None = None,
+        domain_type: str | None = None,
+        page: int = 0,
     ) -> list[TinyFishSearchResult]:
         """Run one public-web search and return structured results."""
         if not query.strip():
             raise ValueError("TinyFish search query must not be empty")
-        params: dict[str, str] = {"query": query}
+        if recency_minutes is not None and (after_date is not None or before_date is not None):
+            raise ValueError("recency_minutes cannot be combined with absolute date bounds")
+        if recency_minutes is not None and not 1 <= recency_minutes <= 5_256_000:
+            raise ValueError("recency_minutes must be between 1 and 5_256_000")
+        if after_date and before_date and after_date > before_date:
+            raise ValueError("after_date must be on or before before_date")
+        if page < 0 or page > 10:
+            raise ValueError("TinyFish Search page must be between 0 and 10")
+
+        params: dict[str, str] = {"query": query, "page": str(page)}
         if purpose:
             params["purpose"] = purpose
+        if location:
+            params["location"] = location
+        if language:
+            params["language"] = language
+        if include_domains:
+            params["include_domains"] = ",".join(include_domains)
+        if exclude_domains:
+            params["exclude_domains"] = ",".join(exclude_domains)
+        if recency_minutes is not None:
+            params["recency_minutes"] = str(recency_minutes)
+        if after_date:
+            params["after_date"] = after_date
+        if before_date:
+            params["before_date"] = before_date
+        if domain_type:
+            if domain_type == "research_paper":
+                raise ValueError("research_paper is outside normal Phase 2 entity research")
+            if domain_type not in {"web", "news"}:
+                raise ValueError("TinyFish Search domain_type must be web or news")
+            params["domain_type"] = domain_type
         payload = self._request_json(
             "GET", f"{self._search_url}?{urlencode(params)}", quota_units=1
         )
