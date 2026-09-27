@@ -212,3 +212,21 @@ def test_decision_id_is_stable_for_same_inputs() -> None:
 
     assert first.decision_id == second.decision_id
     assert first.model_dump(mode="json") == second.model_dump(mode="json")
+
+def test_relationship_optional_validity_timestamps_accept_null() -> None:
+    relationship = EntityRelationship(
+        relationship_id="rel-null-dates",
+        subject_entity_id="brand-1",
+        predicate="OWNED_BY",
+        object_entity_id="parent-1",
+        valid_from=None,
+        valid_to=None,
+        currentness="CURRENT",
+        evidence_refs=["https://evidence.example/ownership"],
+        status="ESTABLISHED",
+        adjudication_reason="No explicit validity dates were established by the evidence.",
+    )
+
+    assert relationship.valid_from is None
+    assert relationship.valid_to is None
+
