@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from email.message import Message
 from urllib.error import HTTPError
+from urllib.request import Request
 
 import pytest
 from typing import Self
@@ -35,7 +36,7 @@ def test_search_cache_reuses_identical_request(monkeypatch: pytest.MonkeyPatch) 
     calls: list[str] = []
     telemetry: list[TinyFishRequestTelemetry] = []
 
-    def fake_urlopen(request: object, timeout: float) -> FakeResponse:
+    def fake_urlopen(request: Request, timeout: float) -> FakeResponse:
         calls.append(str(request))
         return FakeResponse(
             {
@@ -107,7 +108,7 @@ def test_search_serializes_include_thumbnail_false(monkeypatch: pytest.MonkeyPat
     requests: list[str] = []
 
     def fake_urlopen(request: object, timeout: float) -> FakeResponse:
-        requests.append(str(getattr(request, "full_url")))
+        requests.append(request.full_url)
         return FakeResponse({"results": []})
 
     monkeypatch.setattr(
