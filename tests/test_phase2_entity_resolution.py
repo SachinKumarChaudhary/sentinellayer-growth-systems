@@ -9,6 +9,7 @@ from sentinellayer_growth_engine.phase1.models import (
     Phase1Handoff,
 )
 from sentinellayer_growth_engine.phase2.blocking import generate_candidates
+from sentinellayer_growth_engine.phase2.normalization import registrable_domain
 from sentinellayer_growth_engine.phase2.models import EntityCandidate, EntityRelationship
 from sentinellayer_growth_engine.phase2.resolver import resolve_entity
 
@@ -197,3 +198,7 @@ def test_candidate_generation_is_bounded() -> None:
 def test_candidate_budget_must_be_positive() -> None:
     with pytest.raises(ValueError):
         generate_candidates(make_lead(), [], budget=0)
+
+
+def test_registrable_domain_handles_common_country_code_suffix() -> None:
+    assert registrable_domain("https://shop.brand.co.uk/path") == "brand.co.uk"
