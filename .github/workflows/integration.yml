@@ -76,4 +76,4 @@ jobs:
         env:
           SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
         run: |
-          pytest -q tests/integration/test_supabase_concurrency.py tests/integration/test_controlled_enrollment_e2e.py tests/integration/test_phase2_storage.py -m integration
+          pytest -q tests/integration/test_supabase_concurrency.py tests/integration/test_controlled_enrollment_e2e.py tests/integration/test_phase2_storage_integration.py -m integration
