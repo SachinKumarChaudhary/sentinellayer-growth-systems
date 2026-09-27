@@ -102,6 +102,19 @@ def test_search_request_preserves_canonical_provider_parameters() -> None:
     assert params["page"] == "1"
 
 
+def test_freshness_sensitive_search_disables_provider_cache() -> None:
+    client = FakeTinyFishClient()
+    adapter = TinyFishResearchAdapter(client)  # type: ignore[arg-type]
+    request = TinyFishSearchRequest(
+        query='"BrandCo" current ownership',
+        recency_minutes=60,
+    )
+
+    adapter.search(MISSION, request, provider_request_id="req-current")
+
+    assert client.search_calls[0]["ttl"] == 0
+
+
 def test_search_observations_preserve_request_and_source_provenance() -> None:
     client = FakeTinyFishClient()
     adapter = TinyFishResearchAdapter(client)  # type: ignore[arg-type]
@@ -126,6 +139,7 @@ def test_search_observations_preserve_request_and_source_provenance() -> None:
     assert observation.result_position == 0
     assert observation.source_domain == "brand.example"
     assert observation.request_parameters["include_domains"] == "brand.example"
+    assert client.search_calls[0]["ttl"] is None
 
 
 def test_fetch_observations_link_back_to_search_urls() -> None:
