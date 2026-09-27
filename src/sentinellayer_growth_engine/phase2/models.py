@@ -65,7 +65,9 @@ RelationshipType = Literal[
 RelationshipStatus = Literal["ESTABLISHED", "NOT_ESTABLISHED", "CONFLICT", "UNKNOWN"]
 
 
-def _utc(value: datetime) -> datetime:
+def _utc(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
     if value.tzinfo is None or value.utcoffset() is None:
         raise ValueError("timestamps must be timezone-aware")
     return value.astimezone(UTC)
