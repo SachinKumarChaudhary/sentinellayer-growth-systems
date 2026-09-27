@@ -325,6 +325,35 @@ def contract_fixtures() -> dict[str, dict[str, object]]:
             "downstream_eligible": True,
             "completed_at": UTC_NOW,
         },
+        "entity_resolution_decision": {
+            "decision_id": "erd-synthetic-001",
+            "contract_version": "phase2.entity_resolution.v1",
+            "lead_id": "lead-001",
+            "status": "MATCHED",
+            "canonical_entity_id": "entity-001",
+            "entity_type": "LEGAL_ENTITY",
+            "canonical_name": "Synthetic Example",
+            "canonical_domain": "example.invalid",
+            "confidence": "high",
+            "decisive_signals": ["exact_verified_canonical_domain"],
+            "rejected_candidates": [],
+            "comparisons": [],
+            "decision_trace": [
+                {
+                    "step": "adjudication",
+                    "detail": "Synthetic verified-domain match.",
+                    "candidate_id": "candidate-001"
+                }
+            ],
+            "evidence_refs": ["https://example.invalid/about"],
+            "currentness": "CURRENT",
+            "relationships": [],
+            "research_required": False,
+            "research_missions": [],
+            "unresolved_questions": [],
+            "matching_version": "phase2.deterministic_match.v1",
+            "decided_at": UTC_NOW,
+        },
 
     }
 
