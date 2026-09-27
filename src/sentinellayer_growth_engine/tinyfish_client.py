@@ -4,6 +4,7 @@ import json
 import os
 import time
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
@@ -481,7 +482,7 @@ class TinyFishClient:
         self,
         operation: str,
         fingerprint: str,
-        started_at: Any,
+        started_at: datetime,
         quota_units: int,
         attempt: int,
         error: TinyFishError,
@@ -504,7 +505,7 @@ class TinyFishClient:
         *,
         operation: str,
         request_fingerprint: str,
-        started_at: Any,
+        started_at: datetime,
         quota_units: int,
         attempts: int,
         retry_count: int,
