@@ -45,6 +45,24 @@ def normalize_domain(value: str | None) -> str:
     return host
 
 
+_COMMON_TWO_LEVEL_SUFFIXES = {
+    "co.uk",
+    "org.uk",
+    "ac.uk",
+    "gov.uk",
+    "com.au",
+    "net.au",
+    "org.au",
+    "co.nz",
+    "com.br",
+    "com.mx",
+    "co.in",
+    "co.jp",
+    "com.sg",
+    "com.hk",
+}
+
+
 def registrable_domain(value: str | None) -> str:
     host = normalize_domain(value)
     if not host:
@@ -52,7 +70,11 @@ def registrable_domain(value: str | None) -> str:
     parts = host.split(".")
     if len(parts) <= 2:
         return host
-    return ".".join(parts[-2:])
+
+    suffix = ".".join(parts[-2:])
+    if suffix in _COMMON_TWO_LEVEL_SUFFIXES and len(parts) >= 3:
+        return ".".join(parts[-3:])
+    return suffix
 
 
 def geography_tokens(values: list[str] | tuple[str, ...]) -> frozenset[str]:
