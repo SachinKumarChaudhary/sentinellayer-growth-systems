@@ -16,6 +16,7 @@ from .research import (
     TinyFishSearchRequest,
     candidate_from_research,
 )
+from .observability import TinyFishAttemptRecorder
 from .repository import Phase2Repository
 from .resolver import resolve_entity
 from .storage import (
@@ -36,6 +37,7 @@ __all__ = [
     "ProviderAttemptRecord",
     "ResearchMission",
     "ResearchObservationRecord",
+    "TinyFishAttemptRecorder",
     "TinyFishFetchObservation",
     "TinyFishResearchAdapter",
     "TinyFishSearchObservation",
