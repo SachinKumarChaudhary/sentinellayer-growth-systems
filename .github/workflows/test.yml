@@ -48,6 +48,7 @@ jobs:
             tests/contracts/test_phase1_contracts.py \
             tests/contracts/test_phase2_contracts.py \
             tests/contracts/test_phase2_storage_contracts.py \
+            tests/integration/test_phase2_storage.py \
             tests/contracts/test_version_registry.py \
             tests/contracts/test_contract_validation.py
       - name: MyPy
