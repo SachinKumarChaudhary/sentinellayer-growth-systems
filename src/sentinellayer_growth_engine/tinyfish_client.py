@@ -359,6 +359,7 @@ class TinyFishClient:
                 raise
 
             request = Request(url, data=data, headers=headers, method=method)
+            error: TinyFishError
             try:
                 with urlopen(request, timeout=self._timeout_seconds) as response:
                     raw = response.read().decode("utf-8")
