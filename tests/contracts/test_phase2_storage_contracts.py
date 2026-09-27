@@ -62,3 +62,11 @@ def test_phase2_storage_has_idempotency_and_evaluation_keys() -> None:
     assert "PRIMARY KEY (run_id, decision_id)" in sql
     assert "UNIQUE (run_id, lead_id)" in sql
     assert "UNIQUE (run_id, benchmark_version, case_id)" in sql
+
+
+def test_phase2_storage_preserves_decision_safety_invariants() -> None:
+    sql = _sql()
+    assert "AND canonical_entity_id IS NULL" in sql
+    assert "NOT research_required" in sql
+    assert "jsonb_array_length(research_missions) > 0" in sql
+    assert "jsonb_array_length(unresolved_questions) > 0" in sql
