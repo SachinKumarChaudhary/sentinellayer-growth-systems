@@ -40,9 +40,7 @@ def normalize_domain(value: str | None) -> str:
         candidate = f"https://{candidate}"
     parsed = urlparse(candidate)
     host = (parsed.hostname or "").rstrip(".")
-    if host.startswith("www."):
-        host = host[4:]
-    return host
+    return host.removeprefix("www.")
 
 
 _COMMON_TWO_LEVEL_SUFFIXES = {
