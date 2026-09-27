@@ -202,3 +202,13 @@ def test_candidate_budget_must_be_positive() -> None:
 
 def test_registrable_domain_handles_common_country_code_suffix() -> None:
     assert registrable_domain("https://shop.brand.co.uk/path") == "brand.co.uk"
+
+
+def test_decision_id_is_stable_for_same_inputs() -> None:
+    lead = make_lead()
+    candidates = [candidate(candidate_id="stable", entity_id="stable-1", verified=True)]
+    first = resolve_entity(lead, candidates, now=NOW)
+    second = resolve_entity(lead, candidates, now=NOW)
+
+    assert first.decision_id == second.decision_id
+    assert first.model_dump(mode="json") == second.model_dump(mode="json")
