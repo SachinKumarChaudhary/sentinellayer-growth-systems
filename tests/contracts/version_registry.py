@@ -13,6 +13,7 @@ SUPPORTED_SCHEMA_VERSIONS = {
     "validation-finding": frozenset({"v1"}),
     "duplicate-decision": frozenset({"v1"}),
     "phase1-handoff": frozenset({"v1"}),
+    "entity-resolution-decision": frozenset({"phase2.entity_resolution.v1"}),
 }
 
 
