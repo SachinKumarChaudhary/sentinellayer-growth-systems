@@ -20,7 +20,7 @@ from .models import (
 
 def _decision_id(lead_id: str, comparisons: list[EntityComparison]) -> str:
     material = "|".join(f"{item.candidate_id}:{item.score}" for item in comparisons)
-    digest = sha256(f"{lead_id}|{material}".encode("utf-8")).hexdigest()[:24]
+    digest = sha256(f"{lead_id}|{material}".encode()).hexdigest()[:24]
     return f"erd:{lead_id}:{digest}"
 
 
