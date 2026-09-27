@@ -104,10 +104,10 @@ def test_fetch_ttl_zero_bypasses_cache(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_search_serializes_include_thumbnail_false(monkeypatch: pytest.MonkeyPatch) -> None:
-    requests: list[object] = []
+    requests: list[str] = []
 
     def fake_urlopen(request: object, timeout: float) -> FakeResponse:
-        requests.append(request)
+        requests.append(str(getattr(request, "full_url")))
         return FakeResponse({"results": []})
 
     monkeypatch.setattr(
@@ -119,7 +119,7 @@ def test_search_serializes_include_thumbnail_false(monkeypatch: pytest.MonkeyPat
     client.search("Example")
 
     assert requests
-    assert "include_thumbnail=false" in str(requests[0])
+    assert "include_thumbnail=false" in requests[0]
 
 
 def test_429_retries_and_emits_rate_limit_telemetry(
