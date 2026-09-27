@@ -16,7 +16,7 @@ from sentinellayer_growth_engine.phase2.models import (
     EntityResolutionDecision,
 )
 from sentinellayer_growth_engine.phase2.repository import Phase2Repository
-from sentinellayer_growth_engine.phase2.storage import Phase2RunRecord
+from sentinellayer_growth_engine.phase2.storage import Phase2RunRecord, ProviderAttemptRecord
 
 
 PHASE2_TABLES = (
@@ -52,6 +52,28 @@ def test_phase2_storage_schema_and_immutability() -> None:
                 (list(PHASE2_TABLES),),
             )
             assert {row[0] for row in cur.fetchall()} == set(PHASE2_TABLES)
+
+            cur.execute(
+                """
+                select column_name
+                from information_schema.columns
+                where table_schema = 'growth'
+                  and table_name = 'entity_resolution_provider_attempts'
+                  and column_name = any(%s)
+                """
+                , (
+                    [
+                        'lead_id', 'http_status', 'retry_count', 'quota_state',
+                        'raw_artifact_ref', 'raw_artifact_hash', 'evidence_ids',
+                        'escalation_reason', 'information_gain_estimate'
+                    ],
+                )
+            )
+            assert {row[0] for row in cur.fetchall()} == {
+                'lead_id', 'http_status', 'retry_count', 'quota_state',
+                'raw_artifact_ref', 'raw_artifact_hash', 'evidence_ids',
+                'escalation_reason', 'information_gain_estimate'
+            }
 
             cur.execute(
                 """
@@ -216,6 +238,33 @@ def test_phase2_repository_persists_and_replays_without_duplication() -> None:
             decision=decision,
         )
 
+        repository.persist_provider_attempt(
+            ProviderAttemptRecord(
+                run_id=run_id,
+                lead_id="ci-lead",
+                mission_id="mission-1",
+                provider="tinyfish",
+                operation="search",
+                request_fingerprint="a" * 64,
+                request_payload={"purpose": "entity identity"},
+                status="RATE_LIMITED",
+                provider_request_id=None,
+                http_status=429,
+                retry_count=2,
+                result_count=0,
+                latency_ms=1200,
+                quota_state={"quota_units": 1, "remaining": 29},
+                raw_artifact_ref="artifact://raw/1",
+                raw_artifact_hash="b" * 64,
+                evidence_ids=[],
+                escalation_reason="rate_limit_retry",
+                information_gain_estimate=0.0,
+                error_code="RATE_LIMIT",
+                started_at=now,
+                completed_at=now,
+            )
+        )
+
         with factory.connection.cursor() as cur:
             cur.execute(
                 """
@@ -242,5 +291,16 @@ def test_phase2_repository_persists_and_replays_without_duplication() -> None:
                 (run_id,),
             )
             assert cur.fetchone() == (1,)
+            cur.execute(
+                """
+                select lead_id, http_status, retry_count, evidence_ids, escalation_reason
+                from growth.entity_resolution_provider_attempts
+                where run_id = %s
+                """,
+                (run_id,),
+            )
+            assert cur.fetchone() == (
+                "ci-lead", 429, 2, [], "rate_limit_retry"
+            )
     finally:
         factory.rollback_and_close()
