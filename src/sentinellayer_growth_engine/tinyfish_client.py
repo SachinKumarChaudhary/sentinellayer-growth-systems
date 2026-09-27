@@ -396,6 +396,9 @@ class TinyFishClient:
                         operation, fingerprint, started_at, quota_units, attempt, error
                     )
                     raise error from exc
+                self._emit_failure(
+                    operation, fingerprint, started_at, quota_units, attempt, error
+                )
                 delay = self._retry_delay(exc, attempt)
                 time.sleep(delay)
                 last_error = error
