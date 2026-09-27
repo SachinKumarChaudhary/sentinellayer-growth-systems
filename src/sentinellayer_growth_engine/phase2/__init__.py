@@ -8,6 +8,14 @@ from .models import (
     EntityRelationship,
     EntityResolutionDecision,
 )
+from .research import (
+    ResearchMission,
+    TinyFishFetchObservation,
+    TinyFishResearchAdapter,
+    TinyFishSearchObservation,
+    TinyFishSearchRequest,
+    candidate_from_research,
+)
 from .resolver import resolve_entity
 
 __all__ = [
@@ -15,6 +23,12 @@ __all__ = [
     "EntityComparison",
     "EntityRelationship",
     "EntityResolutionDecision",
+    "ResearchMission",
+    "TinyFishFetchObservation",
+    "TinyFishResearchAdapter",
+    "TinyFishSearchObservation",
+    "TinyFishSearchRequest",
+    "candidate_from_research",
     "compare_candidate",
     "generate_candidates",
     "resolve_entity",
