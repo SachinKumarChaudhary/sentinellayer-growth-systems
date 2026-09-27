@@ -38,10 +38,12 @@ def _is_block_match(lead: Phase1Handoff, candidate: EntityCandidate) -> bool:
         [lead.canonical_lead.country_code or "", lead.canonical_lead.region or "", lead.canonical_lead.city or ""]
     )
     candidate_geo = geography_tokens(candidate.geography)
-    if lead_geo and candidate_geo and lead_geo.intersection(candidate_geo) and lead_tokens.intersection(alias_tokens):
-        return True
-
-    return False
+    return bool(
+        lead_geo
+        and candidate_geo
+        and lead_geo.intersection(candidate_geo)
+        and lead_tokens.intersection(alias_tokens)
+    )
 
 
 def generate_candidates(
