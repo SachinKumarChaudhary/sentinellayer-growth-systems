@@ -8,6 +8,8 @@ from sentinellayer_growth_engine.phase1.models import Phase1Handoff
 from .blocking import generate_candidates
 from .matching import STRONG_SIGNAL_CODES, compare_candidate
 from .models import (
+    Confidence,
+    DecisionTraceEvent,
     EntityCandidate,
     EntityComparison,
     EntityRelationship,
@@ -20,6 +22,10 @@ def _decision_id(lead_id: str, comparisons: list[EntityComparison]) -> str:
     material = "|".join(f"{item.candidate_id}:{item.score}" for item in comparisons)
     digest = sha256(f"{lead_id}|{material}".encode("utf-8")).hexdigest()[:24]
     return f"erd:{lead_id}:{digest}"
+
+
+def _event(step: str, detail: str, candidate_id: str | None = None) -> DecisionTraceEvent:
+    return DecisionTraceEvent(step=step, detail=detail, candidate_id=candidate_id)
 
 
 def _eligible(comparison: EntityComparison) -> bool:
@@ -42,16 +48,16 @@ def resolve_entity(
         reverse=True,
     )
 
-    trace = [
-        {
-            "step": "candidate_generation",
-            "detail": f"Selected {len(selected)} candidates with budget {candidate_budget}.",
-        }
+    trace: list[DecisionTraceEvent] = [
+        _event(
+            "candidate_generation",
+            f"Selected {len(selected)} candidates with budget {candidate_budget}.",
+        )
     ]
     rejected = [item.candidate_id for item in comparisons if item.hard_negative]
 
     if not comparisons:
-        trace.append({"step": "adjudication", "detail": "No deterministic candidates were generated."})
+        trace.append(_event("adjudication", "No deterministic candidates were generated."))
         return EntityResolutionDecision(
             decision_id=_decision_id(lead.lead_id, comparisons),
             lead_id=lead.lead_id,
@@ -61,7 +67,6 @@ def resolve_entity(
             research_required=True,
             research_missions=["entity_identity"],
             unresolved_questions=["No candidate entity survived deterministic blocking."],
-            evidence_refs=[],
             decided_at=decided_at,
         )
 
@@ -70,10 +75,10 @@ def resolve_entity(
         plausible = [item for item in comparisons if not item.hard_negative and item.score > 0]
         if plausible:
             trace.append(
-                {
-                    "step": "adjudication",
-                    "detail": "Plausible candidate evidence exists, but deterministic identity evidence is insufficient; returning AMBIGUOUS.",
-                }
+                _event(
+                    "adjudication",
+                    "Plausible candidate evidence exists, but deterministic identity evidence is insufficient; returning AMBIGUOUS.",
+                )
             )
             return EntityResolutionDecision(
                 decision_id=_decision_id(lead.lead_id, comparisons),
@@ -91,10 +96,10 @@ def resolve_entity(
             )
 
         trace.append(
-            {
-                "step": "adjudication",
-                "detail": "All candidates were rejected or lacked any positive identity evidence.",
-            }
+            _event(
+                "adjudication",
+                "All candidates were rejected or lacked any positive identity evidence.",
+            )
         )
         return EntityResolutionDecision(
             decision_id=_decision_id(lead.lead_id, comparisons),
@@ -126,10 +131,10 @@ def resolve_entity(
     ]
     if strong_competitors:
         trace.append(
-            {
-                "step": "adjudication",
-                "detail": "Multiple candidates have strong identity evidence; returning CONFLICT.",
-            }
+            _event(
+                "adjudication",
+                "Multiple candidates have strong identity evidence; returning CONFLICT.",
+            )
         )
         return EntityResolutionDecision(
             decision_id=_decision_id(lead.lead_id, comparisons),
@@ -145,18 +150,14 @@ def resolve_entity(
         )
 
     margin = top.score - second.score if second else None
+    confidence: Confidence
     if top_strong:
         status: ResolutionStatus = (
             "MATCHED_WITH_RELATIONSHIP" if relationships else "MATCHED"
         )
         confidence = "high" if margin is None or margin >= 15 else "medium"
     elif second is not None and margin is not None and margin < 20:
-        trace.append(
-            {
-                "step": "adjudication",
-                "detail": "Top candidates are too close to safely merge.",
-            }
-        )
+        trace.append(_event("adjudication", "Top candidates are too close to safely merge."))
         return EntityResolutionDecision(
             decision_id=_decision_id(lead.lead_id, comparisons),
             lead_id=lead.lead_id,
@@ -174,11 +175,11 @@ def resolve_entity(
         confidence = "medium"
 
     trace.append(
-        {
-            "step": "adjudication",
-            "detail": f"Candidate {top.candidate_id} selected with score {top.score}.",
-            "candidate_id": top.candidate_id,
-        }
+        _event(
+            "adjudication",
+            f"Candidate {top.candidate_id} selected with score {top.score}.",
+            top.candidate_id,
+        )
     )
 
     evidence_refs = sorted(set(top_candidate.evidence_refs))
