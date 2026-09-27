@@ -5,7 +5,7 @@ from typing import Any
 
 from ..provider_resilience import TinyFishRequestTelemetry
 from .repository import Phase2Repository
-from .storage import ProviderAttemptRecord
+from .storage import ProviderAttemptRecord, ProviderAttemptStatus
 
 
 class TinyFishAttemptRecorder:
@@ -87,7 +87,7 @@ class TinyFishAttemptRecorder:
     @staticmethod
     def _map_status(
         telemetry: TinyFishRequestTelemetry,
-    ) -> tuple[str, str | None]:
+    ) -> tuple[ProviderAttemptStatus, str | None]:
         if telemetry.status == "CACHE_HIT":
             return "CACHED", None
         if telemetry.status == "SUCCEEDED":
