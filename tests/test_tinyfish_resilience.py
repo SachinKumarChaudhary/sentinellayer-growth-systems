@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from email.message import Message
+from urllib.error import HTTPError
 
 import pytest
 
@@ -229,3 +230,39 @@ def test_freshness_sensitive_search_bypasses_cache() -> None:
     # Adapter-level cache behavior is covered in the Phase 2 research test;
     # the request itself remains provider-neutral and only carries temporal filters.
     assert True
+
+
+def test_search_cache_expires_and_reissues_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = 0
+    now = 0.0
+
+    def fake_urlopen(request: object, timeout: float) -> FakeResponse:
+        nonlocal calls
+        calls += 1
+        return FakeResponse({"results": []})
+
+    monkeypatch.setattr(
+        "sentinellayer_growth_engine.tinyfish_client.urlopen",
+        fake_urlopen,
+    )
+
+    from sentinellayer_growth_engine.provider_resilience import TTLCache
+
+    cache_clock = {"value": 0.0}
+    client = TinyFishClient("test-key", cache_ttl_seconds=10)
+
+    # Replace the client's process-local cache with a deterministic clock.
+    client._search_cache = TTLCache(  # type: ignore[attr-defined]
+        max_entries=16,
+        clock=lambda: cache_clock["value"],
+    )
+
+    client.search("Example")
+    client.search("Example")
+    assert calls == 1
+
+    cache_clock["value"] = 11.0
+    client.search("Example")
+    assert calls == 2
