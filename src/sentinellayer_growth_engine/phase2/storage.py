@@ -33,6 +33,7 @@ class ProviderAttemptRecord(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     run_id: str
+    lead_id: str | None = None
     mission_id: str | None = None
     provider: str = Field(min_length=1, max_length=120)
     operation: str = Field(min_length=1, max_length=120)
@@ -40,11 +41,19 @@ class ProviderAttemptRecord(BaseModel):
     request_payload: dict[str, Any] = Field(default_factory=dict)
     status: ProviderAttemptStatus
     provider_request_id: str | None = None
+    http_status: int | None = Field(default=None, ge=100, le=599)
+    retry_count: int = Field(default=0, ge=0)
     result_count: int | None = Field(default=None, ge=0)
     latency_ms: int | None = Field(default=None, ge=0)
     cost_units: float | None = Field(default=None, ge=0)
     error_code: str | None = None
     error_message: str | None = None
+    quota_state: dict[str, Any] = Field(default_factory=dict)
+    raw_artifact_ref: str | None = None
+    raw_artifact_hash: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    evidence_ids: list[str] = Field(default_factory=list)
+    escalation_reason: str | None = None
+    information_gain_estimate: float | None = None
     started_at: datetime
     completed_at: datetime | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)

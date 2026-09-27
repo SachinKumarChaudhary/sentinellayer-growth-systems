@@ -282,16 +282,21 @@ class Phase2Repository:
             cur.execute(
                 """
                 INSERT INTO growth.entity_resolution_provider_attempts
-                    (attempt_id, run_id, mission_id, provider, operation,
+                    (attempt_id, run_id, lead_id, mission_id, provider, operation,
                      request_fingerprint, request_payload, status,
-                     provider_request_id, result_count, latency_ms, cost_units,
-                     error_code, error_message, started_at, completed_at, metadata)
-                VALUES (gen_random_uuid(), %s::uuid, %s, %s, %s, %s,
+                     provider_request_id, http_status, retry_count, result_count,
+                     latency_ms, cost_units, error_code, error_message,
+                     quota_state, raw_artifact_ref, raw_artifact_hash,
+                     evidence_ids, escalation_reason, information_gain_estimate,
+                     started_at, completed_at, metadata)
+                VALUES (gen_random_uuid(), %s::uuid, %s, %s, %s, %s, %s,
                         %s::jsonb, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                        %s::jsonb, %s, %s, %s::jsonb, %s, %s, %s, %s,
                         %s::jsonb)
                 """,
                 (
                     attempt.run_id,
+                    attempt.lead_id,
                     attempt.mission_id,
                     attempt.provider,
                     attempt.operation,
@@ -299,11 +304,19 @@ class Phase2Repository:
                     json.dumps(attempt.request_payload),
                     attempt.status,
                     attempt.provider_request_id,
+                    attempt.http_status,
+                    attempt.retry_count,
                     attempt.result_count,
                     attempt.latency_ms,
                     attempt.cost_units,
                     attempt.error_code,
                     attempt.error_message,
+                    json.dumps(attempt.quota_state),
+                    attempt.raw_artifact_ref,
+                    attempt.raw_artifact_hash,
+                    json.dumps(attempt.evidence_ids),
+                    attempt.escalation_reason,
+                    attempt.information_gain_estimate,
                     attempt.started_at,
                     attempt.completed_at,
                     json.dumps(attempt.metadata),
