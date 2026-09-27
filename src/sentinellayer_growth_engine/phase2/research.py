@@ -174,6 +174,13 @@ class TinyFishResearchAdapter:
         observed_at: datetime | None = None,
     ) -> list[TinyFishSearchObservation]:
         stamp = observed_at or datetime.now(UTC)
+        cache_ttl = (
+            0
+            if request.recency_minutes is not None
+            or request.after_date is not None
+            or request.before_date is not None
+            else None
+        )
         results = self.client.search(
             request.query,
             purpose=request.purpose,
@@ -186,6 +193,7 @@ class TinyFishResearchAdapter:
             before_date=request.before_date.isoformat() if request.before_date else None,
             domain_type=request.domain_type,
             page=request.page,
+            ttl=cache_ttl,
         )
         return [
             TinyFishSearchObservation(
@@ -207,6 +215,7 @@ class TinyFishResearchAdapter:
         provider_request_id: str,
         purpose: str | None = None,
         fetched_at: datetime | None = None,
+        ttl: float | None = None,
     ) -> list[TinyFishFetchObservation]:
         stamp = fetched_at or datetime.now(UTC)
         results = self.client.fetch(
@@ -216,6 +225,7 @@ class TinyFishResearchAdapter:
             include_links=False,
             include_image_links=False,
             include_page_metadata=True,
+            ttl=ttl,
         )
         search_urls = tuple(urls)
         return [
