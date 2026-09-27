@@ -1,0 +1,206 @@
+{
+  "schema_version": "phase2.gold.v1",
+  "cases": [
+    {
+      "id": "direct_verified_domain",
+      "lead": {"name": "Acme", "domain": "acme.example", "country_code": "US"},
+      "candidates": [
+        {
+          "candidate_id": "acme-legal",
+          "entity_id": "entity-acme",
+          "entity_type": "LEGAL_ENTITY",
+          "canonical_name": "Acme",
+          "canonical_domain": "acme.example",
+          "domain_verified": true,
+          "currentness": "CURRENT",
+          "evidence_refs": ["https://acme.example/about"]
+        }
+      ],
+      "expected": {
+        "status": "MATCHED",
+        "canonical_entity_id": "entity-acme",
+        "confidence": "high"
+      }
+    },
+    {
+      "id": "brand_with_parent_relationship",
+      "lead": {"name": "BrandCo", "domain": "brand.example", "country_code": "US"},
+      "candidates": [
+        {
+          "candidate_id": "brandco",
+          "entity_id": "brand-1",
+          "entity_type": "BRAND",
+          "canonical_name": "BrandCo",
+          "canonical_domain": "brand.example",
+          "domain_verified": true,
+          "currentness": "CURRENT",
+          "evidence_refs": ["https://brand.example/about"]
+        }
+      ],
+      "relationships": [
+        {
+          "relationship_id": "rel-brand-parent",
+          "subject_entity_id": "brand-1",
+          "predicate": "OWNED_BY",
+          "object_entity_id": "parent-1",
+          "function_scope": null,
+          "valid_from": null,
+          "valid_to": null,
+          "currentness": "CURRENT",
+          "evidence_refs": ["https://parent.example/brands"],
+          "status": "ESTABLISHED",
+          "adjudication_reason": "Official parent company page identifies current ownership."
+        }
+      ],
+      "expected": {
+        "status": "MATCHED_WITH_RELATIONSHIP",
+        "canonical_entity_id": "brand-1",
+        "confidence": "high"
+      }
+    },
+    {
+      "id": "same_name_ambiguous",
+      "lead": {"name": "Acme", "domain": null, "country_code": null},
+      "candidates": [
+        {
+          "candidate_id": "acme-east",
+          "entity_id": "entity-east",
+          "entity_type": "LEGAL_ENTITY",
+          "canonical_name": "Acme",
+          "canonical_domain": "acme-east.example",
+          "currentness": "CURRENT",
+          "evidence_refs": ["https://acme-east.example/about"]
+        },
+        {
+          "candidate_id": "acme-west",
+          "entity_id": "entity-west",
+          "entity_type": "LEGAL_ENTITY",
+          "canonical_name": "Acme",
+          "canonical_domain": "acme-west.example",
+          "currentness": "CURRENT",
+          "evidence_refs": ["https://acme-west.example/about"]
+        }
+      ],
+      "expected": {
+        "status": "AMBIGUOUS",
+        "canonical_entity_id": null,
+        "confidence": "unknown"
+      }
+    },
+    {
+      "id": "conflicting_verified_domains",
+      "lead": {"name": "Acme", "domain": "acme.example", "country_code": "US"},
+      "candidates": [
+        {
+          "candidate_id": "entity-a",
+          "entity_id": "a",
+          "entity_type": "LEGAL_ENTITY",
+          "canonical_name": "Acme",
+          "canonical_domain": "acme.example",
+          "domain_verified": true,
+          "currentness": "CURRENT",
+          "evidence_refs": ["https://acme.example/about"]
+        },
+        {
+          "candidate_id": "entity-b",
+          "entity_id": "b",
+          "entity_type": "LEGAL_ENTITY",
+          "canonical_name": "Acme",
+          "canonical_domain": "acme.example",
+          "domain_verified": true,
+          "currentness": "CURRENT",
+          "evidence_refs": ["https://acme.example/legal"]
+        }
+      ],
+      "expected": {
+        "status": "CONFLICT",
+        "canonical_entity_id": null,
+        "confidence": "unknown"
+      }
+    },
+    {
+      "id": "external_provider_not_owner",
+      "lead": {"name": "Acme", "domain": "acme.example", "country_code": "US"},
+      "candidates": [
+        {
+          "candidate_id": "provider",
+          "entity_id": "provider-1",
+          "entity_type": "EXTERNAL_PROVIDER",
+          "canonical_name": "Acme",
+          "canonical_domain": "provider.example",
+          "currentness": "CURRENT",
+          "external_provider_relationship": true,
+          "evidence_refs": ["https://provider.example/customers/acme"]
+        }
+      ],
+      "expected": {
+        "status": "NO_MATCH",
+        "canonical_entity_id": null,
+        "confidence": "unknown"
+      }
+    },
+    {
+      "id": "medium_only_requires_research",
+      "lead": {"name": "Example Commerce", "domain": null, "country_code": "US"},
+      "candidates": [
+        {
+          "candidate_id": "example-commerce",
+          "entity_id": "example-1",
+          "entity_type": "LEGAL_ENTITY",
+          "canonical_name": "Example Commerce",
+          "canonical_domain": "example-commerce.example",
+          "geography": ["US"],
+          "currentness": "CURRENT",
+          "evidence_refs": ["https://directory.example/example-commerce"]
+        }
+      ],
+      "expected": {
+        "status": "AMBIGUOUS",
+        "canonical_entity_id": null,
+        "confidence": "unknown"
+      }
+    },
+    {
+      "id": "no_candidate",
+      "lead": {"name": "No Match Corp", "domain": "nomatch.example", "country_code": "US"},
+      "candidates": [
+        {
+          "candidate_id": "other",
+          "entity_id": "other-1",
+          "entity_type": "LEGAL_ENTITY",
+          "canonical_name": "Other Company",
+          "canonical_domain": "other.example",
+          "currentness": "CURRENT",
+          "evidence_refs": ["https://other.example/about"]
+        }
+      ],
+      "expected": {
+        "status": "UNRESOLVED",
+        "canonical_entity_id": null,
+        "confidence": "unknown"
+      }
+    },
+    {
+      "id": "historical_identity_not_current",
+      "lead": {"name": "Acme Legacy", "domain": "acme-legacy.example", "country_code": "US"},
+      "candidates": [
+        {
+          "candidate_id": "former-owner",
+          "entity_id": "former-1",
+          "entity_type": "LEGAL_ENTITY",
+          "canonical_name": "Acme Legacy",
+          "canonical_domain": "acme-legacy.example",
+          "domain_verified": true,
+          "historical_only": true,
+          "currentness": "HISTORICAL",
+          "evidence_refs": ["https://archive.example/acme-legacy"]
+        }
+      ],
+      "expected": {
+        "status": "NO_MATCH",
+        "canonical_entity_id": null,
+        "confidence": "unknown"
+      }
+    }
+  ]
+}

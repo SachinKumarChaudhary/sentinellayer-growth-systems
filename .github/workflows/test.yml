@@ -36,8 +36,19 @@ jobs:
         run: |
           python -m pip install --disable-pip-version-check 'pip-audit>=2.7,<3' 'setuptools>=83,<84'
           python -m pip_audit
-      - name: Ruff (Phase 1 scope)
-        run: python -m ruff check src/sentinellayer_growth_engine/phase1 tests/test_phase1.py tests/contracts/test_phase1_contracts.py tests/contracts/test_version_registry.py
+      - name: Ruff (Phase 1 + Phase 2 scope)
+        run: |
+          python -m ruff check \
+            src/sentinellayer_growth_engine/phase1 \
+            src/sentinellayer_growth_engine/phase2 \
+            tests/test_phase1.py \
+            tests/test_phase2_entity_resolution.py \
+            tests/test_phase2_gold.py \
+            tests/test_phase2_research.py \
+            tests/contracts/test_phase1_contracts.py \
+            tests/contracts/test_phase2_contracts.py \
+            tests/contracts/test_version_registry.py \
+            tests/contracts/test_contract_validation.py
       - name: MyPy
         run: python -m mypy src
       - name: Unit and repository tests
@@ -45,6 +56,9 @@ jobs:
       - name: Phase 1 contract and gold gate
         run: |
           python -m pytest -q tests/test_phase1.py tests/contracts/test_phase1_contracts.py
+      - name: Phase 2 deterministic contract and gold gate
+        run: |
+          python -m pytest -q tests/test_phase2_entity_resolution.py tests/test_phase2_gold.py tests/test_phase2_research.py tests/contracts/test_phase2_contracts.py
       - name: Contract tests
         run: python -c "import sentinellayer_growth_engine, pytest; raise SystemExit(pytest.main(['-q', 'tests/contracts']))"
       - name: Docker build

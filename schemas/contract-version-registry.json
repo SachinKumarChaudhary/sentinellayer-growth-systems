@@ -9,6 +9,7 @@
     "canonical-lead": ["v1"],
     "validation-finding": ["v1"],
     "duplicate-decision": ["v1"],
-    "phase1-handoff": ["v1"]
+    "phase1-handoff": ["v1"],
+    "entity-resolution-decision": ["phase2.entity_resolution.v1"]
   }
 }

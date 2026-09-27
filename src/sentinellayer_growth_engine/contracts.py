@@ -29,6 +29,7 @@ CONTRACT_SCHEMAS: dict[str, str] = {
     "validation_finding": "validation-finding.schema.json",
     "duplicate_decision": "duplicate-decision.schema.json",
     "phase1_handoff": "phase1-handoff.schema.json",
+    "entity_resolution_decision": "entity-resolution-decision.schema.json",
 }
 
 

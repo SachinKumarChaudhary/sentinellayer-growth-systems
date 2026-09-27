@@ -29,3 +29,4 @@ def test_supported_v1_contracts_are_accepted() -> None:
     require_supported("lead-source-record", "v1")
     require_supported("canonical-lead", "v1")
     require_supported("phase1-handoff", "v1")
+    require_supported("entity-resolution-decision", "phase2.entity_resolution.v1")
