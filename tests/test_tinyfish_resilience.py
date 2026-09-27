@@ -20,7 +20,7 @@ class FakeResponse:
         self._raw = json.dumps(payload).encode("utf-8")
         self.status = status
 
-    def __enter__(self) -> FakeResponse:
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *args: object) -> bool:
