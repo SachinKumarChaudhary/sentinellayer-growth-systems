@@ -236,8 +236,6 @@ def test_search_cache_expires_and_reissues_request(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls = 0
-    now = 0.0
-
     def fake_urlopen(request: object, timeout: float) -> FakeResponse:
         nonlocal calls
         calls += 1
