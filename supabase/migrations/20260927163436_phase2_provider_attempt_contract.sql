@@ -28,5 +28,5 @@ CREATE INDEX IF NOT EXISTS entity_resolution_provider_attempts_lead_idx
     ON growth.entity_resolution_provider_attempts (lead_id, started_at);
 
 CREATE INDEX IF NOT EXISTS entity_resolution_provider_attempts_failure_idx
-    ON growth.entity_resolution_provider_attempts (provider, status, failure_code)
+    ON growth.entity_resolution_provider_attempts (provider, status, error_code)
     WHERE status <> 'SUCCEEDED';
