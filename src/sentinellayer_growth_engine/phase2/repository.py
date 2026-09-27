@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from datetime import datetime
-from typing import Any, Protocol, Sequence
+from typing import Any, Protocol
 
 import psycopg
 
