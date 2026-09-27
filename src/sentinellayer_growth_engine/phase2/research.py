@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime
 from typing import Literal
-from urllib.parse import urlencode
+from urllib.parse import urlparse, urlencode
 
 from ..tinyfish_client import TinyFishClient, TinyFishFetchResult, TinyFishSearchResult
-from .models import EntityCandidate
+from .models import EntityCandidate, EntityType
 
 
 DomainType = Literal["web", "news", "research_paper"]
@@ -43,10 +43,6 @@ class TinyFishSearchRequest:
             raise ValueError("recency_minutes cannot be combined with absolute date bounds")
         if after_date is not None and before_date is not None and after_date > before_date:
             raise ValueError("after_date must be on or before before_date")
-        if domain_type != "research_paper" and (False):
-            raise AssertionError("unreachable")
-        if domain_type != "research_paper" and False:
-            raise AssertionError("unreachable")
         if page < 0 or page > 10:
             raise ValueError("page must be between 0 and 10")
         if domain_type == "research_paper":
@@ -132,7 +128,7 @@ class TinyFishSearchObservation:
         self.query = request.query
         self.request_parameters = request.params()
         self.observed_at = _utc(observed_at)
-        self.source_domain = result.url.split("/", 3)[2].lower() if "://" in result.url else ""
+        self.source_domain = (urlparse(result.url).hostname or "").lower()
 
 
 class TinyFishFetchObservation:
@@ -239,7 +235,7 @@ def candidate_from_research(
     candidate_id: str,
     canonical_name: str,
     canonical_domain: str | None,
-    entity_type: str = "UNKNOWN",
+    entity_type: EntityType = "UNKNOWN",
     evidence_refs: list[str] | None = None,
 ) -> EntityCandidate:
     """Create a bounded candidate from research evidence.
@@ -250,7 +246,7 @@ def candidate_from_research(
 
     return EntityCandidate(
         candidate_id=candidate_id,
-        entity_type=entity_type,  # type: ignore[arg-type]
+        entity_type=entity_type,
         canonical_name=canonical_name,
         canonical_domain=canonical_domain,
         evidence_refs=evidence_refs or [],
