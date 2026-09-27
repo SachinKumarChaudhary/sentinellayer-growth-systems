@@ -159,10 +159,11 @@ def compare_candidate(lead: Phase1Handoff, candidate: EntityCandidate) -> Entity
             score -= 100
             hard_negative = True
 
-    medium_count = sum(1 for signal in signals if signal.strength == "medium" and signal.value)
     strong_count = sum(1 for signal in signals if signal.code in STRONG_SIGNAL_CODES and signal.value)
 
-    eligible = not hard_negative and (strong_count > 0 or medium_count >= 2)
+    # Medium/weak evidence ranks candidates but does not establish identity.
+    # Phase 2 requires at least one strong identity signal for a deterministic match.
+    eligible = not hard_negative and strong_count > 0
 
     return EntityComparison(
         candidate_id=candidate.candidate_id,
