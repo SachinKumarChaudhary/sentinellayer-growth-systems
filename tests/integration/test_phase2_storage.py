@@ -216,7 +216,7 @@ def test_phase2_repository_persists_and_replays_without_duplication() -> None:
             decision=decision,
         )
 
-        with psycopg.connect(dsn) as conn, conn.cursor() as cur:
+        with factory.connection.cursor() as cur:
             cur.execute(
                 """
                 select input_count, decision_count, candidate_count
