@@ -5,6 +5,7 @@ from email.message import Message
 from urllib.error import HTTPError
 
 import pytest
+from typing import Self
 
 from sentinellayer_growth_engine.provider_resilience import TinyFishRequestTelemetry
 from sentinellayer_growth_engine.tinyfish_client import (
@@ -226,16 +227,12 @@ def test_rate_limit_error_is_typed_when_retry_budget_is_exhausted(
     assert exc_info.value.failure_code == "RATE_LIMIT"
 
 
-def test_freshness_sensitive_search_bypasses_cache() -> None:
-    # Adapter-level cache behavior is covered in the Phase 2 research test;
-    # the request itself remains provider-neutral and only carries temporal filters.
-    assert True
-
 
 def test_search_cache_expires_and_reissues_request(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls = 0
+
     def fake_urlopen(request: object, timeout: float) -> FakeResponse:
         nonlocal calls
         calls += 1
