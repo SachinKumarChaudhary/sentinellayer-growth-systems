@@ -41,10 +41,13 @@ jobs:
           python -m ruff check \
             src/sentinellayer_growth_engine/phase1 \
             src/sentinellayer_growth_engine/phase2 \
+            src/sentinellayer_growth_engine/provider_resilience.py \
+            src/sentinellayer_growth_engine/tinyfish_client.py \
             tests/test_phase1.py \
             tests/test_phase2_entity_resolution.py \
             tests/test_phase2_gold.py \
             tests/test_phase2_research.py \
+            tests/test_tinyfish_resilience.py \
             tests/contracts/test_phase1_contracts.py \
             tests/contracts/test_phase2_contracts.py \
             tests/contracts/test_phase2_storage_contracts.py \
