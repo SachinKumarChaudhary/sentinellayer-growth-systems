@@ -4,6 +4,7 @@ import json
 import os
 import time
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
@@ -358,6 +359,7 @@ class TinyFishClient:
                 raise
 
             request = Request(url, data=data, headers=headers, method=method)
+            error: TinyFishError
             try:
                 with urlopen(request, timeout=self._timeout_seconds) as response:
                     raw = response.read().decode("utf-8")
@@ -395,6 +397,9 @@ class TinyFishClient:
                         operation, fingerprint, started_at, quota_units, attempt, error
                     )
                     raise error from exc
+                self._emit_failure(
+                    operation, fingerprint, started_at, quota_units, attempt, error
+                )
                 delay = self._retry_delay(exc, attempt)
                 time.sleep(delay)
                 last_error = error
@@ -481,7 +486,7 @@ class TinyFishClient:
         self,
         operation: str,
         fingerprint: str,
-        started_at: Any,
+        started_at: datetime,
         quota_units: int,
         attempt: int,
         error: TinyFishError,
@@ -504,7 +509,7 @@ class TinyFishClient:
         *,
         operation: str,
         request_fingerprint: str,
-        started_at: Any,
+        started_at: datetime,
         quota_units: int,
         attempts: int,
         retry_count: int,

@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import json
 from email.message import Message
+from urllib.error import HTTPError
+from urllib.request import Request
 
 import pytest
+from typing import Self
 
 from sentinellayer_growth_engine.provider_resilience import TinyFishRequestTelemetry
 from sentinellayer_growth_engine.tinyfish_client import (
@@ -19,7 +22,7 @@ class FakeResponse:
         self._raw = json.dumps(payload).encode("utf-8")
         self.status = status
 
-    def __enter__(self) -> FakeResponse:
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *args: object) -> bool:
@@ -33,7 +36,7 @@ def test_search_cache_reuses_identical_request(monkeypatch: pytest.MonkeyPatch) 
     calls: list[str] = []
     telemetry: list[TinyFishRequestTelemetry] = []
 
-    def fake_urlopen(request: object, timeout: float) -> FakeResponse:
+    def fake_urlopen(request: Request, timeout: float) -> FakeResponse:
         calls.append(str(request))
         return FakeResponse(
             {
@@ -102,10 +105,10 @@ def test_fetch_ttl_zero_bypasses_cache(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_search_serializes_include_thumbnail_false(monkeypatch: pytest.MonkeyPatch) -> None:
-    requests: list[object] = []
+    requests: list[str] = []
 
     def fake_urlopen(request: object, timeout: float) -> FakeResponse:
-        requests.append(request)
+        requests.append(request.full_url)
         return FakeResponse({"results": []})
 
     monkeypatch.setattr(
@@ -117,7 +120,7 @@ def test_search_serializes_include_thumbnail_false(monkeypatch: pytest.MonkeyPat
     client.search("Example")
 
     assert requests
-    assert "include_thumbnail=false" in str(requests[0])
+    assert "include_thumbnail=false" in requests[0]
 
 
 def test_429_retries_and_emits_rate_limit_telemetry(
@@ -161,6 +164,8 @@ def test_429_retries_and_emits_rate_limit_telemetry(
     assert client.search("Example") == []
     assert attempts == 2
     assert sleeps == [0.0]
+    assert telemetry[0].status == "FAILED"
+    assert telemetry[0].failure_code == "RATE_LIMIT"
     assert telemetry[-1].status == "SUCCEEDED"
     assert telemetry[-1].attempts == 2
     assert telemetry[-1].retry_count == 1
@@ -225,7 +230,37 @@ def test_rate_limit_error_is_typed_when_retry_budget_is_exhausted(
     assert exc_info.value.failure_code == "RATE_LIMIT"
 
 
-def test_freshness_sensitive_search_bypasses_cache() -> None:
-    # Adapter-level cache behavior is covered in the Phase 2 research test;
-    # the request itself remains provider-neutral and only carries temporal filters.
-    assert True
+
+def test_search_cache_expires_and_reissues_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = 0
+
+    def fake_urlopen(request: object, timeout: float) -> FakeResponse:
+        nonlocal calls
+        calls += 1
+        return FakeResponse({"results": []})
+
+    monkeypatch.setattr(
+        "sentinellayer_growth_engine.tinyfish_client.urlopen",
+        fake_urlopen,
+    )
+
+    from sentinellayer_growth_engine.provider_resilience import TTLCache
+
+    cache_clock = {"value": 0.0}
+    client = TinyFishClient("test-key", cache_ttl_seconds=10)
+
+    # Replace the client's process-local cache with a deterministic clock.
+    client._search_cache = TTLCache(  # type: ignore[attr-defined]
+        max_entries=16,
+        clock=lambda: cache_clock["value"],
+    )
+
+    client.search("Example")
+    client.search("Example")
+    assert calls == 1
+
+    cache_clock["value"] = 11.0
+    client.search("Example")
+    assert calls == 2
