@@ -163,6 +163,8 @@ def test_429_retries_and_emits_rate_limit_telemetry(
     assert client.search("Example") == []
     assert attempts == 2
     assert sleeps == [0.0]
+    assert telemetry[0].status == "FAILED"
+    assert telemetry[0].failure_code == "RATE_LIMIT"
     assert telemetry[-1].status == "SUCCEEDED"
     assert telemetry[-1].attempts == 2
     assert telemetry[-1].retry_count == 1
