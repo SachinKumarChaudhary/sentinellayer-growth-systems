@@ -3,10 +3,10 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-PHASE2_CONTRACT_VERSION = "phase2.entity_resolution.v1"
-MATCHING_VERSION = "phase2.deterministic_match.v1"
+PHASE2_CONTRACT_VERSION: Literal["phase2.entity_resolution.v1"] = "phase2.entity_resolution.v1"
+MATCHING_VERSION: Literal["phase2.deterministic_match.v1"] = "phase2.deterministic_match.v1"
 
 EntityType = Literal[
     "LEGAL_ENTITY",
@@ -30,6 +30,8 @@ ResolutionStatus = Literal[
     "UNRESOLVED",
     "NO_MATCH",
 ]
+
+Confidence = Literal["high", "medium", "low", "unknown"]
 
 Currentness = Literal[
     "CURRENT",
@@ -135,6 +137,12 @@ class EntityRelationship(BaseModel):
     _normalize_valid_from = field_validator("valid_from")(_utc)
     _normalize_valid_to = field_validator("valid_to")(_utc)
 
+    @model_validator(mode="after")
+    def validate_evidence(self) -> EntityRelationship:
+        if self.status == "ESTABLISHED" and not self.evidence_refs:
+            raise ValueError("established relationships require evidence_refs")
+        return self
+
 
 class DecisionTraceEvent(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -155,7 +163,7 @@ class EntityResolutionDecision(BaseModel):
     entity_type: EntityType = "UNKNOWN"
     canonical_name: str | None = Field(default=None, max_length=500)
     canonical_domain: str | None = Field(default=None, max_length=500)
-    confidence: Literal["high", "medium", "low", "unknown"] = "unknown"
+    confidence: Confidence = "unknown"
     decisive_signals: list[str] = Field(default_factory=list)
     rejected_candidates: list[str] = Field(default_factory=list)
     comparisons: list[EntityComparison] = Field(default_factory=list)
@@ -170,3 +178,22 @@ class EntityResolutionDecision(BaseModel):
     decided_at: datetime
 
     _normalize_decided_at = field_validator("decided_at")(_utc)
+
+    @model_validator(mode="after")
+    def validate_state_contract(self) -> EntityResolutionDecision:
+        matched = self.status in {"MATCHED", "MATCHED_WITH_RELATIONSHIP"}
+        if matched:
+            if not self.canonical_entity_id or self.entity_type == "UNKNOWN":
+                raise ValueError("matched decisions require a canonical entity and known entity_type")
+            if not self.evidence_refs:
+                raise ValueError("matched decisions require evidence_refs")
+            if self.status == "MATCHED_WITH_RELATIONSHIP" and not self.relationships:
+                raise ValueError("MATCHED_WITH_RELATIONSHIP requires relationships")
+        else:
+            if self.canonical_entity_id is not None:
+                raise ValueError("unmatched decisions must not assign canonical_entity_id")
+        if not self.decision_trace:
+            raise ValueError("every decision requires a decision_trace")
+        if self.research_required and not (self.research_missions or self.unresolved_questions):
+            raise ValueError("research_required decisions need missions or unresolved_questions")
+        return self
