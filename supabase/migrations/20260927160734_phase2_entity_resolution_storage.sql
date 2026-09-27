@@ -173,11 +173,16 @@ CREATE TABLE IF NOT EXISTS growth.entity_resolution_decisions (
     CHECK (jsonb_typeof(decision_payload) = 'object'),
     CHECK (
         (status IN ('MATCHED','MATCHED_WITH_RELATIONSHIP') AND canonical_entity_id IS NOT NULL)
-        OR status IN ('AMBIGUOUS','CONFLICT','UNRESOLVED','NO_MATCH')
+        OR (status IN ('AMBIGUOUS','CONFLICT','UNRESOLVED','NO_MATCH') AND canonical_entity_id IS NULL)
     ),
     CHECK (
         (status IN ('MATCHED','MATCHED_WITH_RELATIONSHIP') AND jsonb_array_length(evidence_refs) > 0)
         OR status IN ('AMBIGUOUS','CONFLICT','UNRESOLVED','NO_MATCH')
+    ),
+    CHECK (
+        NOT research_required
+        OR jsonb_array_length(research_missions) > 0
+        OR jsonb_array_length(unresolved_questions) > 0
     )
 );
 
