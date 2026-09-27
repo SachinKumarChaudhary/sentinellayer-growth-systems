@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Self
 from uuid import uuid4
 
 import psycopg
@@ -105,7 +105,7 @@ class _NoCommitConnection:
     def __init__(self, connection: psycopg.Connection[Any]) -> None:
         self._connection = connection
 
-    def __enter__(self) -> _NoCommitConnection:
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *args: object) -> bool:
