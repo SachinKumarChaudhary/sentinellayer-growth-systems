@@ -86,6 +86,30 @@ class Phase1Repository:
             for row in rows
         ]
 
+    def list_handoffs(
+        self,
+        *,
+        downstream_eligible: bool = True,
+        limit: int | None = None,
+    ) -> list[Phase1Handoff]:
+        """Load source-agnostic Phase 1 handoffs for downstream phases."""
+        if limit is not None and limit < 1:
+            raise ValueError("limit must be positive when provided")
+        query = """
+            SELECT handoff_payload
+            FROM growth.lead_phase1_handoffs
+            WHERE downstream_eligible = %s
+            ORDER BY completed_at, handoff_id
+        """
+        params: tuple[Any, ...] = (downstream_eligible,)
+        if limit is not None:
+            query += " LIMIT %s"
+            params = (downstream_eligible, limit)
+        with self._connection_factory() as conn, conn.cursor() as cur:
+            cur.execute(query, params)
+            rows = cur.fetchall()
+        return [Phase1Handoff.model_validate(row[0]) for row in rows]
+
     def persist_result(self, result: Phase1Result) -> dict[str, Any]:
         source = result.source_record
         now = datetime.now(UTC)
