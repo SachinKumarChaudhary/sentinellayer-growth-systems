@@ -1,0 +1,166 @@
+name: phase2-entity-resolution-pilot
+
+on:
+  push:
+    branches:
+      - ops/phase2-pilot-20260928
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "Maximum eligible Phase 1 handoffs"
+        required: false
+        default: "10"
+        type: string
+      request_key:
+        description: "Stable Phase 2 request key"
+        required: false
+        default: "phase2-pilot-10-2026-09-28"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase2-entity-resolution-pilot
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SL_ENVIRONMENT: production
+      SL_REAL_EMAIL_ENABLED: "false"
+      SL_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+      SL_TINYFISH_API_KEY: ${{ secrets.SL_TINYFISH_API_KEY }}
+      SL_TINYFISH_TIMEOUT_SECONDS: "20"
+      SL_TINYFISH_SEARCH_PER_MINUTE: "27"
+      SL_TINYFISH_SEARCH_PER_HOUR: "450"
+      SL_TINYFISH_FETCH_URLS_PER_MINUTE: "135"
+      SL_TINYFISH_FETCH_URLS_PER_DAY: "900"
+      SL_TINYFISH_MAX_RETRY_ATTEMPTS: "2"
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      GROQ_MODEL: "openai/gpt-oss-20b"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip 'setuptools>=83,<84'
+          python -m pip install -e .
+
+      - name: Safety and credential gate
+        run: |
+          set -euo pipefail
+          test -n "$SL_DATABASE_URL"
+          test -n "$SL_TINYFISH_API_KEY"
+          test "$SL_REAL_EMAIL_ENABLED" = "false"
+          python - <<'PY'
+          import os
+          from sentinellayer_growth_engine.config import Settings
+
+          settings = Settings(database_url=os.environ["SL_DATABASE_URL"])
+          settings.assert_safe()
+
+          assert settings.tinyfish_search_per_minute <= 30
+          assert settings.tinyfish_search_per_hour <= 500
+          assert settings.tinyfish_fetch_urls_per_minute <= 150
+          assert settings.tinyfish_fetch_urls_per_day <= 1000
+          assert settings.tinyfish_timeout_seconds <= 30
+          assert settings.tinyfish_max_retry_attempts <= 4
+          PY
+
+      - name: Run bounded Phase 2 pilot
+        env:
+          PILOT_LIMIT: ${{ github.event_name == 'push' && '10' || inputs.limit || '10' }}
+          PILOT_REQUEST_KEY: ${{ github.event_name == 'push' && 'phase2-pilot-10-2026-09-28' || inputs.request_key || 'phase2-pilot-10-2026-09-28' }}
+        run: |
+          set -euo pipefail
+          python scripts/run_phase2_entity_resolution.py             --request-key "$PILOT_REQUEST_KEY"             --limit "$PILOT_LIMIT"             --candidate-budget 25             --max-search-results 5             --max-fetch-urls 3
+
+      - name: Verify pilot counts
+        env:
+          PILOT_REQUEST_KEY: ${{ github.event_name == 'push' && 'phase2-pilot-10-2026-09-28' || inputs.request_key || 'phase2-pilot-10-2026-09-28' }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import psycopg
+
+          request_key = os.environ["PILOT_REQUEST_KEY"]
+          with psycopg.connect(os.environ["SL_DATABASE_URL"]) as conn, conn.cursor() as cur:
+              cur.execute(
+                  """
+                  SELECT run_id::text, status, input_count, decision_count,
+                         candidate_count, escalation_count
+                  FROM growth.entity_resolution_runs
+                  WHERE request_key = %s
+                  """,
+                  (request_key,),
+              )
+              run = cur.fetchone()
+              if run is None:
+                  raise RuntimeError("Phase 2 pilot run was not found")
+
+              cur.execute(
+                  """
+                  SELECT
+                    count(*) FILTER (WHERE status IN ('MATCHED','MATCHED_WITH_RELATIONSHIP')),
+                    count(*) FILTER (WHERE status = 'AMBIGUOUS'),
+                    count(*) FILTER (WHERE status = 'CONFLICT'),
+                    count(*) FILTER (WHERE status = 'UNRESOLVED'),
+                    count(*) FILTER (WHERE status = 'NO_MATCH')
+                  FROM growth.entity_resolution_decisions
+                  WHERE run_id = %s::uuid
+                  """,
+                  (run[0],),
+              )
+              status_counts = cur.fetchone()
+
+          print(json.dumps({
+              "run_id": run[0],
+              "status": run[1],
+              "input_count": run[2],
+              "decision_count": run[3],
+              "candidate_count": run[4],
+              "escalation_count": run[5],
+              "matched_count": status_counts[0],
+              "ambiguous_count": status_counts[1],
+              "conflict_count": status_counts[2],
+              "unresolved_count": status_counts[3],
+              "no_match_count": status_counts[4],
+          }, sort_keys=True))
+
+          if run[1] != "COMPLETED":
+              raise RuntimeError(f"Phase 2 pilot did not complete: {run[1]}")
+          if run[2] != run[3]:
+              raise RuntimeError("Phase 2 input_count and decision_count diverged")
+          PY
+
+      - name: Upload pilot metadata
+        if: always()
+        run: |
+          mkdir -p test-results
+          {
+            echo "commit=${GITHUB_SHA}"
+            echo "workflow=${GITHUB_WORKFLOW}"
+            echo "run_id=${GITHUB_RUN_ID}"
+            echo "environment=${SL_ENVIRONMENT}"
+            echo "real_email_enabled=${SL_REAL_EMAIL_ENABLED}"
+          } > test-results/phase2-pilot-metadata.txt
+
+      - name: Upload metadata artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2-pilot-metadata-${{ github.run_id }}
+          path: test-results/phase2-pilot-metadata.txt
+          if-no-files-found: error
