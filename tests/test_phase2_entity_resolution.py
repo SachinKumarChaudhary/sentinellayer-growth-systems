@@ -231,9 +231,10 @@ def test_relationship_optional_validity_timestamps_accept_null() -> None:
     assert relationship.valid_to is None
 
 def test_unknown_entity_type_requires_research_even_with_verified_domain() -> None:
-    handoff = _handoff(
-        display_name="BrandCo",
+    handoff = make_lead(
+        name="BrandCo",
         domain="brand.example",
+        lead_id="fallback-brand",
     )
     candidate = EntityCandidate(
         candidate_id="fallback-brand",
