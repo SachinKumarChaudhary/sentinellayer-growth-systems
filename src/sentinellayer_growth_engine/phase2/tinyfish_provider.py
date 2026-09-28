@@ -518,9 +518,9 @@ class TinyFishEntityCandidateProvider:
                             evidence_by_id[first_party_refs[0]].url,
                         ),
                         domain_verified=True,
-                        official_corporate_url_match=True,
-                        explicit_official_identity_tie=True,
-                        currentness="CURRENT",
+                        official_corporate_url_match=False,
+                        explicit_official_identity_tie=False,
+                        currentness="UNKNOWN",
                         evidence_refs=first_party_refs,
                         origin="research",
                     )
