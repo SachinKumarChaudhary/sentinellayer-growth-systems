@@ -1,0 +1,80 @@
+name: phase2-live-pilot-20260928
+
+on:
+  push:
+    branches:
+      - phase2-live-pilot-20260928
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "Phase 2 leads to resolve"
+        required: false
+        default: "10"
+        type: string
+      request_key:
+        description: "Durable Phase 2 request key"
+        required: false
+        default: "phase2-pilot-recheck-2026-09-28-v1"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase2-live-pilot-20260928
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SL_ENVIRONMENT: production
+      SL_REAL_EMAIL_ENABLED: "false"
+      SL_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+      SL_TINYFISH_API_KEY: ${{ secrets.SL_TINYFISH_API_KEY }}
+      SL_TINYFISH_TIMEOUT_SECONDS: "20"
+      SL_TINYFISH_SEARCH_PER_MINUTE: "27"
+      SL_TINYFISH_SEARCH_PER_HOUR: "450"
+      SL_TINYFISH_FETCH_URLS_PER_MINUTE: "135"
+      SL_TINYFISH_FETCH_URLS_PER_DAY: "900"
+      SL_TINYFISH_MAX_RETRY_ATTEMPTS: "2"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip 'setuptools>=83,<84'
+          python -m pip install -e .
+      - name: Safety and credential gate
+        run: |
+          set -euo pipefail
+          test -n "$SL_DATABASE_URL"
+          test -n "$SL_TINYFISH_API_KEY"
+          test "$SL_REAL_EMAIL_ENABLED" = "false"
+          python - <<'PY'
+          import os
+          from sentinellayer_growth_engine.config import Settings
+          s = Settings(database_url=os.environ["SL_DATABASE_URL"])
+          s.assert_safe()
+          PY
+      - name: Run bounded Phase 2 pilot
+        env:
+          PHASE2_LIMIT: ${{ github.event_name == 'push' && '10' || inputs.limit || '10' }}
+          PHASE2_REQUEST_KEY: ${{ github.event_name == 'push' && 'phase2-pilot-recheck-2026-09-28-v1' || inputs.request_key || 'phase2-pilot-recheck-2026-09-28-v1' }}
+        run: |
+          python scripts/run_phase2_entity_resolution.py \
+            --limit "$PHASE2_LIMIT" \
+            --candidate-budget 25 \
+            --max-search-results 5 \
+            --max-fetch-urls 3 \
+            --request-key "$PHASE2_REQUEST_KEY" \
+            --no-groq
+      - name: Verify bounded output
+        run: |
+          set -euo pipefail
+          test -n "$SL_DATABASE_URL"
+          echo "Phase 2 pilot completed; durable run is recorded in Supabase."
