@@ -3,11 +3,10 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Protocol
+from typing import Any, Protocol, cast
 from uuid import uuid4
 
 from ..phase1.models import Phase1Handoff
-from ..phase1.repository import Phase1Repository
 from .models import (
     EntityCandidate,
     EntityRelationship,
@@ -15,7 +14,6 @@ from .models import (
     MATCHING_VERSION,
     PHASE2_CONTRACT_VERSION,
 )
-from .repository import Phase2Repository
 from .resolver import resolve_entity
 from .storage import Phase2RunRecord
 
@@ -29,6 +27,43 @@ class Phase2CandidateSet:
 class Phase2CandidateProvider(Protocol):
     def discover(self, handoff: Phase1Handoff) -> Phase2CandidateSet:
         """Return bounded candidate/evidence-derived inputs; never a final decision."""
+
+
+class Phase1HandoffSource(Protocol):
+    def list_handoffs(
+        self,
+        *,
+        downstream_eligible: bool = True,
+        limit: int | None = None,
+    ) -> list[Phase1Handoff]:
+        ...
+
+
+class Phase2Persistence(Protocol):
+    def create_run(self, run: Phase2RunRecord) -> Phase2RunRecord:
+        ...
+
+    def persist_resolution(
+        self,
+        *,
+        run_id: str,
+        lead_id: str,
+        candidates: Sequence[EntityCandidate],
+        comparisons: Sequence[Any],
+        relationships: Sequence[EntityRelationship],
+        decision: EntityResolutionDecision,
+    ) -> bool:
+        ...
+
+    def complete_run(
+        self,
+        *,
+        run_id: str,
+        status: str,
+        completed_at: datetime,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        ...
 
 
 @dataclass(frozen=True)
@@ -47,8 +82,8 @@ class Phase2BatchExecutor:
 
     def __init__(
         self,
-        phase1_repository: Phase1Repository,
-        phase2_repository: Phase2Repository,
+        phase1_repository: Phase1HandoffSource,
+        phase2_repository: Phase2Persistence,
     ) -> None:
         self._phase1_repository = phase1_repository
         self._phase2_repository = phase2_repository
@@ -87,10 +122,17 @@ class Phase2BatchExecutor:
                     "executor": "phase2.batch.v1",
                     "candidate_budget": candidate_budget,
                     "input_limit": limit,
-                    "provider": getattr(candidate_provider, "__class__", type(candidate_provider)).__name__,
+                    "provider": type(candidate_provider).__name__,
                 },
             )
         )
+
+        if run.status == "COMPLETED":
+            return self._completed_result(run)
+        if run.status != "RUNNING":
+            raise RuntimeError(
+                f"phase2 request_key {request_key!r} already maps to run status {run.status}"
+            )
 
         matched_count = 0
         research_required_count = 0
@@ -168,5 +210,20 @@ class Phase2BatchExecutor:
         provider: Phase2CandidateProvider | Callable[[Phase1Handoff], Phase2CandidateSet],
         handoff: Phase1Handoff,
     ) -> Phase2CandidateSet:
-        discover = provider.discover if hasattr(provider, "discover") else provider
-        return discover(handoff)
+        discover = getattr(provider, "discover", None)
+        if discover is not None:
+            return cast(Phase2CandidateProvider, provider).discover(handoff)
+        return cast(Callable[[Phase1Handoff], Phase2CandidateSet], provider)(handoff)
+
+    @staticmethod
+    def _completed_result(run: Phase2RunRecord) -> Phase2BatchResult:
+        metadata = run.metadata
+        return Phase2BatchResult(
+            run_id=run.run_id,
+            request_key=run.request_key,
+            input_count=run.input_count,
+            decision_count=run.decision_count,
+            matched_count=int(metadata.get("matched_count", 0)),
+            research_required_count=int(metadata.get("research_required_count", 0)),
+            provider_error_count=int(metadata.get("provider_error_count", 0)),
+        )
