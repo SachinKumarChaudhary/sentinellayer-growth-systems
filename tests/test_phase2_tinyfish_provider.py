@@ -4,8 +4,8 @@ from datetime import UTC, datetime
 
 from sentinellayer_growth_engine.phase1.models import CanonicalLead, Phase1Handoff
 from sentinellayer_growth_engine.phase2.extraction import (
-    CandidateEntityExtraction,
     EntityEvidenceExtraction,
+    EvidenceInput,
 )
 from sentinellayer_growth_engine.phase2.research import TinyFishResearchAdapter
 from sentinellayer_growth_engine.phase2.tinyfish_provider import (
@@ -196,12 +196,12 @@ def test_first_party_subdomain_supports_identity_candidate() -> None:
         _handoff(),
         extracted,
         [
-            type("Evidence", (), {
-                "evidence_id": "ir-1",
-                "url": "https://ir.brand.example/company-information",
-                "title": "Company Information",
-                "text": "BrandCo Technologies Inc.",
-            })()
+            EvidenceInput(
+                evidence_id="ir-1",
+                url="https://ir.brand.example/company-information",
+                title="Company Information",
+                text="BrandCo Technologies Inc.",
+            )
         ],
     )
 
