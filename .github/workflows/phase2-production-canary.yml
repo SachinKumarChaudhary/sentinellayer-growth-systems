@@ -1,6 +1,9 @@
 name: Phase 2 Production Canary
 
 on:
+  push:
+    branches:
+      - phase2-validation-quality-2026-09-28
   pull_request:
     types: [opened, reopened, synchronize]
     branches: [main]
