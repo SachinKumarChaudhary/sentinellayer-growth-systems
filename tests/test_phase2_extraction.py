@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
-from email.message import Message
 from urllib.request import Request
 
 import pytest
