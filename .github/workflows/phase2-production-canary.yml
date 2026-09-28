@@ -40,7 +40,7 @@ jobs:
           set -euo pipefail
           test -n "${SL_DATABASE_URL:-}" || { echo "Missing SL_DATABASE_URL/SUPABASE_DATABASE_URL"; exit 2; }
           test -n "${SL_TINYFISH_API_KEY:-${TINYFISH_API_KEY:-}}" || { echo "Missing TinyFish API key"; exit 2; }
-          python scripts/run_phase2_entity_resolution.py             --request-key phase2-live-canary-4-20260929-r2             --limit 4             --candidate-budget 25             --max-search-results 5             --max-fetch-urls 3 \
+          python scripts/run_phase2_entity_resolution.py             --request-key phase2-live-canary-4-20260929-r3             --limit 4             --candidate-budget 25             --max-search-results 5             --max-fetch-urls 3 \
             --no-groq
 
       - name: Verify persisted canary
