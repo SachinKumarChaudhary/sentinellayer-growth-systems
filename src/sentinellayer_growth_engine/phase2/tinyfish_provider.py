@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from urllib.parse import urlparse
 
@@ -309,7 +309,7 @@ class TinyFishEntityCandidateProvider:
         mission: ResearchMission,
         *,
         operation: str,
-        request_parameters: dict[str, object],
+        request_parameters: Mapping[str, object],
         provider_request_id: str | None,
         result_count: int | None,
     ) -> None:
@@ -461,7 +461,7 @@ class TinyFishEntityCandidateProvider:
     def _internal_request_id(
         operation: str,
         lead_id: str,
-        params: dict[str, str] | dict[str, object],
+        params: Mapping[str, object],
     ) -> str:
         return f"client:{operation}:{self_hash(lead_id + '|' + repr(sorted(params.items())))}"
 
