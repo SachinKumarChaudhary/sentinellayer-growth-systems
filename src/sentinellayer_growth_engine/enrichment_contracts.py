@@ -128,6 +128,20 @@ class EnrichmentPacket(BaseModel):
     decision_makers: list[DecisionMaker] = Field(default_factory=list)
     intent_signals: list[IntentSignal] = Field(default_factory=list)
 
+    # v3.4 first-party behavior contract. Anonymous awareness/docs research
+    # do not automatically force P1; stronger stages are routed by the scorer.
+    first_party_behavior_stage: Literal[
+        "ANONYMOUS_AWARENESS",
+        "DOCS_RESEARCH",
+        "IDENTIFIED_TECHNICAL_EVALUATION",
+        "COMMERCIAL_EVALUATION",
+        "ACTIVE_EVALUATION",
+        "DEPLOYMENT",
+        "PRODUCT_QUALIFIED",
+    ] | None = None
+    first_party_behavior_identity: str | None = Field(default=None, max_length=500)
+    first_party_behavior_timestamp: datetime | None = None
+
     personalization_angle: str | None = None
     research_notes: list[str] = Field(default_factory=list)
 
