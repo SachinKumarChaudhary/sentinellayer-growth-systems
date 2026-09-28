@@ -3,6 +3,10 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from sentinellayer_growth_engine.phase1.models import CanonicalLead, Phase1Handoff
+from sentinellayer_growth_engine.phase2.extraction import (
+    CandidateEntityExtraction,
+    EntityEvidenceExtraction,
+)
 from sentinellayer_growth_engine.phase2.research import TinyFishResearchAdapter
 from sentinellayer_growth_engine.phase2.tinyfish_provider import (
     TinyFishEntityCandidateProvider,
@@ -117,16 +121,31 @@ def test_tinyfish_provider_respects_search_and_fetch_budgets() -> None:
     assert len(client.fetch_calls) == 1
     assert len(client.fetch_calls[0]["urls"]) == 2
     assert len(repository.observations) == 5
-    assert len(candidate_set.candidates) == 1
+    assert len(candidate_set.candidates) == 2
 
-    candidate = candidate_set.candidates[0]
-    assert candidate.canonical_name == "BrandCo LLC"
-    assert candidate.canonical_domain is None
-    assert candidate.entity_id is None
-    assert candidate.domain_verified is False
-    assert candidate.official_corporate_url_match is False
-    assert candidate.explicit_official_identity_tie is False
-    assert candidate.origin == "research"
+    relationship_candidate = next(
+        candidate
+        for candidate in candidate_set.candidates
+        if candidate.canonical_name == "BrandCo LLC"
+    )
+    assert relationship_candidate.canonical_domain is None
+    assert relationship_candidate.entity_id is None
+    assert relationship_candidate.domain_verified is False
+    assert relationship_candidate.official_corporate_url_match is False
+    assert relationship_candidate.explicit_official_identity_tie is False
+
+    fallback_candidate = next(
+        candidate
+        for candidate in candidate_set.candidates
+        if candidate.entity_type == "BRAND"
+    )
+    assert fallback_candidate.canonical_name == "BrandCo"
+    assert fallback_candidate.canonical_domain == "brand.example"
+    assert fallback_candidate.entity_id is None
+    assert fallback_candidate.domain_verified is True
+    assert fallback_candidate.official_corporate_url_match is True
+    assert fallback_candidate.explicit_official_identity_tie is True
+    assert fallback_candidate.origin == "research"
 
 
 def test_tinyfish_provider_requires_run_binding() -> None:
@@ -143,3 +162,51 @@ def test_tinyfish_provider_requires_run_binding() -> None:
         assert "bound to a Phase 2 run" in str(exc)
     else:
         raise AssertionError("provider must reject unbound execution")
+
+
+def test_first_party_subdomain_supports_identity_candidate() -> None:
+    evidence = [
+        # The IR subdomain is first-party evidence for the canonical domain.
+        {
+            "evidence_id": "ir-1",
+            "url": "https://ir.brand.example/company-information",
+            "title": "Company Information",
+            "text": "BrandCo Technologies Inc.",
+        }
+    ]
+    extracted = EntityEvidenceExtraction.model_validate(
+        {
+            "candidate_entities": [
+                {
+                    "name": "BrandCo Technologies Inc.",
+                    "entity_type": "LEGAL_ENTITY",
+                    "domain": None,
+                    "relationship_to_target": None,
+                    "evidence_ids": ["ir-1"],
+                }
+            ],
+            "relationship_claims": [],
+            "currentness_claims": [],
+            "conflicts": [],
+            "evidence_spans": [],
+        }
+    )
+
+    candidates = TinyFishEntityCandidateProvider._candidate_objects(
+        _handoff(),
+        extracted,
+        [
+            type("Evidence", (), {
+                "evidence_id": "ir-1",
+                "url": "https://ir.brand.example/company-information",
+                "title": "Company Information",
+                "text": "BrandCo Technologies Inc.",
+            })()
+        ],
+    )
+
+    candidate = next(item for item in candidates if item.canonical_name == "BrandCo Technologies Inc.")
+    assert candidate.canonical_domain == "brand.example"
+    assert candidate.domain_verified is True
+    assert candidate.official_corporate_url_match is True
+    assert candidate.explicit_official_identity_tie is False
