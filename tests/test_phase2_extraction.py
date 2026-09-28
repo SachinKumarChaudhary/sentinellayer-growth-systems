@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
+from io import BytesIO
 from typing import Self
+from urllib.error import HTTPError
 from urllib.request import Request
 
 import pytest
@@ -256,6 +258,35 @@ def test_groq_payload_bounds_large_evidence(monkeypatch: pytest.MonkeyPatch) -> 
     assert bounded_text.startswith("HEAD ")
     assert bounded_text.endswith("TAIL ")
     assert "[TRUNCATED_FOR_SEMANTIC_EXTRACTION]" in bounded_text
+
+
+def test_groq_http_error_includes_provider_detail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_urlopen(request: Request, timeout: float) -> object:
+        raise HTTPError(
+            request.full_url,
+            400,
+            "Bad Request",
+            hdrs=None,
+            fp=BytesIO(b'{"error":{"message":"Invalid JSON schema"}}'),
+        )
+
+    monkeypatch.setattr(
+        "sentinellayer_growth_engine.phase2.extraction.urlopen",
+        fake_urlopen,
+    )
+
+    extractor = GroqEntityEvidenceExtractor(api_key="test-key", max_attempts=1)
+
+    with pytest.raises(
+        GroqExtractionError,
+        match=r"HTTP 400 .*Invalid JSON schema",
+    ):
+        extractor.extract(
+            lead=_lead(),
+            evidence=_evidence("BrandCo is operated by Example Holdings."),
+        )
 
 
 def test_malformed_groq_response_uses_deterministic_fallback(

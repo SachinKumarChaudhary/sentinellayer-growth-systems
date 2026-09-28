@@ -155,6 +155,7 @@ class GroqEntityEvidenceExtractor:
         }
 
         data = json.dumps(payload).encode("utf-8")
+        request_bytes = len(data)
         last_error: Exception | None = None
 
         for attempt in range(self.max_attempts):
@@ -177,10 +178,12 @@ class GroqEntityEvidenceExtractor:
                 self._validate_evidence_refs(parsed, evidence)
                 return parsed
             except HTTPError as exc:
+                detail = self._http_error_detail(exc)
                 last_error = exc
                 if not self._retryable_status(exc.code):
                     raise GroqExtractionError(
-                        f"Groq extraction rejected with HTTP {exc.code}"
+                        f"Groq extraction rejected with HTTP {exc.code} "
+                        f"(request_bytes={request_bytes}): {detail}"
                     ) from exc
             except (URLError, TimeoutError, OSError, KeyError, IndexError, TypeError, ValueError) as exc:
                 last_error = exc
@@ -219,6 +222,33 @@ class GroqEntityEvidenceExtractor:
         head_chars = max(1, int(available * 0.65))
         tail_chars = max(1, available - head_chars)
         return f"{text[:head_chars]}{marker}{text[-tail_chars:]}"
+
+    @staticmethod
+    def _http_error_detail(exc: HTTPError) -> str:
+        try:
+            raw = exc.read().decode("utf-8", errors="replace")
+        except OSError:
+            return "no response body"
+
+        if not raw:
+            return "empty response body"
+
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError:
+            return raw[:1000]
+
+        if isinstance(payload, dict):
+            error = payload.get("error")
+            if isinstance(error, dict):
+                message = error.get("message")
+                if isinstance(message, str) and message.strip():
+                    return message.strip()[:1000]
+            message = payload.get("message")
+            if isinstance(message, str) and message.strip():
+                return message.strip()[:1000]
+
+        return str(payload)[:1000]
 
     @staticmethod
     def _retryable_status(status: int) -> bool:
