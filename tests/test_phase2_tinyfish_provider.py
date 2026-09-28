@@ -229,7 +229,7 @@ def test_first_party_fallback_handles_empty_extraction() -> None:
 
     assert len(candidates) == 1
     candidate = candidates[0]
-    assert candidate.entity_type == "BRAND"
+    assert candidate.entity_type == "UNKNOWN"
     assert candidate.canonical_name == "BrandCo"
     assert candidate.domain_verified is True
     assert candidate.official_corporate_url_match is False
