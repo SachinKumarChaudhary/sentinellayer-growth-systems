@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
+from typing import Self
 from urllib.request import Request
 
 import pytest
@@ -132,7 +133,7 @@ def test_groq_payload_is_strict_and_contains_no_final_decision_fields(
     requests: list[dict[str, object]] = []
 
     class FakeResponse:
-        def __enter__(self) -> "FakeResponse":
+        def __enter__(self) -> Self:
             return self
 
         def __exit__(self, *args: object) -> bool:
