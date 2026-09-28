@@ -201,7 +201,7 @@ def test_malformed_groq_response_uses_deterministic_fallback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     class FakeResponse:
-        def __enter__(self) -> "FakeResponse":
+        def __enter__(self) -> Self:
             return self
 
         def __exit__(self, *args: object) -> bool:
