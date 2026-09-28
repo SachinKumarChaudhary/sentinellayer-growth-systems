@@ -482,7 +482,7 @@ def _parse_published_at(value: str | None) -> datetime | None:
     try:
         if len(candidate) == 10:
             return datetime.fromisoformat(candidate).replace(tzinfo=UTC)
-        return datetime.fromisoformat(candidate.replace("Z", "+00:00"))
+        return datetime.fromisoformat(candidate)
     except ValueError:
         return None
 
