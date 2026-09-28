@@ -138,7 +138,7 @@ def test_tinyfish_provider_respects_search_and_fetch_budgets() -> None:
     fallback_candidate = next(
         candidate
         for candidate in candidate_set.candidates
-        if candidate.entity_type == "BRAND"
+        if candidate.entity_type == "UNKNOWN"
     )
     assert fallback_candidate.canonical_name == "BrandCo"
     assert fallback_candidate.canonical_domain == "brand.example"
