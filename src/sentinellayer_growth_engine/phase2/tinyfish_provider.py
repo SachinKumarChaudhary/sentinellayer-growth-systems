@@ -446,7 +446,7 @@ class TinyFishEntityCandidateProvider:
                 (
                     item.url
                     for item in (evidence_by_id[evidence_id] for evidence_id in evidence_refs)
-                    if normalize_domain(urlparse(item.url).hostname) == lead_domain
+                    if registrable_domain(urlparse(item.url).hostname) == target_registrable
                 ),
                 evidence_by_id[evidence_refs[0]].url,
             )
@@ -483,6 +483,43 @@ class TinyFishEntityCandidateProvider:
                     origin="research",
                 )
             )
+
+        has_first_party_identity = any(
+            candidate.domain_verified or candidate.official_corporate_url_match
+            for candidate in result
+        )
+        if not has_first_party_identity and lead_domain:
+            first_party_refs = [
+                evidence_id
+                for evidence_id, item in evidence_by_id.items()
+                if registrable_domain(urlparse(item.url).hostname) == target_registrable
+            ]
+            if first_party_refs:
+                candidate_name = lead.display_name or lead.legal_name or lead.domain
+                candidate_key = f"{normalize_name(candidate_name)}|{lead.domain}|BRAND"
+                result.append(
+                    EntityCandidate(
+                        candidate_id=f"research:{self_hash(candidate_key)}",
+                        entity_id=None,
+                        entity_type="BRAND",
+                        canonical_name=candidate_name,
+                        canonical_domain=lead.domain,
+                        official_url=next(
+                            (
+                                evidence_by_id[evidence_id].url
+                                for evidence_id in first_party_refs
+                                if normalize_domain(urlparse(evidence_by_id[evidence_id].url).hostname) == lead_domain
+                            ),
+                            evidence_by_id[first_party_refs[0]].url,
+                        ),
+                        domain_verified=True,
+                        official_corporate_url_match=True,
+                        explicit_official_identity_tie=True,
+                        currentness="CURRENT",
+                        evidence_refs=first_party_refs,
+                        origin="research",
+                    )
+                )
         return result
 
     @staticmethod
