@@ -126,7 +126,9 @@ def main() -> int:
             telemetry_sink=telemetry,
         )
 
-        connection_factory = lambda: _connection_factory(settings)
+        def connection_factory() -> psycopg.Connection[Any]:
+            return _connection_factory(settings)
+
         phase1_repository = Phase1Repository(connection_factory)
         phase2_repository = Phase2Repository(connection_factory)
 
