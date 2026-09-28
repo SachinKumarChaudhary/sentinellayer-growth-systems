@@ -303,6 +303,7 @@ class EnrichmentRepository:
             packet.research_notes
             + ([packet.personalization_angle] if packet.personalization_angle else [])
         )
+        decision_maker_depth = sum(1 for dm in packet.decision_makers if dm.evidence)
         score = score_company(
             employee_count=packet.company_facts.employee_count,
             monthly_sessions=packet.company_facts.monthly_sessions,
@@ -310,32 +311,51 @@ class EnrichmentRepository:
             notes=notes,
             signals=normalized_signals,
             today=now.date(),
+            behavior_stage=packet.first_party_behavior_stage,
             india_bridge=packet.company_facts.india_bridge,
+            decision_maker_depth=decision_maker_depth,
         )
         cur.execute(
             """
             INSERT INTO intelligence.company_scores
-                (company_id, fit_score, intent_score, behavior_override,
-                 negative_flags, modifiers, priority, scored_at, updated_at)
-            VALUES (%s, %s, %s, %s, %s::jsonb, %s::jsonb, %s, %s, %s)
+                (company_id, fit_score, fit_raw, intent_score, raw_intent,
+                 intent_components, behavior_override, behavior_stage,
+                 behavior_identity, behavior_timestamp, negative_flags, modifiers,
+                 priority, scoring_version, scored_at, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, %s,
+                    %s::jsonb, %s::jsonb, %s, %s, %s, %s)
             ON CONFLICT (company_id) DO UPDATE SET
                 fit_score = EXCLUDED.fit_score,
+                fit_raw = EXCLUDED.fit_raw,
                 intent_score = EXCLUDED.intent_score,
+                raw_intent = EXCLUDED.raw_intent,
+                intent_components = EXCLUDED.intent_components,
                 behavior_override = EXCLUDED.behavior_override,
+                behavior_stage = EXCLUDED.behavior_stage,
+                behavior_identity = EXCLUDED.behavior_identity,
+                behavior_timestamp = EXCLUDED.behavior_timestamp,
                 negative_flags = EXCLUDED.negative_flags,
                 modifiers = EXCLUDED.modifiers,
                 priority = EXCLUDED.priority,
+                scoring_version = EXCLUDED.scoring_version,
                 scored_at = EXCLUDED.scored_at,
                 updated_at = EXCLUDED.updated_at
             """,
             (
                 packet.company_id,
                 score.fit_score,
+                score.fit_raw,
                 score.intent_score,
+                score.raw_intent,
+                json.dumps([component.__dict__ for component in score.intent_components], default=str),
                 score.behavior_override,
+                score.behavior_stage,
+                packet.first_party_behavior_identity,
+                packet.first_party_behavior_timestamp,
                 json.dumps(score.negative_flags),
                 json.dumps(score.modifiers),
                 score.priority,
+                "v3.4-exec1",
                 now,
                 now,
             ),
