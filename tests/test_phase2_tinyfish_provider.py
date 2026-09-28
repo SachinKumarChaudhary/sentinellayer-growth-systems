@@ -121,10 +121,11 @@ def test_tinyfish_provider_respects_search_and_fetch_budgets() -> None:
 
     candidate = candidate_set.candidates[0]
     assert candidate.canonical_name == "BrandCo LLC"
-    assert candidate.canonical_domain == "brand.example"
-    assert candidate.domain_verified is True
-    assert candidate.official_corporate_url_match is True
-    assert candidate.explicit_official_identity_tie is True
+    assert candidate.canonical_domain is None
+    assert candidate.entity_id is None
+    assert candidate.domain_verified is False
+    assert candidate.official_corporate_url_match is False
+    assert candidate.explicit_official_identity_tie is False
     assert candidate.origin == "research"
 
 
