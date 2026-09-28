@@ -1,7 +1,12 @@
 """Phase 2: deterministic-first entity resolution."""
 
 from .blocking import generate_candidates
-from .execution import Phase2BatchExecutor, Phase2BatchResult, Phase2CandidateSet
+from .execution import (
+    Phase2BatchExecutor,
+    Phase2BatchResult,
+    Phase2CandidateSet,
+    Phase2ProviderUnavailable,
+)
 from .extraction import (
     CandidateEntityExtraction,
     CurrentnessClaimExtraction,
@@ -48,6 +53,7 @@ __all__ = [
     "Phase2BatchExecutor",
     "Phase2BatchResult",
     "Phase2CandidateSet",
+    "Phase2ProviderUnavailable",
     "EntityComparison",
     "EntityRelationship",
     "EntityResolutionDecision",
