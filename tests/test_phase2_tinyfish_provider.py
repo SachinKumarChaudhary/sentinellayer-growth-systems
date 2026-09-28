@@ -165,15 +165,6 @@ def test_tinyfish_provider_requires_run_binding() -> None:
 
 
 def test_first_party_subdomain_supports_identity_candidate() -> None:
-    evidence = [
-        # The IR subdomain is first-party evidence for the canonical domain.
-        {
-            "evidence_id": "ir-1",
-            "url": "https://ir.brand.example/company-information",
-            "title": "Company Information",
-            "text": "BrandCo Technologies Inc.",
-        }
-    ]
     extracted = EntityEvidenceExtraction.model_validate(
         {
             "candidate_entities": [
