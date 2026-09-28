@@ -15,9 +15,10 @@ from .extraction import (
     GroqEntityEvidenceExtractor,
     extract_with_fallback,
 )
+from .execution import Phase2CandidateSet, Phase2ProviderUnavailable
 from .models import Currentness, EntityCandidate
-from .observability import TinyFishAttemptRecorder
 from .normalization import normalize_domain, normalize_name, registrable_domain
+from .observability import TinyFishAttemptRecorder
 from .research import (
     ResearchMission,
     TinyFishFetchObservation,
@@ -25,7 +26,6 @@ from .research import (
     TinyFishSearchObservation,
     TinyFishSearchRequest,
 )
-from .execution import Phase2CandidateSet, Phase2ProviderUnavailable
 from .repository import Phase2Repository
 from .storage import ResearchObservationRecord
 
@@ -165,7 +165,7 @@ class TinyFishEntityCandidateProvider:
                 purpose=fetch_purpose,
                 ttl=0,
             )
-        except TinyFishError as exc:
+        except (TinyFishError, TinyFishQuotaExceeded) as exc:
             raise Phase2ProviderUnavailable(str(exc)) from exc
         finally:
             self._persist_telemetry(
@@ -406,10 +406,11 @@ class TinyFishEntityCandidateProvider:
             domain_matches_candidate = bool(
                 lead_domain and candidate_domain and candidate_domain == lead_domain
             )
-            if not same_name and not domain_matches_candidate:
+            related_to_target = bool(extracted_candidate.relationship_to_target)
+            if not same_name and not domain_matches_candidate and not related_to_target:
                 continue
 
-            effective_domain = candidate_domain or (lead.domain if same_domain else None)
+            effective_domain = candidate_domain or (lead.domain if domain_matches_candidate else None)
             candidate_key = f"{normalize_name(extracted_candidate.name)}|{effective_domain}|{entity_type}"
             candidate_id = f"research:{self_hash(candidate_key)}"
             if candidate_id in seen:
@@ -431,14 +432,16 @@ class TinyFishEntityCandidateProvider:
             result.append(
                 EntityCandidate(
                     candidate_id=candidate_id,
-                    entity_id=f"entity:{self_hash(candidate_key)}",
+                    entity_id=None,
                     entity_type=entity_type,  # type: ignore[arg-type]
                     canonical_name=extracted_candidate.name,
                     canonical_domain=effective_domain,
                     official_url=official_url,
-                    domain_verified=same_domain,
-                    official_corporate_url_match=same_domain,
-                    explicit_official_identity_tie=same_domain and same_name,
+                    domain_verified=domain_matches_candidate and same_domain,
+                    official_corporate_url_match=domain_matches_candidate and same_domain,
+                    explicit_official_identity_tie=(
+                        domain_matches_candidate and same_domain and same_name
+                    ),
                     currentness=currentness,
                     evidence_refs=evidence_refs,
                     origin="research",
