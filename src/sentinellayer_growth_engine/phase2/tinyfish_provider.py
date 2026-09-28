@@ -121,12 +121,14 @@ class TinyFishEntityCandidateProvider:
             page=0,
         )
         search_request_id = self._internal_request_id("search", handoff.lead_id, request.params())
+        search_result_count: int | None = None
         try:
             search_observations = self._adapter.search(
                 mission,
                 request,
                 provider_request_id=search_request_id,
             )
+            search_result_count = len(search_observations)
         except (TinyFishError, TinyFishQuotaExceeded) as exc:
             raise Phase2ProviderUnavailable(str(exc)) from exc
         finally:
@@ -135,7 +137,8 @@ class TinyFishEntityCandidateProvider:
                 mission,
                 operation="search",
                 request_parameters=request.params(),
-                result_count=None,
+                provider_request_id=search_request_id,
+                result_count=search_result_count,
             )
 
         search_observations = search_observations[: self._max_search_results]
@@ -157,6 +160,7 @@ class TinyFishEntityCandidateProvider:
             handoff.lead_id,
             {"urls": selected_urls, "purpose": fetch_purpose},
         )
+        fetch_result_count: int | None = None
         try:
             fetch_observations = self._adapter.fetch(
                 mission,
@@ -165,6 +169,7 @@ class TinyFishEntityCandidateProvider:
                 purpose=fetch_purpose,
                 ttl=0,
             )
+            fetch_result_count = len(fetch_observations)
         except (TinyFishError, TinyFishQuotaExceeded) as exc:
             raise Phase2ProviderUnavailable(str(exc)) from exc
         finally:
@@ -181,7 +186,8 @@ class TinyFishEntityCandidateProvider:
                     "page_metadata": True,
                     "ttl": 0,
                 },
-                result_count=None,
+                provider_request_id=fetch_request_id,
+                result_count=fetch_result_count,
             )
 
         self._persist_fetch_observations(handoff, mission, fetch_observations)
@@ -304,6 +310,7 @@ class TinyFishEntityCandidateProvider:
         *,
         operation: str,
         request_parameters: dict[str, object],
+        provider_request_id: str | None,
         result_count: int | None,
     ) -> None:
         if self._run_id is None:
@@ -318,6 +325,7 @@ class TinyFishEntityCandidateProvider:
             recorder.record(
                 telemetry,
                 request_parameters=request_parameters,
+                provider_request_id=provider_request_id,
                 result_count=result_count,
                 escalation_reason="phase2_entity_identity",
                 information_gain_estimate=(
