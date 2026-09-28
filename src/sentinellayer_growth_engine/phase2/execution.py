@@ -24,6 +24,10 @@ class Phase2CandidateSet:
     relationships: Sequence[EntityRelationship] = ()
 
 
+class Phase2ProviderUnavailable(RuntimeError):
+    """A research provider could not supply evidence for this lead."""
+
+
 class Phase2CandidateProvider(Protocol):
     def discover(self, handoff: Phase1Handoff) -> Phase2CandidateSet:
         """Return bounded candidate/evidence-derived inputs; never a final decision."""
@@ -147,7 +151,7 @@ class Phase2BatchExecutor:
             for handoff in handoffs:
                 try:
                     candidate_set = self._discover(candidate_provider, handoff)
-                except Exception:
+                except Phase2ProviderUnavailable:
                     # Provider failures are not negative entity evidence.
                     candidate_set = Phase2CandidateSet()
                     provider_error_count += 1
