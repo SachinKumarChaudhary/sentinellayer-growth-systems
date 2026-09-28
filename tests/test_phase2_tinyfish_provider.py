@@ -144,8 +144,9 @@ def test_tinyfish_provider_respects_search_and_fetch_budgets() -> None:
     assert fallback_candidate.canonical_domain == "brand.example"
     assert fallback_candidate.entity_id is None
     assert fallback_candidate.domain_verified is True
-    assert fallback_candidate.official_corporate_url_match is True
-    assert fallback_candidate.explicit_official_identity_tie is True
+    assert fallback_candidate.official_corporate_url_match is False
+    assert fallback_candidate.explicit_official_identity_tie is False
+    assert fallback_candidate.currentness == "UNKNOWN"
     assert fallback_candidate.origin == "research"
 
 
