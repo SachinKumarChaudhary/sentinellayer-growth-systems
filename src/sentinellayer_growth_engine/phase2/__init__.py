@@ -21,6 +21,7 @@ from .models import (
     EntityRelationship,
     EntityResolutionDecision,
 )
+from .tinyfish_provider import TinyFishEntityCandidateProvider, TinyFishTelemetryBuffer
 from .research import (
     ResearchMission,
     TinyFishFetchObservation,
@@ -60,6 +61,8 @@ __all__ = [
     "RelationshipClaimExtraction",
     "ResearchObservationRecord",
     "TinyFishAttemptRecorder",
+    "TinyFishEntityCandidateProvider",
+    "TinyFishTelemetryBuffer",
     "TinyFishFetchObservation",
     "TinyFishResearchAdapter",
     "TinyFishSearchObservation",
