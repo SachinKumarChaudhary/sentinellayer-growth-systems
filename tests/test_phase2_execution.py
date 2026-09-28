@@ -98,6 +98,8 @@ class FakePhase2Persistence:
         current.completed_at = completed_at
         if metadata:
             current.metadata.update(metadata)
+        current.input_count = len(self.decisions)
+        current.decision_count = len(self.decisions)
 
 
 def _candidate() -> EntityCandidate:
