@@ -196,15 +196,15 @@ class GroqEntityEvidenceExtractor:
     ) -> None:
         valid_ids = {item.evidence_id for item in evidence}
         referenced: list[str] = []
-        for item in result.candidate_entities:
-            referenced.extend(item.evidence_ids)
-        for item in result.relationship_claims:
-            referenced.extend(item.evidence_ids)
-        for item in result.currentness_claims:
-            referenced.extend(item.evidence_ids)
-        for item in result.conflicts:
-            referenced.extend(item.evidence_ids)
-        referenced.extend(item.evidence_id for item in result.evidence_spans)
+        for candidate_item in result.candidate_entities:
+            referenced.extend(candidate_item.evidence_ids)
+        for relationship_item in result.relationship_claims:
+            referenced.extend(relationship_item.evidence_ids)
+        for currentness_item in result.currentness_claims:
+            referenced.extend(currentness_item.evidence_ids)
+        for conflict_item in result.conflicts:
+            referenced.extend(conflict_item.evidence_ids)
+        referenced.extend(span_item.evidence_id for span_item in result.evidence_spans)
         invalid = sorted(set(referenced) - valid_ids)
         if invalid:
             raise GroqExtractionError(
