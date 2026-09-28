@@ -413,7 +413,6 @@ class TinyFishEntityCandidateProvider:
                 for domain in supported_domains
                 if domain
             }
-            same_domain = bool(lead_domain and lead_domain in supported_domains)
             same_first_party_domain = bool(
                 target_registrable and target_registrable in supported_registrables
             )
