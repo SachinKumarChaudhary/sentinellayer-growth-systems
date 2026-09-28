@@ -13,7 +13,7 @@ from .extraction import (
     GroqEntityEvidenceExtractor,
     extract_with_fallback,
 )
-from .models import Currentness, EntityCandidate, EntityType
+from .models import Currentness, EntityCandidate
 from .observability import TinyFishAttemptRecorder
 from .normalization import normalize_domain, normalize_name, registrable_domain
 from .research import (
