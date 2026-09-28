@@ -134,6 +134,10 @@ class Phase2BatchExecutor:
                 f"phase2 request_key {request_key!r} already maps to run status {run.status}"
             )
 
+        bind_run = getattr(candidate_provider, "bind_run", None)
+        if bind_run is not None:
+            bind_run(run.run_id)
+
         matched_count = 0
         research_required_count = 0
         provider_error_count = 0
