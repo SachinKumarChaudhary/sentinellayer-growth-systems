@@ -8,6 +8,7 @@ from sentinellayer_growth_engine.phase2.extraction import (
     EvidenceInput,
 )
 from sentinellayer_growth_engine.phase2.research import TinyFishResearchAdapter
+from sentinellayer_growth_engine.phase2.normalization import normalize_name
 from sentinellayer_growth_engine.phase2.tinyfish_provider import (
     TinyFishEntityCandidateProvider,
     TinyFishTelemetryBuffer,
@@ -276,7 +277,9 @@ def test_first_party_relationship_claim_is_materialized_separately() -> None:
     assert relationship.predicate == "OPERATES"
     assert relationship.status == "ESTABLISHED"
     assert relationship.currentness == "CURRENT"
-    assert relationship.subject_entity_id == f"research:entity:{TinyFishEntityCandidateProvider._stable_id('brandco llc')}"
+    assert relationship.subject_entity_id == (
+        f"research:entity:{TinyFishEntityCandidateProvider._stable_id(normalize_name('brandco llc'))}"
+    )
     assert relationship.object_entity_id == candidates[0].candidate_id
     assert relationship.evidence_refs == ["e1"]
 
