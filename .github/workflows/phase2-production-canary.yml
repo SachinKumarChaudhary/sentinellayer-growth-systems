@@ -37,7 +37,7 @@ jobs:
           set -euo pipefail
           test -n "${SL_DATABASE_URL:-}" || { echo "Missing SL_DATABASE_URL/SUPABASE_DATABASE_URL"; exit 2; }
           test -n "${SL_TINYFISH_API_KEY:-${TINYFISH_API_KEY:-}}" || { echo "Missing TinyFish API key"; exit 2; }
-          python scripts/run_phase2_entity_resolution.py             --request-key phase2-live-canary-4-20260929-r4             --limit 4             --candidate-budget 25             --max-search-results 5             --max-fetch-urls 3 \
+          python scripts/run_phase2_entity_resolution.py             --request-key phase2-live-canary-4-20260929-r5             --limit 4             --candidate-budget 25             --max-search-results 5             --max-fetch-urls 3 \
             --no-groq
 
       - name: Verify persisted canary
@@ -50,7 +50,8 @@ jobs:
           with conn.cursor() as cur:
               cur.execute("""
                 SELECT status, input_count, decision_count,
-                       research_required_count, provider_error_count
+                       (metadata->>'research_required_count')::int,
+                       (metadata->>'provider_error_count')::int
                 FROM growth.entity_resolution_runs
                 WHERE request_key = %s
               """, ("phase2-live-canary-4-20260929-r1",))
