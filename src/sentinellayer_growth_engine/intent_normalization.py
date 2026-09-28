@@ -42,7 +42,7 @@ ALIASES: dict[str, tuple[str, ...]] = {
     "authenticated_product_change": ("authenticated product change", "new authenticated product capability", "new customer portal", "new account feature", "new app", "new administrative capability", "new subscription capability", "connected device launch that changes the authenticated surface"),
     "pricing_visit": ("pricing visit", "pricing page visit", "pricing engagement", "commercial evaluation"),
     "docs_visit": ("docs visit", "documentation visit", "docs page visit", "quickstart engagement", "api docs engagement", "sdk docs engagement", "proxy docs engagement"),
-    "trial_install": ("trial install", "trial signup", "signup", "active evaluation"),
+    "trial_install": ("trial install", "trial signup", "trial"),
     "sdk_install": ("sdk installed", "deployment", "sdk deployment"),
     "evaluate_activity": ("evaluate calls", "/evaluate activity", "product qualified", "pql"),
     "new_market": ("new market", "market entry", "market expansion", "international expansion", "eu launch", "expanded to"),
