@@ -19,6 +19,7 @@ jobs:
       SL_TINYFISH_API_KEY: ${{ secrets.SL_TINYFISH_API_KEY || secrets.TINYFISH_API_KEY }}
       GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
       GROQ_MODEL: openai/gpt-oss-20b
+      GROQ_MAX_EVIDENCE_CHARS: "16000"
       SL_ENVIRONMENT: development
       SL_REAL_EMAIL_ENABLED: "false"
     steps:
@@ -42,11 +43,11 @@ jobs:
           test -n "${GROQ_API_KEY:-}" || { echo "Missing GROQ_API_KEY from staging-mail"; exit 2; }
           echo "Groq key is available to the staging-mail environment."
 
-      - name: Replay 4-lead semantic Phase 2 canary
+      - name: Run 4-lead semantic Phase 2 canary
         run: |
           set -euo pipefail
           python scripts/run_phase2_entity_resolution.py \
-            --request-key phase2-semantic-canary-4-20260929-r1 \
+            --request-key phase2-semantic-canary-4-20260929-r2 \
             --limit 4 \
             --candidate-budget 25 \
             --max-search-results 5 \
@@ -59,7 +60,7 @@ jobs:
           import os
           import psycopg
 
-          request_key = "phase2-semantic-canary-4-20260929-r1"
+          request_key = "phase2-semantic-canary-4-20260929-r2"
           conn = psycopg.connect(os.environ["SL_DATABASE_URL"])
           try:
               with conn.cursor() as cur:
@@ -100,7 +101,17 @@ jobs:
                     FROM growth.entity_resolution_relationships
                     WHERE run_id = %s
                   """, (run_id,))
-                  print("relationship_count=", cur.fetchone()[0])
+                  relationship_count = cur.fetchone()[0]
+                  print("relationship_count=", relationship_count)
+
+                  typed_candidates = candidate_counts[0]
+                  total_candidates = candidate_counts[2]
+                  if total_candidates < 1:
+                      raise SystemExit("Semantic canary produced no candidates")
+                  if typed_candidates < 1 and relationship_count < 1:
+                      raise SystemExit(
+                          "Groq-enabled semantic canary produced neither a typed candidate nor an explicit relationship."
+                      )
 
                   cur.execute("""
                     SELECT count(*)
@@ -127,7 +138,7 @@ jobs:
               GroqExtractionError,
           )
 
-          request_key = "phase2-semantic-canary-4-20260929-r1"
+          request_key = "phase2-semantic-canary-4-20260929-r2"
           conn = psycopg.connect(os.environ["SL_DATABASE_URL"])
           try:
               with conn.cursor() as cur:

@@ -133,10 +133,12 @@ def main() -> int:
         phase2_repository = Phase2Repository(connection_factory)
 
         groq_key = os.getenv("GROQ_API_KEY")
+        groq_max_evidence_chars = int(os.getenv("GROQ_MAX_EVIDENCE_CHARS", "16000"))
         groq_extractor = (
             GroqEntityEvidenceExtractor(
                 api_key=groq_key,
                 model=args.groq_model,
+                max_evidence_chars=groq_max_evidence_chars,
             )
             if groq_key and not args.no_groq
             else None

@@ -91,6 +91,7 @@ class GroqEntityEvidenceExtractor:
     endpoint: str = "https://api.groq.com/openai/v1/chat/completions"
     timeout_seconds: float = 20.0
     max_attempts: int = 3
+    max_evidence_chars: int = 16000
 
     def extract(
         self,
@@ -104,6 +105,10 @@ class GroqEntityEvidenceExtractor:
             raise ValueError("evidence must not be empty")
         if self.max_attempts < 1:
             raise ValueError("max_attempts must be positive")
+        if self.max_evidence_chars < 2000:
+            raise ValueError("max_evidence_chars must be at least 2000")
+
+        bounded_evidence = self._bound_evidence(evidence)
 
         payload = {
             "model": self.model,
@@ -134,7 +139,7 @@ class GroqEntityEvidenceExtractor:
                                 "domain": lead.canonical_lead.domain,
                                 "country_code": lead.canonical_lead.country_code,
                             },
-                            "evidence": [item.model_dump(mode="json") for item in evidence],
+                            "evidence": [item.model_dump(mode="json") for item in bounded_evidence],
                         }
                     ),
                 },
@@ -184,6 +189,36 @@ class GroqEntityEvidenceExtractor:
                 time.sleep(0.5 * (2**attempt))
 
         raise GroqExtractionError("Groq evidence extraction unavailable after bounded retries") from last_error
+
+    def _bound_evidence(
+        self,
+        evidence: Sequence[EvidenceInput],
+    ) -> tuple[EvidenceInput, ...]:
+        remaining_chars = self.max_evidence_chars
+        bounded: list[EvidenceInput] = []
+        items = list(evidence)
+
+        for index, item in enumerate(items):
+            if remaining_chars <= 0:
+                break
+            items_remaining = len(items) - index
+            per_item_budget = max(1, remaining_chars // items_remaining)
+            clipped_text = self._clip_text(item.text, per_item_budget)
+            bounded.append(item.model_copy(update={"text": clipped_text}))
+            remaining_chars -= len(clipped_text)
+
+        return tuple(bounded)
+
+    @staticmethod
+    def _clip_text(text: str, limit: int) -> str:
+        if len(text) <= limit:
+            return text
+
+        marker = "\n...[TRUNCATED_FOR_SEMANTIC_EXTRACTION]...\n"
+        available = max(2, limit - len(marker))
+        head_chars = max(1, int(available * 0.65))
+        tail_chars = max(1, available - head_chars)
+        return f"{text[:head_chars]}{marker}{text[-tail_chars:]}"
 
     @staticmethod
     def _retryable_status(status: int) -> bool:
