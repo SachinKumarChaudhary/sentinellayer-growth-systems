@@ -637,8 +637,14 @@ class TinyFishEntityCandidateProvider:
         return self_hash("|".join(parts))
 
 
-def _candidate_set(candidates: Sequence[EntityCandidate]) -> Phase2CandidateSet:
-    return Phase2CandidateSet(candidates=tuple(candidates))
+def _candidate_set(
+    candidates: Sequence[EntityCandidate],
+    relationships: Sequence[EntityRelationship] = (),
+) -> Phase2CandidateSet:
+    return Phase2CandidateSet(
+        candidates=tuple(candidates),
+        relationships=tuple(relationships),
+    )
 
 
 def _currentness_for_name(name: str, claims: Sequence[object]) -> Currentness:
