@@ -201,3 +201,82 @@ def test_first_party_subdomain_supports_identity_candidate() -> None:
     assert candidate.domain_verified is True
     assert candidate.official_corporate_url_match is True
     assert candidate.explicit_official_identity_tie is False
+
+
+def test_first_party_fallback_handles_empty_extraction() -> None:
+    candidates = TinyFishEntityCandidateProvider._candidate_objects(
+        _handoff(),
+        EntityEvidenceExtraction.model_validate(
+            {
+                "candidate_entities": [],
+                "relationship_claims": [],
+                "currentness_claims": [],
+                "conflicts": [],
+                "evidence_spans": [],
+            }
+        ),
+        [
+            EvidenceInput(
+                evidence_id="e-empty",
+                url="https://brand.example/about",
+                title="About BrandCo",
+                text="BrandCo",
+            )
+        ],
+    )
+
+    assert len(candidates) == 1
+    candidate = candidates[0]
+    assert candidate.entity_type == "BRAND"
+    assert candidate.canonical_name == "BrandCo"
+    assert candidate.domain_verified is True
+    assert candidate.official_corporate_url_match is True
+    assert candidate.explicit_official_identity_tie is True
+
+
+def test_first_party_relationship_claim_is_materialized_separately() -> None:
+    extracted = EntityEvidenceExtraction.model_validate(
+        {
+            "candidate_entities": [],
+            "relationship_claims": [
+                {
+                    "subject_name": "BrandCo",
+                    "predicate": "OPERATED_BY",
+                    "object_name": "BrandCo LLC",
+                    "currentness": "CURRENT",
+                    "evidence_ids": ["e1"],
+                }
+            ],
+            "currentness_claims": [],
+            "conflicts": [],
+            "evidence_spans": [],
+        }
+    )
+    candidates = TinyFishEntityCandidateProvider._candidate_objects(
+        _handoff(),
+        extracted,
+        [
+            EvidenceInput(
+                evidence_id="e1",
+                url="https://brand.example/privacy",
+                title="Privacy Policy",
+                text="BrandCo is operated by BrandCo LLC.",
+            )
+        ],
+    )
+
+    relationships = TinyFishEntityCandidateProvider._relationship_objects(
+        _handoff(),
+        extracted,
+        candidates,
+    )
+
+    assert len(relationships) == 1
+    relationship = relationships[0]
+    assert relationship.predicate == "OPERATES"
+    assert relationship.status == "ESTABLISHED"
+    assert relationship.currentness == "CURRENT"
+    assert relationship.subject_entity_id == f"research:entity:{TinyFishEntityCandidateProvider._stable_id('brandco llc')}"
+    assert relationship.object_entity_id == candidates[0].candidate_id
+    assert relationship.evidence_refs == ["e1"]
+
