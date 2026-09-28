@@ -500,7 +500,12 @@ class TinyFishEntityCandidateProvider:
                 if registrable_domain(urlparse(item.url).hostname) == target_registrable
             ]
             if first_party_refs:
-                candidate_name = lead.display_name or lead.legal_name or lead.domain
+                candidate_name = (
+                    lead.display_name
+                    or lead.legal_name
+                    or lead.domain
+                    or handoff.lead_id
+                )
                 candidate_key = f"{normalize_name(candidate_name)}|{lead.domain}|BRAND"
                 result.append(
                     EntityCandidate(
