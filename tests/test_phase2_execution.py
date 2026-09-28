@@ -6,6 +6,7 @@ from sentinellayer_growth_engine.phase1.models import CanonicalLead, Phase1Hando
 from sentinellayer_growth_engine.phase2.execution import (
     Phase2BatchExecutor,
     Phase2CandidateSet,
+    Phase2ProviderUnavailable,
 )
 from sentinellayer_growth_engine.phase2.models import EntityCandidate
 from sentinellayer_growth_engine.phase2.storage import Phase2RunRecord
@@ -139,7 +140,7 @@ def test_batch_executor_treats_provider_failure_as_unresolved_not_no_match() -> 
     executor = Phase2BatchExecutor(source, persistence)
 
     def failing_provider(_handoff: Phase1Handoff) -> Phase2CandidateSet:
-        raise RuntimeError("provider unavailable")
+        raise Phase2ProviderUnavailable("provider unavailable")
 
     result = executor.run(
         request_key="phase2-test-2",
