@@ -231,8 +231,9 @@ def test_first_party_fallback_handles_empty_extraction() -> None:
     assert candidate.entity_type == "BRAND"
     assert candidate.canonical_name == "BrandCo"
     assert candidate.domain_verified is True
-    assert candidate.official_corporate_url_match is True
-    assert candidate.explicit_official_identity_tie is True
+    assert candidate.official_corporate_url_match is False
+    assert candidate.explicit_official_identity_tie is False
+    assert candidate.currentness == "UNKNOWN"
 
 
 def test_first_party_relationship_claim_is_materialized_separately() -> None:
