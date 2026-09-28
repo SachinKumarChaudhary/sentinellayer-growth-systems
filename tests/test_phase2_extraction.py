@@ -108,16 +108,18 @@ def test_deterministic_fallback_extracts_relationship_evidence() -> None:
 
 
 def test_evidence_reference_validation_rejects_unknown_ids() -> None:
-    result = EntityEvidenceExtraction(
-        candidate_entities=[
-            {
-                "name": "Example Holdings",
-                "entity_type": "OPERATING_ENTITY",
-                "domain": None,
-                "relationship_to_target": "OPERATED_BY",
-                "evidence_ids": ["missing"],
-            }
-        ]
+    result = EntityEvidenceExtraction.model_validate(
+        {
+            "candidate_entities": [
+                {
+                    "name": "Example Holdings",
+                    "entity_type": "OPERATING_ENTITY",
+                    "domain": None,
+                    "relationship_to_target": "OPERATED_BY",
+                    "evidence_ids": ["missing"],
+                }
+            ]
+        }
     )
 
     with pytest.raises(GroqExtractionError, match="unknown evidence ids"):
@@ -158,6 +160,7 @@ def test_groq_payload_is_strict_and_contains_no_final_decision_fields(
             ).encode("utf-8")
 
     def fake_urlopen(request: Request, timeout: float) -> FakeResponse:
+        assert request.data is not None
         requests.append(json.loads(request.data.decode("utf-8")))
         return FakeResponse()
 
