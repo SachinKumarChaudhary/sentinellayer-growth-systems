@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 from ..phase1.models import Phase1Handoff
 from ..provider_resilience import TinyFishRequestTelemetry
 from ..tinyfish_client import TinyFishError
+from ..tinyfish_rate_limit import TinyFishQuotaExceeded
 from .extraction import (
     EntityEvidenceExtraction,
     EvidenceInput,
@@ -126,7 +127,7 @@ class TinyFishEntityCandidateProvider:
                 request,
                 provider_request_id=search_request_id,
             )
-        except TinyFishError as exc:
+        except (TinyFishError, TinyFishQuotaExceeded) as exc:
             raise Phase2ProviderUnavailable(str(exc)) from exc
         finally:
             self._persist_telemetry(
