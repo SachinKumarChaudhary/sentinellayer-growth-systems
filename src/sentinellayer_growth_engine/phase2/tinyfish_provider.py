@@ -506,12 +506,12 @@ class TinyFishEntityCandidateProvider:
                     or lead.domain
                     or handoff.lead_id
                 )
-                candidate_key = f"{normalize_name(candidate_name)}|{lead.domain}|BRAND"
+                candidate_key = f"{normalize_name(candidate_name)}|{lead.domain}|UNKNOWN"
                 result.append(
                     EntityCandidate(
                         candidate_id=f"research:{self_hash(candidate_key)}",
                         entity_id=None,
-                        entity_type="BRAND",
+                        entity_type="UNKNOWN",
                         canonical_name=candidate_name,
                         canonical_domain=lead.domain,
                         official_url=next(
