@@ -407,7 +407,16 @@ class TinyFishEntityCandidateProvider:
                 normalize_domain(urlparse(evidence_by_id[evidence_id].url).hostname)
                 for evidence_id in evidence_refs
             }
+            target_registrable = registrable_domain(lead.domain)
+            supported_registrables = {
+                registrable_domain(domain)
+                for domain in supported_domains
+                if domain
+            }
             same_domain = bool(lead_domain and lead_domain in supported_domains)
+            same_first_party_domain = bool(
+                target_registrable and target_registrable in supported_registrables
+            )
             same_name = normalize_name(extracted_candidate.name) in {
                 value for value in (display_name, legal_name) if value
             }
@@ -415,10 +424,18 @@ class TinyFishEntityCandidateProvider:
                 lead_domain and candidate_domain and candidate_domain == lead_domain
             )
             related_to_target = bool(extracted_candidate.relationship_to_target)
-            if not same_name and not domain_matches_candidate and not related_to_target:
+            if (
+                not same_name
+                and not domain_matches_candidate
+                and not (same_first_party_domain and not related_to_target)
+            ):
                 continue
 
-            effective_domain = candidate_domain or (lead.domain if domain_matches_candidate else None)
+            effective_domain = candidate_domain or (
+                lead.domain
+                if same_first_party_domain and not related_to_target
+                else None
+            )
             candidate_key = f"{normalize_name(extracted_candidate.name)}|{effective_domain}|{entity_type}"
             candidate_id = f"research:{self_hash(candidate_key)}"
             if candidate_id in seen:
@@ -445,10 +462,21 @@ class TinyFishEntityCandidateProvider:
                     canonical_name=extracted_candidate.name,
                     canonical_domain=effective_domain,
                     official_url=official_url,
-                    domain_verified=domain_matches_candidate and same_domain,
-                    official_corporate_url_match=domain_matches_candidate and same_domain,
+                    domain_verified=(
+                        bool(effective_domain and lead_domain and effective_domain == lead_domain)
+                        and same_first_party_domain
+                        and not related_to_target
+                    ),
+                    official_corporate_url_match=(
+                        bool(effective_domain and lead_domain and effective_domain == lead_domain)
+                        and same_first_party_domain
+                        and not related_to_target
+                    ),
                     explicit_official_identity_tie=(
-                        domain_matches_candidate and same_domain and same_name
+                        bool(effective_domain and lead_domain and effective_domain == lead_domain)
+                        and same_first_party_domain
+                        and same_name
+                        and not related_to_target
                     ),
                     currentness=currentness,
                     evidence_refs=evidence_refs,
