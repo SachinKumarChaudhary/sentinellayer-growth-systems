@@ -117,6 +117,26 @@ def resolve_entity(
     top = eligible[0]
     second = eligible[1] if len(eligible) > 1 else None
     top_candidate = next(item for item in selected if item.candidate_id == top.candidate_id)
+    if top_candidate.entity_type == "UNKNOWN":
+        trace.append(
+            _event(
+                "adjudication",
+                "Strong first-party evidence identifies the web property, but entity type is not established; returning AMBIGUOUS.",
+                top.candidate_id,
+            )
+        )
+        return EntityResolutionDecision(
+            decision_id=_decision_id(lead.lead_id, comparisons),
+            lead_id=lead.lead_id,
+            status="AMBIGUOUS",
+            comparisons=comparisons,
+            decision_trace=trace,
+            rejected_candidates=rejected,
+            research_required=True,
+            research_missions=["entity_identity", "entity_type"],
+            unresolved_questions=["Entity type is not established by the available evidence."],
+            decided_at=decided_at,
+        )
     top_strong = [
         signal.code
         for signal in top.signals

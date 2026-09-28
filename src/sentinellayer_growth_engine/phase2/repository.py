@@ -118,7 +118,7 @@ class Phase2Repository:
                          currentness, evidence_refs, origin, candidate_payload)
                     VALUES (%s::uuid, %s, %s, %s, %s, %s, %s, %s::jsonb,
                             %s::jsonb, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                            %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s::jsonb)
+                            %s, %s, %s, %s, %s, %s::jsonb, %s, %s::jsonb)
                     ON CONFLICT (run_id, candidate_id) DO NOTHING
                     """,
                     (

@@ -1,0 +1,337 @@
+name: Phase 2 Semantic Canary
+
+on:
+  push:
+    branches:
+      - phase2-validation-quality-2026-09-28
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  phase2-semantic-canary:
+    runs-on: ubuntu-latest
+    environment: staging-mail
+    timeout-minutes: 25
+    env:
+      SL_DATABASE_URL: ${{ secrets.SL_DATABASE_URL || secrets.SUPABASE_DATABASE_URL }}
+      SL_TINYFISH_API_KEY: ${{ secrets.SL_TINYFISH_API_KEY || secrets.TINYFISH_API_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      GROQ_MODEL: openai/gpt-oss-20b
+      GROQ_MAX_EVIDENCE_CHARS: "16000"
+      SL_ENVIRONMENT: development
+      SL_REAL_EMAIL_ENABLED: "false"
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip "setuptools>=83,<84"
+          python -m pip install -e ".[dev]"
+
+      - name: Validate secrets
+        run: |
+          set -euo pipefail
+          test -n "${SL_DATABASE_URL:-}" || { echo "Missing SL_DATABASE_URL/SUPABASE_DATABASE_URL"; exit 2; }
+          test -n "${SL_TINYFISH_API_KEY:-}" || { echo "Missing TinyFish API key"; exit 2; }
+          test -n "${GROQ_API_KEY:-}" || { echo "Missing GROQ_API_KEY from staging-mail"; exit 2; }
+          echo "Groq key is available to the staging-mail environment."
+
+      - name: Run 4-lead semantic Phase 2 canary
+        run: |
+          set -euo pipefail
+          python scripts/run_phase2_entity_resolution.py \
+            --request-key phase2-semantic-canary-4-20260929-r2 \
+            --limit 4 \
+            --candidate-budget 25 \
+            --max-search-results 5 \
+            --max-fetch-urls 3
+
+      - name: Inspect persisted semantic canary
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os
+          import psycopg
+
+          request_key = "phase2-semantic-canary-4-20260929-r2"
+          conn = psycopg.connect(os.environ["SL_DATABASE_URL"])
+          try:
+              with conn.cursor() as cur:
+                  cur.execute("""
+                    SELECT run_id, status, input_count, decision_count,
+                           (metadata->>'matched_count')::int,
+                           (metadata->>'research_required_count')::int,
+                           (metadata->>'provider_error_count')::int
+                    FROM growth.entity_resolution_runs
+                    WHERE request_key = %s
+                  """, (request_key,))
+                  run = cur.fetchone()
+                  if run is None:
+                      raise SystemExit("Semantic canary run was not persisted")
+                  print("run=", run)
+                  run_id, status, inputs, decisions, matched, research_required, provider_errors = run
+
+                  if status != "COMPLETED":
+                      raise SystemExit(f"Unexpected run status: {status}")
+                  if inputs != 4 or decisions != 4:
+                      raise SystemExit(f"Expected 4 inputs/decisions, got {inputs}/{decisions}")
+                  if provider_errors != 0:
+                      raise SystemExit(f"Expected zero provider errors, got {provider_errors}")
+
+                  cur.execute("""
+                    SELECT
+                      count(*) FILTER (WHERE entity_type <> 'UNKNOWN') AS typed_candidates,
+                      count(*) FILTER (WHERE entity_type = 'UNKNOWN') AS unknown_candidates,
+                      count(*) AS total_candidates
+                    FROM growth.entity_resolution_candidates
+                    WHERE run_id = %s
+                  """, (run_id,))
+                  candidate_counts = cur.fetchone()
+                  print("candidate_counts=", candidate_counts)
+
+                  cur.execute("""
+                    SELECT count(*)
+                    FROM growth.entity_resolution_relationships
+                    WHERE run_id = %s
+                  """, (run_id,))
+                  relationship_count = cur.fetchone()[0]
+                  print("relationship_count=", relationship_count)
+
+                  typed_candidates = candidate_counts[0]
+                  total_candidates = candidate_counts[2]
+                  if total_candidates < 1:
+                      raise SystemExit("Semantic canary produced no candidates")
+                  if typed_candidates < 1 and relationship_count < 1:
+                      raise SystemExit(
+                          "Groq-enabled semantic canary produced neither a typed candidate nor an explicit relationship."
+                      )
+
+                  cur.execute("""
+                    SELECT count(*)
+                    FROM growth.entity_resolution_research_observations
+                    WHERE run_id = %s
+                  """, (run_id,))
+                  print("research_observation_count=", cur.fetchone()[0])
+          finally:
+              conn.close()
+          PY
+
+      - name: Direct Groq minimal strict-schema smoke test
+        if: always()
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from urllib.error import HTTPError
+          from urllib.request import Request, urlopen
+
+          import psycopg
+
+          request_key = "phase2-semantic-canary-4-20260929-r2"
+          conn = psycopg.connect(os.environ["SL_DATABASE_URL"])
+          try:
+              with conn.cursor() as cur:
+                  cur.execute("""
+                    SELECT title, text_content
+                    FROM growth.entity_resolution_research_observations
+                    WHERE run_id = (
+                        SELECT run_id
+                        FROM growth.entity_resolution_runs
+                        WHERE request_key = %s
+                    )
+                      AND observation_type = 'FETCH_RESULT'
+                      AND text_content ILIKE '%%Byrna Technologies Inc.%%'
+                    ORDER BY observed_at
+                    LIMIT 1
+                  """, (request_key,))
+                  row = cur.fetchone()
+          finally:
+              conn.close()
+
+          if row is None:
+              raise SystemExit("Minimal Groq smoke could not find Byrna evidence")
+
+          title, text = row
+          evidence_text = text[:6000]
+          schema = {
+              "type": "object",
+              "properties": {
+                  "candidate_entities": {
+                      "type": "array",
+                      "items": {
+                          "type": "object",
+                          "properties": {
+                              "name": {"type": "string"},
+                              "entity_type": {"type": "string"},
+                              "evidence_ids": {
+                                  "type": "array",
+                                  "items": {"type": "string"},
+                              },
+                          },
+                          "required": ["name", "entity_type", "evidence_ids"],
+                          "additionalProperties": False,
+                      },
+                  }
+              },
+              "required": ["candidate_entities"],
+              "additionalProperties": False,
+          }
+
+          payload = {
+              "model": os.environ.get("GROQ_MODEL", "openai/gpt-oss-20b"),
+              "messages": [
+                  {
+                      "role": "system",
+                      "content": (
+                          "Extract one or more evidence-supported organization candidates. "
+                          "Do not make a final identity decision. Use only evidence_id groq-min-e1."
+                      ),
+                  },
+                  {
+                      "role": "user",
+                      "content": json.dumps({
+                          "lead": {
+                              "display_name": "Byrna",
+                              "domain": "byrna.com",
+                              "country_code": "US",
+                          },
+                          "evidence": [{
+                              "evidence_id": "groq-min-e1",
+                              "title": title,
+                              "text": evidence_text,
+                          }],
+                      }),
+                  },
+              ],
+              "response_format": {
+                  "type": "json_schema",
+                  "json_schema": {
+                      "name": "minimal_entity_extraction",
+                      "strict": True,
+                      "schema": schema,
+                  },
+              },
+          }
+
+          request = Request(
+              "https://api.groq.com/openai/v1/chat/completions",
+              data=json.dumps(payload).encode("utf-8"),
+              method="POST",
+              headers={
+                  "Authorization": f"Bearer {os.environ['GROQ_API_KEY']}",
+                  "Content-Type": "application/json",
+                  "User-Agent": "sentinellayer-growth-engine/0.1.0",
+              },
+          )
+
+          try:
+              with urlopen(request, timeout=20) as response:
+                  body = response.read().decode("utf-8")
+          except HTTPError as exc:
+              detail = exc.read().decode("utf-8", errors="replace")[:1500]
+              raise SystemExit(f"Minimal Groq smoke HTTP {exc.code}: {detail}") from exc
+
+          envelope = json.loads(body)
+          content = envelope["choices"][0]["message"]["content"]
+          result = json.loads(content)
+          print("minimal_groq_result=", json.dumps(result, sort_keys=True))
+          if not result.get("candidate_entities"):
+              raise SystemExit("Minimal strict-schema Groq smoke returned no candidates")
+          PY
+
+      - name: Direct Groq real-evidence smoke test
+        if: always()
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os
+          from types import SimpleNamespace
+
+          import psycopg
+
+          from sentinellayer_growth_engine.phase2.extraction import (
+              EvidenceInput,
+              GroqEntityEvidenceExtractor,
+              GroqExtractionError,
+          )
+
+          request_key = "phase2-semantic-canary-4-20260929-r2"
+          conn = psycopg.connect(os.environ["SL_DATABASE_URL"])
+          try:
+              with conn.cursor() as cur:
+                  cur.execute("""
+                    SELECT url, title, text_content
+                    FROM growth.entity_resolution_research_observations
+                    WHERE run_id = (
+                        SELECT run_id
+                        FROM growth.entity_resolution_runs
+                        WHERE request_key = %s
+                    )
+                      AND observation_type = 'FETCH_RESULT'
+                      AND text_content ILIKE '%%Byrna Technologies Inc.%%'
+                    ORDER BY observed_at
+                    LIMIT 1
+                  """, (request_key,))
+                  row = cur.fetchone()
+          finally:
+              conn.close()
+
+          if row is None:
+              raise SystemExit("Could not find a real Byrna first-party evidence document for Groq smoke test")
+
+          url, title, text = row
+          lead = SimpleNamespace(
+              lead_id="groq-smoke-byrna",
+              canonical_lead=SimpleNamespace(
+                  display_name="Byrna",
+                  legal_name=None,
+                  domain="byrna.com",
+                  country_code="US",
+              ),
+          )
+          evidence = [
+              EvidenceInput(
+                  evidence_id="groq-smoke-e1",
+                  url=url,
+                  title=title,
+                  text=text,
+              )
+          ]
+
+          extractor = GroqEntityEvidenceExtractor(
+              api_key=os.environ["GROQ_API_KEY"],
+              model=os.environ.get("GROQ_MODEL", "openai/gpt-oss-20b"),
+          )
+
+          try:
+              result = extractor.extract(lead=lead, evidence=evidence)
+          except GroqExtractionError as exc:
+              raise SystemExit(f"Groq semantic extraction failed: {exc}") from exc
+
+          print("groq_candidate_count=", len(result.candidate_entities))
+          print("groq_relationship_count=", len(result.relationship_claims))
+          print("groq_currentness_count=", len(result.currentness_claims))
+          print("groq_conflict_count=", len(result.conflicts))
+          print("groq_evidence_span_count=", len(result.evidence_spans))
+
+          for item in result.candidate_entities[:5]:
+              print("candidate=", item.model_dump(mode="json"))
+          for item in result.relationship_claims[:5]:
+              print("relationship=", item.model_dump(mode="json"))
+
+          if not result.candidate_entities:
+              raise SystemExit(
+                  "Groq returned no candidate entities from real first-party evidence; "
+                  "the semantic extraction path is reachable but not yet producing usable entity evidence."
+              )
+          if not any(item.evidence_ids for item in result.candidate_entities):
+              raise SystemExit("Groq candidate extraction returned no evidence references")
+          PY

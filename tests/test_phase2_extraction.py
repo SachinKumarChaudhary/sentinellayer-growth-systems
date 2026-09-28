@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
+from io import BytesIO
 from typing import Self
+from urllib.error import HTTPError
 from urllib.request import Request
 
 import pytest
@@ -195,6 +197,96 @@ def test_groq_payload_is_strict_and_contains_no_final_decision_fields(
         "buying_intent",
     ):
         assert forbidden not in schema_text
+
+
+def test_groq_payload_bounds_large_evidence(monkeypatch: pytest.MonkeyPatch) -> None:
+    requests: list[dict[str, object]] = []
+
+    class FakeResponse:
+        def __enter__(self) -> Self:
+            return self
+
+        def __exit__(self, *args: object) -> bool:
+            return False
+
+        def read(self) -> bytes:
+            return json.dumps(
+                {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": json.dumps(
+                                    {
+                                        "candidate_entities": [],
+                                        "relationship_claims": [],
+                                        "currentness_claims": [],
+                                        "conflicts": [],
+                                        "evidence_spans": [],
+                                    }
+                                )
+                            }
+                        }
+                    ]
+                }
+            ).encode("utf-8")
+
+    def fake_urlopen(request: Request, timeout: float) -> FakeResponse:
+        assert request.data is not None
+        requests.append(json.loads(request.data.decode("utf-8")))
+        return FakeResponse()
+
+    monkeypatch.setattr(
+        "sentinellayer_growth_engine.phase2.extraction.urlopen",
+        fake_urlopen,
+    )
+
+    large_text = ("HEAD " * 3000) + ("MIDDLE " * 3000) + ("TAIL " * 3000)
+    extractor = GroqEntityEvidenceExtractor(
+        api_key="test-key",
+        max_evidence_chars=2000,
+    )
+    extractor.extract(
+        lead=_lead(),
+        evidence=_evidence(large_text),
+    )
+
+    payload = requests[0]
+    user_content = json.loads(payload["messages"][1]["content"])
+    bounded_text = user_content["evidence"][0]["text"]
+
+    assert len(bounded_text) <= 2000
+    assert bounded_text.startswith("HEAD ")
+    assert bounded_text.endswith("TAIL ")
+    assert "[TRUNCATED_FOR_SEMANTIC_EXTRACTION]" in bounded_text
+
+
+def test_groq_http_error_includes_provider_detail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_urlopen(request: Request, timeout: float) -> object:
+        raise HTTPError(
+            request.full_url,
+            400,
+            "Bad Request",
+            hdrs=None,
+            fp=BytesIO(b'{"error":{"message":"Invalid JSON schema"}}'),
+        )
+
+    monkeypatch.setattr(
+        "sentinellayer_growth_engine.phase2.extraction.urlopen",
+        fake_urlopen,
+    )
+
+    extractor = GroqEntityEvidenceExtractor(api_key="test-key", max_attempts=1)
+
+    with pytest.raises(
+        GroqExtractionError,
+        match=r"HTTP 400 .*Invalid JSON schema",
+    ):
+        extractor.extract(
+            lead=_lead(),
+            evidence=_evidence("BrandCo is operated by Example Holdings."),
+        )
 
 
 def test_malformed_groq_response_uses_deterministic_fallback(

@@ -91,6 +91,7 @@ class GroqEntityEvidenceExtractor:
     endpoint: str = "https://api.groq.com/openai/v1/chat/completions"
     timeout_seconds: float = 20.0
     max_attempts: int = 3
+    max_evidence_chars: int = 16000
 
     def extract(
         self,
@@ -104,6 +105,10 @@ class GroqEntityEvidenceExtractor:
             raise ValueError("evidence must not be empty")
         if self.max_attempts < 1:
             raise ValueError("max_attempts must be positive")
+        if self.max_evidence_chars < 2000:
+            raise ValueError("max_evidence_chars must be at least 2000")
+
+        bounded_evidence = self._bound_evidence(evidence)
 
         payload = {
             "model": self.model,
@@ -134,7 +139,7 @@ class GroqEntityEvidenceExtractor:
                                 "domain": lead.canonical_lead.domain,
                                 "country_code": lead.canonical_lead.country_code,
                             },
-                            "evidence": [item.model_dump(mode="json") for item in evidence],
+                            "evidence": [item.model_dump(mode="json") for item in bounded_evidence],
                         }
                     ),
                 },
@@ -150,6 +155,7 @@ class GroqEntityEvidenceExtractor:
         }
 
         data = json.dumps(payload).encode("utf-8")
+        request_bytes = len(data)
         last_error: Exception | None = None
 
         for attempt in range(self.max_attempts):
@@ -172,10 +178,12 @@ class GroqEntityEvidenceExtractor:
                 self._validate_evidence_refs(parsed, evidence)
                 return parsed
             except HTTPError as exc:
+                detail = self._http_error_detail(exc)
                 last_error = exc
                 if not self._retryable_status(exc.code):
                     raise GroqExtractionError(
-                        f"Groq extraction rejected with HTTP {exc.code}"
+                        f"Groq extraction rejected with HTTP {exc.code} "
+                        f"(request_bytes={request_bytes}): {detail}"
                     ) from exc
             except (URLError, TimeoutError, OSError, KeyError, IndexError, TypeError, ValueError) as exc:
                 last_error = exc
@@ -184,6 +192,63 @@ class GroqEntityEvidenceExtractor:
                 time.sleep(0.5 * (2**attempt))
 
         raise GroqExtractionError("Groq evidence extraction unavailable after bounded retries") from last_error
+
+    def _bound_evidence(
+        self,
+        evidence: Sequence[EvidenceInput],
+    ) -> tuple[EvidenceInput, ...]:
+        remaining_chars = self.max_evidence_chars
+        bounded: list[EvidenceInput] = []
+        items = list(evidence)
+
+        for index, item in enumerate(items):
+            if remaining_chars <= 0:
+                break
+            items_remaining = len(items) - index
+            per_item_budget = max(1, remaining_chars // items_remaining)
+            clipped_text = self._clip_text(item.text, per_item_budget)
+            bounded.append(item.model_copy(update={"text": clipped_text}))
+            remaining_chars -= len(clipped_text)
+
+        return tuple(bounded)
+
+    @staticmethod
+    def _clip_text(text: str, limit: int) -> str:
+        if len(text) <= limit:
+            return text
+
+        marker = "\n...[TRUNCATED_FOR_SEMANTIC_EXTRACTION]...\n"
+        available = max(2, limit - len(marker))
+        head_chars = max(1, int(available * 0.65))
+        tail_chars = max(1, available - head_chars)
+        return f"{text[:head_chars]}{marker}{text[-tail_chars:]}"
+
+    @staticmethod
+    def _http_error_detail(exc: HTTPError) -> str:
+        try:
+            raw = exc.read().decode("utf-8", errors="replace")
+        except OSError:
+            return "no response body"
+
+        if not raw:
+            return "empty response body"
+
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError:
+            return raw[:1000]
+
+        if isinstance(payload, dict):
+            error = payload.get("error")
+            if isinstance(error, dict):
+                message = error.get("message")
+                if isinstance(message, str) and message.strip():
+                    return message.strip()[:1000]
+            message = payload.get("message")
+            if isinstance(message, str) and message.strip():
+                return message.strip()[:1000]
+
+        return str(payload)[:1000]
 
     @staticmethod
     def _retryable_status(status: int) -> bool:
