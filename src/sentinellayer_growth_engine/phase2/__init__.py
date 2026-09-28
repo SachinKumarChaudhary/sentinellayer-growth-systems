@@ -1,6 +1,18 @@
 """Phase 2: deterministic-first entity resolution."""
 
 from .blocking import generate_candidates
+from .extraction import (
+    CandidateEntityExtraction,
+    CurrentnessClaimExtraction,
+    EntityEvidenceExtraction,
+    EvidenceInput,
+    EvidenceSpan,
+    GroqEntityEvidenceExtractor,
+    GroqExtractionError,
+    RelationshipClaimExtraction,
+    deterministic_extract_evidence,
+    extract_with_fallback,
+)
 from .matching import compare_candidate
 from .models import (
     EntityCandidate,
@@ -27,20 +39,30 @@ from .storage import (
 )
 
 __all__ = [
+    "CandidateEntityExtraction",
+    "CurrentnessClaimExtraction",
     "EntityCandidate",
+    "EntityEvidenceExtraction",
     "EntityComparison",
     "EntityRelationship",
     "EntityResolutionDecision",
     "EvaluationResultRecord",
+    "EvidenceInput",
+    "EvidenceSpan",
     "Phase2Repository",
     "Phase2RunRecord",
     "ProviderAttemptRecord",
     "ResearchMission",
+    "RelationshipClaimExtraction",
     "ResearchObservationRecord",
     "TinyFishAttemptRecorder",
     "TinyFishFetchObservation",
     "TinyFishResearchAdapter",
     "TinyFishSearchObservation",
+    "GroqEntityEvidenceExtractor",
+    "GroqExtractionError",
+    "deterministic_extract_evidence",
+    "extract_with_fallback",
     "TinyFishSearchRequest",
     "candidate_from_research",
     "compare_candidate",
