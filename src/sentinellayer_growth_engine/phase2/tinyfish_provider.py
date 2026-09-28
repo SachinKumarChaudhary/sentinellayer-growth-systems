@@ -7,8 +7,8 @@ from urllib.parse import urlparse
 
 from ..phase1.models import Phase1Handoff
 from ..provider_resilience import TinyFishRequestTelemetry
-from ..tinyfish_client import TinyFishSearchResult
 from .extraction import (
+    EntityEvidenceExtraction,
     EvidenceInput,
     GroqEntityEvidenceExtractor,
     extract_with_fallback,
@@ -23,6 +23,7 @@ from .research import (
     TinyFishSearchObservation,
     TinyFishSearchRequest,
 )
+from .execution import Phase2CandidateSet
 from .repository import Phase2Repository
 from .storage import ResearchObservationRecord
 
@@ -90,7 +91,7 @@ class TinyFishEntityCandidateProvider:
             raise ValueError("run_id must not be empty")
         self._run_id = run_id
 
-    def discover(self, handoff: Phase1Handoff) -> object:
+    def discover(self, handoff: Phase1Handoff) -> Phase2CandidateSet:
         if self._run_id is None:
             raise RuntimeError("TinyFishEntityCandidateProvider must be bound to a Phase 2 run")
 
@@ -133,8 +134,13 @@ class TinyFishEntityCandidateProvider:
                 result_count=None,
             )
 
+        search_observations = search_observations[: self._max_search_results]
         self._persist_search_observations(handoff, mission, search_observations)
-        selected_urls = self._select_fetch_urls(lead.domain, search_observations)
+        selected_urls = self._select_fetch_urls(
+            lead.domain,
+            search_observations,
+            max_urls=self._max_fetch_urls,
+        )
         if not selected_urls:
             return _candidate_set(())
 
@@ -318,6 +324,8 @@ class TinyFishEntityCandidateProvider:
     def _select_fetch_urls(
         lead_domain: str | None,
         observations: Sequence[TinyFishSearchObservation],
+        *,
+        max_urls: int,
     ) -> list[str]:
         target_registrable = registrable_domain(lead_domain)
         selected: list[str] = []
@@ -327,7 +335,7 @@ class TinyFishEntityCandidateProvider:
                 continue
             if observation.url not in selected:
                 selected.append(observation.url)
-            if len(selected) >= 3:
+            if len(selected) >= max_urls:
                 break
         return selected
 
@@ -355,7 +363,7 @@ class TinyFishEntityCandidateProvider:
     @staticmethod
     def _candidate_objects(
         handoff: Phase1Handoff,
-        extracted: object,
+        extracted: EntityEvidenceExtraction,
         evidence: Sequence[EvidenceInput],
     ) -> list[EntityCandidate]:
         lead = handoff.canonical_lead
@@ -445,10 +453,7 @@ class TinyFishEntityCandidateProvider:
         return self_hash("|".join(parts))
 
 
-def _candidate_set(candidates: Sequence[EntityCandidate]) -> object:
-    # Imported lazily to keep this provider module free of execution dependencies.
-    from .execution import Phase2CandidateSet
-
+def _candidate_set(candidates: Sequence[EntityCandidate]) -> Phase2CandidateSet:
     return Phase2CandidateSet(candidates=tuple(candidates))
 
 
