@@ -124,6 +124,7 @@ jobs:
           PY
 
       - name: Direct Groq real-evidence smoke test
+        if: always()
         run: |
           set -euo pipefail
           python - <<'PY'

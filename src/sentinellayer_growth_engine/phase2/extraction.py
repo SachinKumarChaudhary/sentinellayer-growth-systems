@@ -215,10 +215,7 @@ class GroqEntityEvidenceExtractor:
             return text
 
         marker = "\n...[TRUNCATED_FOR_SEMANTIC_EXTRACTION]...\n"
-        if limit <= len(marker) + 2:
-            return text[:limit]
-
-        available = limit - len(marker)
+        available = max(2, limit - len(marker))
         head_chars = max(1, int(available * 0.65))
         tail_chars = max(1, available - head_chars)
         return f"{text[:head_chars]}{marker}{text[-tail_chars:]}"
