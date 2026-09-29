@@ -151,3 +151,12 @@ The operator UI bulk-selection workflow remains the next Phase 4 gap.
 - Confirmation is required before execution.
 - UI surfaces succeeded/failed record counts and clears selection after completion.
 - Version snapshots are taken from the current Accounts Index before execution.
+
+## State-transition correctness
+
+- Existing canonical accounts are lazily initialized in `crm.account_state` on their first valid state mutation; `version=0` in read models represents an uninitialized CRM overlay.
+- The UI follows the frozen transition graph (`NEW → QUALIFIED → WORKING → ENGAGED → …`) instead of bypassing intermediate states.
+- Assignment also lazily initializes an account overlay at `NEW` when the expected version is 0.
+- Today KPIs use pipeline aggregates rather than the first page of the Accounts Index.
+
+Latest verification: 43 CRM/adjacent repository tests passed; CRM UI JavaScript syntax check passed.

@@ -149,7 +149,37 @@ class CRMRepository:
             )
             row = cur.fetchone()
             if row is None:
-                raise CRMNotFoundError(f"{entity_type} {entity_id} has no CRM state")
+                if expected_version != 0:
+                    raise CRMConflictError(f"{entity_type} {entity_id} is not initialized; expected_version must be 0")
+                baseline_state = "NEW" if entity_type == "account" else "NOT_CONTACTED"
+                identity_table = "public.companies" if entity_type == "account" else "growth.decision_makers"
+                identity_key = "id" if entity_type == "account" else "decision_maker_id"
+                cur.execute(
+                    f"select {identity_key} from {identity_table} where {identity_key} = %s",
+                    (entity_id,),
+                )
+                if cur.fetchone() is None:
+                    raise CRMNotFoundError(f"{entity_type} {entity_id} not found")
+                validate_state_transition(
+                    entity_type=entity_type,
+                    current_state=baseline_state,
+                    target_state=to_state,
+                    explicit_unsuppress=explicit_unsuppress,
+                )
+                cur.execute(
+                    f"""
+                    insert into {table}({key},state,version)
+                    values (%s,%s,1)
+                    returning {key}, state, version, updated_at
+                    """,
+                    (entity_id, to_state),
+                )
+                updated = dict(cur.fetchone())
+                self._write_history_and_audit(
+                    cur, entity_type, str(entity_id), baseline_state, to_state,
+                    actor_user_id, request_id, idempotency_key, updated, reason,
+                )
+                return updated
             current_state = str(row["state"])
             current_version = int(row["version"])
             self._check_version(current_version, expected_version)
@@ -406,7 +436,34 @@ class CRMRepository:
             )
             row = cur.fetchone()
             if row is None:
-                raise CRMNotFoundError(f"account {account_id} has no CRM state")
+                if expected_version != 0:
+                    raise CRMConflictError("account is not initialized; expected_version must be 0")
+                cur.execute("select id from public.companies where id = %s", (account_id,))
+                if cur.fetchone() is None:
+                    raise CRMNotFoundError(f"account {account_id} not found")
+                cur.execute(
+                    """
+                    insert into crm.account_state(account_id,state,owner_user_id,version)
+                    values (%s,'NEW',%s,1)
+                    returning account_id,state,owner_user_id,version,updated_at
+                    """,
+                    (account_id, owner_user_id),
+                )
+                updated = dict(cur.fetchone())
+                cur.execute(
+                    """
+                    insert into crm.audit_events(
+                      entity_type,entity_id,action,actor_user_id,request_id,
+                      idempotency_key,before_json,after_json
+                    ) values ('account',%s,'owner_changed',%s,%s,%s,%s::jsonb,%s::jsonb)
+                    """,
+                    (
+                        str(account_id), actor_user_id, request_id, idempotency_key,
+                        self._json({"state": "NEW", "owner_user_id": None, "version": 0}),
+                        self._json(updated),
+                    ),
+                )
+                return updated
             self._check_version(int(row["version"]), expected_version)
             new_version = int(row["version"]) + 1
             cur.execute(
