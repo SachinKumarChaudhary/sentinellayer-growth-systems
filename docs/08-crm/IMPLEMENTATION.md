@@ -66,3 +66,10 @@ A missing repository-root Python path also caused one initial collection error; 
 4. permission/RLS policy definitions after actor-scope mapping is frozen.
 5. operator UI.
 6. G01–G20 integration and UAT.
+
+## Second implementation slice
+
+- CRM read models implemented for Accounts Index, Account 360, deterministic account search, and unified timeline.
+- CRM service boundary implemented with actor context and stable error codes.
+- Live Supabase compatibility checks passed for the Accounts Index and Account 360 query shapes.
+- CRM test suite now contains 12 passing tests.
