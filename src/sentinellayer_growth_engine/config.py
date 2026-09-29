@@ -1,4 +1,4 @@
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -10,6 +10,14 @@ class Settings(BaseSettings):
     database_url: str
     database_connect_timeout_seconds: int = Field(default=10, ge=1, le=30)
     database_statement_timeout_seconds: int = Field(default=30000, ge=1000, le=120000)
+    supabase_url: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("SUPABASE_URL", "SL_SUPABASE_URL"),
+    )
+    supabase_service_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("SUPABASE_SERVICE_KEY", "SL_SUPABASE_SERVICE_KEY"),
+    )
     real_email_enabled: bool = Field(default=False)
     smtp_host: str | None = Field(default=None)
     smtp_port: int = Field(default=587, ge=1, le=65535)

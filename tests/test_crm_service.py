@@ -26,6 +26,8 @@ class ReadRepo:
 
 
 class WriteRepo:
+    def get_user_access(self, **kwargs):
+        return {"user_id": kwargs["user_id"], "role": "OPERATOR", "active": True}
     def initialize_account_state(self, **kwargs):
         return {"account_id": kwargs["account_id"], "state": "NEW"}
 

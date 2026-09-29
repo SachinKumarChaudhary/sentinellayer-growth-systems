@@ -7,6 +7,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlsplit
 from uuid import UUID, uuid4
 
+from .auth import CRMAuthenticationError
 from .service import CRMActor, CRMService, CRMServiceError
 
 
@@ -33,6 +34,7 @@ class CRMHTTPApplication:
     @staticmethod
     def _json_error(exc: CRMServiceError) -> tuple[int, dict[str, Any]]:
         status = {
+            "UNAUTHENTICATED": 401,
             "INVALID_INPUT": 400,
             "NOT_FOUND": 404,
             "FORBIDDEN": 403,
@@ -53,9 +55,16 @@ class CRMHTTPApplication:
         path = parsed.path.rstrip("/") or "/"
         query = parse_qs(parsed.query)
         try:
-            actor = self.actor_resolver(headers)
             if path == "/healthz" and method == "GET":
                 return 200, {"data": {"status": "ok"}, "meta": {"request_id": request_id}}
+            actor = self.actor_resolver(headers)
+            if path.startswith("/v1/crm/") and actor is None:
+                return 401, {"error": {"code": "UNAUTHENTICATED", "message": "Supabase bearer token is required", "field_errors": []}, "meta": {"request_id": request_id}}
+            if path.startswith("/v1/crm/"):
+                actor = self.service.authorize(
+                    actor,
+                    mutation=method in {"POST", "PUT", "PATCH", "DELETE"},
+                )
             if path == "/v1/crm/search" and method == "GET":
                 term = query.get("q", [""])[0]
                 return 200, self.service.search_accounts(query=term)
@@ -99,6 +108,8 @@ class CRMHTTPApplication:
             if path == "/v1/crm/notes" and method == "POST":
                 return self._create_note(body, actor, request_id)
             return 404, {"error": {"code": "NOT_FOUND", "message": "route not found", "field_errors": []}}
+        except CRMAuthenticationError as exc:
+            return 401, {"error": {"code": "UNAUTHENTICATED", "message": str(exc), "field_errors": []}, "meta": {"request_id": request_id}}
         except CRMServiceError as exc:
             status, payload = self._json_error(exc)
             payload["meta"] = {"request_id": request_id}

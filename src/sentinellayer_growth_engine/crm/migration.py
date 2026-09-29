@@ -59,7 +59,8 @@ def normalize_linkedin(value: str | None) -> str | None:
     if not value or not value.strip():
         return None
     parsed = urlsplit(value.strip() if "://" in value else f"https://{value.strip()}")
-    if (parsed.hostname or "").lower() not in {"linkedin.com", "www.linkedin.com"}:
+    host = (parsed.hostname or "").lower().strip(".")
+    if not (host == "linkedin.com" or host.endswith(".linkedin.com")):
         return None
     path = parsed.path.rstrip("/")
     return f"https://www.linkedin.com{path}" if path else None
@@ -236,3 +237,147 @@ def persist_staged_row(connection_factory: Callable[[], Any], staged: StagedRow)
         if existing is None:
             raise RuntimeError("staged migration row disappeared after conflict")
         return dict(existing)
+
+OPERATIONAL_SHEET_HEADERS = [
+    "company", "buyer", "title", "linkedin_url",
+    "Phone ", "Email", "Lead Status", "Intent",
+]
+
+
+@dataclass(frozen=True)
+class OperationalSheetRow:
+    source_row_number: int
+    company: str | None
+    buyer: str | None
+    title: str | None
+    linkedin_url: str | None
+    emails: list[str]
+    phones: list[str]
+    raw_status: str | None
+    status_category: str
+    raw_intent: str | None
+    invalid_contact_values: list[str]
+    structural_row: bool
+    duplicate_linkedin_row: int | None
+
+def _split_multi_value(value: str | None) -> list[str]:
+    if not value:
+        return []
+    return [part.strip() for part in re.split(r";|\n", value) if part.strip()]
+
+
+def _split_email_values(value: str | None) -> list[str]:
+    if not value:
+        return []
+    matches = re.findall(r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", value)
+    return matches or _split_multi_value(value)
+
+
+def parse_operational_sheet_row(
+    row: dict[str, Any], *, source_row_number: int
+) -> OperationalSheetRow:
+    company = (row.get("company") or "").strip() or None
+    buyer = (row.get("buyer") or "").strip() or None
+    title = (row.get("title") or "").strip() or None
+    raw_linkedin = (row.get("linkedin_url") or "").strip() or None
+    raw_emails = _split_email_values(row.get("Email"))
+    raw_phones = _split_multi_value(row.get("Phone "))
+    emails = [value for value in (normalize_email(x) for x in raw_emails) if value]
+    phones = [value for value in (normalize_phone(x) for x in raw_phones) if value]
+    invalid = []
+    invalid.extend(x for x in raw_emails if normalize_email(x) is None)
+    invalid.extend(x for x in raw_phones if normalize_phone(x) is None)
+    linkedin = normalize_linkedin(raw_linkedin)
+    if raw_linkedin and linkedin is None:
+        invalid.append(raw_linkedin)
+    raw_status = (row.get("Lead Status") or "").strip() or None
+    raw_intent = (row.get("Intent") or "").strip() or None
+    status = parse_lead_status(raw_status)
+    structural = not company or (
+        company is not None
+        and not any([buyer, title, raw_linkedin, raw_emails, raw_phones, raw_status, raw_intent])
+    )
+    return OperationalSheetRow(
+        source_row_number=source_row_number,
+        company=company,
+        buyer=buyer,
+        title=title,
+        linkedin_url=linkedin,
+        emails=emails,
+        phones=phones,
+        raw_status=raw_status,
+        status_category=status.category,
+        raw_intent=raw_intent,
+        invalid_contact_values=invalid,
+        structural_row=structural,
+        duplicate_linkedin_row=None,
+    )
+
+def build_operational_sheet_staged_rows(
+    *, source_name: str, snapshot_hash: str,
+    rows: list[dict[str, Any]], importer_version: str = "crm-mvp.sheet.v1",
+) -> list[StagedRow]:
+    first_linkedin_row: dict[str, int] = {}
+    staged: list[StagedRow] = []
+    for number, row in enumerate(rows, start=1):
+        parsed = parse_operational_sheet_row(row, source_row_number=number)
+        parser_result = asdict(parsed)
+        if parsed.structural_row:
+            disposition = "rejected"
+            parser_result["reason"] = "non_lead_structural_row"
+        elif parsed.duplicate_linkedin_row is not None:
+            disposition = "merged"
+        elif parsed.invalid_contact_values:
+            disposition = "quarantined"
+            parser_result["reason"] = "invalid_contact_identity_value"
+        elif parsed.linkedin_url and parsed.linkedin_url in first_linkedin_row:
+            disposition = "merged"
+            parser_result["duplicate_linkedin_row"] = first_linkedin_row[parsed.linkedin_url]
+        else:
+            disposition = "imported"
+        if parsed.linkedin_url and parsed.linkedin_url not in first_linkedin_row:
+            first_linkedin_row[parsed.linkedin_url] = number
+        staged.append(
+            StagedRow(
+                source_name=source_name,
+                source_snapshot_hash=snapshot_hash,
+                source_row_number=number,
+                source_row_hash=row_hash(row),
+                raw_row=dict(row),
+                parser_result=parser_result,
+                disposition=disposition,
+                importer_version=importer_version,
+            )
+        )
+    return staged
+def operational_sheet_profile(staged_rows: list[StagedRow]) -> dict[str, Any]:
+    counts: dict[str, int] = {}
+    status_counts: dict[str, int] = {}
+    intent_count = 0
+    duplicate_linkedin_rows = 0
+    invalid_rows = 0
+    structural_rows = 0
+    for item in staged_rows:
+        counts[item.disposition] = counts.get(item.disposition, 0) + 1
+        parsed = item.parser_result
+        category = parsed.get("status_category")
+        if category:
+            status_counts[category] = status_counts.get(category, 0) + 1
+        if parsed.get("raw_intent"):
+            intent_count += 1
+        if parsed.get("duplicate_linkedin_row"):
+            duplicate_linkedin_rows += 1
+        if parsed.get("invalid_contact_values"):
+            invalid_rows += 1
+        if parsed.get("structural_row"):
+            structural_rows += 1
+    return {
+        "source_rows": len(staged_rows),
+        "dispositions": counts,
+        "status_categories": status_counts,
+        "intent_rows": intent_count,
+        "duplicate_linkedin_rows": duplicate_linkedin_rows,
+        "invalid_identity_rows": invalid_rows,
+        "structural_rows": structural_rows,
+        "reconciliation_complete": sum(counts.values()) == len(staged_rows),
+    }

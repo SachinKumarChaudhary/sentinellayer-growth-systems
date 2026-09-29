@@ -392,6 +392,19 @@ class CRMRepository:
             )
             return row
 
+    def get_user_access(self, *, user_id: UUID) -> dict[str, Any] | None:
+        with self._connection_factory() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                select user_id, role, active, created_at, updated_at
+                from crm.user_access
+                where user_id = %s
+                """,
+                (user_id,),
+            )
+            row = cur.fetchone()
+            return dict(row) if row else None
+
     def list_task_queue(self, *, limit: int = 100) -> list[dict[str, Any]]:
         if not 1 <= limit <= 500:
             raise ValueError("limit must be between 1 and 500")

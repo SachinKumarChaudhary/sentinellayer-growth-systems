@@ -160,3 +160,24 @@ The operator UI bulk-selection workflow remains the next Phase 4 gap.
 - Today KPIs use pipeline aggregates rather than the first page of the Accounts Index.
 
 Latest verification: 43 CRM/adjacent repository tests passed; CRM UI JavaScript syntax check passed.
+## Production authentication and authorization
+
+- SUPABASE_URL and SUPABASE_SERVICE_KEY are accepted as runtime authentication settings (also available with the SL_ prefix).
+- Production requests must carry a Supabase user bearer token.
+- The API verifies the token against Supabase Auth before serving CRM routes.
+- All CRM routes require an active crm.user_access membership.
+- REVIEWER is read-only; OPERATOR and ADMIN may mutate CRM state.
+- scripts/grant_crm_access.py activates a Supabase Auth user in the membership table.
+- The service key is server-only and is never referenced by dashboard/crm.html.
+
+## Verified operational Sheet
+
+The provided Sheet exports successfully as CSV without credentials.
+
+Snapshot: 131 rows, 8 headers, SHA-256 18839423e77b7c135b2769a74c58507fb315d43fb32531d939afeb00a59d5093.
+
+Dry-run result: 92 imported, 1 merged, 1 quarantined, 37 rejected. No canonical public.companies rows were created by this dry run.
+
+The current public.companies dataset produced zero normalized exact name matches against the Sheet source, so canonical account creation is blocked behind crm.migration_company_candidates domain resolution.
+
+Candidate domain dry run: 93 source candidates; 51 single-business-email domain candidates, 41 unresolved, 1 review.

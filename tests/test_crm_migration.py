@@ -1,11 +1,14 @@
 from pathlib import Path
 
 from sentinellayer_growth_engine.crm.migration import (
+    build_operational_sheet_staged_rows,
     build_staged_rows,
     normalize_domain,
     normalize_email,
     normalize_linkedin,
     normalize_phone,
+    operational_sheet_profile,
+    parse_operational_sheet_row,
     parse_lead_status,
     profile_source,
     reconciliation_is_complete,
@@ -57,3 +60,36 @@ def test_staging_is_replay_stable():
 def test_reconciliation_requires_no_unexplained_rows():
     assert reconciliation_is_complete(source_rows=10, imported=7, updated=1, merged=1, quarantined=1, rejected=0)
     assert not reconciliation_is_complete(source_rows=10, imported=7, updated=1, merged=1, quarantined=0, rejected=0)
+
+
+def test_operational_sheet_accepts_regional_linkedin_and_space_separated_emails():
+    row = {
+        "company": "Example",
+        "buyer": "Ada",
+        "title": "CISO",
+        "linkedin_url": "https://in.linkedin.com/in/ada-example",
+        "Phone ": "919876543210",
+        "Email": "ada@gmail.com ada@example.com",
+        "Lead Status": "",
+        "Intent": "",
+    }
+    parsed = parse_operational_sheet_row(row, source_row_number=1)
+    assert parsed.linkedin_url == "https://www.linkedin.com/in/ada-example"
+    assert parsed.emails == ["ada@gmail.com", "ada@example.com"]
+    assert parsed.invalid_contact_values == []
+
+
+def test_operational_sheet_classifies_structural_and_duplicate_rows():
+    rows = [
+        {"company": "", "buyer": "", "title": "", "linkedin_url": "", "Phone ": "", "Email": "", "Lead Status": "", "Intent": ""},
+        {"company": "Alpha", "buyer": "Ada", "title": "CISO", "linkedin_url": "https://www.linkedin.com/in/ada", "Phone ": "", "Email": "", "Lead Status": "", "Intent": ""},
+        {"company": "Beta", "buyer": "Ada", "title": "CISO", "linkedin_url": "https://www.linkedin.com/in/ada", "Phone ": "", "Email": "", "Lead Status": "", "Intent": ""},
+        {"company": "Gamma", "buyer": "Bob", "title": "CTO", "linkedin_url": "Bad LinkedIn value", "Phone ": "", "Email": "", "Lead Status": "", "Intent": ""},
+    ]
+    staged = build_operational_sheet_staged_rows(
+        source_name="sheet",
+        snapshot_hash="x",
+        rows=rows,
+    )
+    assert [x.disposition for x in staged] == ["rejected", "imported", "merged", "quarantined"]
+    assert operational_sheet_profile(staged)["reconciliation_complete"] is True

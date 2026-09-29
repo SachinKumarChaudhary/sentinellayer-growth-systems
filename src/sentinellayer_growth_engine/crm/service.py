@@ -13,6 +13,7 @@ from .state import StateTransitionError
 @dataclass(frozen=True)
 class CRMActor:
     user_id: UUID
+    role: str | None = None
 
 
 class CRMServiceError(RuntimeError):
@@ -37,6 +38,19 @@ class CRMService:
         if actor is None:
             raise CRMServiceError("FORBIDDEN", "authenticated actor is required")
         return actor
+
+    def authorize(self, actor: CRMActor | None, *, mutation: bool = False) -> CRMActor:
+        actor = self._require_actor(actor)
+        try:
+            access = self._write.get_user_access(user_id=actor.user_id)
+        except Exception as exc:
+            raise self._map_error(exc) from exc
+        if not access or not access.get("active"):
+            raise CRMServiceError("FORBIDDEN", "CRM membership is inactive or missing")
+        role = str(access.get("role"))
+        if mutation and role not in {"OPERATOR", "ADMIN"}:
+            raise CRMServiceError("FORBIDDEN", "CRM role is read-only")
+        return CRMActor(user_id=actor.user_id, role=role)
 
     @staticmethod
     def _map_error(exc: Exception) -> CRMServiceError:

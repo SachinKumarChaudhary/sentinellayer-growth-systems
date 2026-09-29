@@ -9,6 +9,9 @@ ACTOR = CRMActor(user_id=UUID("11111111-1111-4111-8111-111111111111"))
 
 
 class FakeService:
+    def authorize(self, actor, *, mutation=False):
+        return actor
+
     def search_accounts(self, **kwargs):
         return {"data": [{"id": 1}], "meta": {"has_more": False}}
 
@@ -120,3 +123,11 @@ def test_bulk_routes_return_per_record_envelope():
     )
     assert status == 200
     assert payload["data"][0]["status"] == "success"
+
+def test_crm_route_requires_authentication():
+    application = CRMHTTPApplication(FakeService(), lambda _headers: None)
+    status, payload = application.handle(
+        method="GET", target="/v1/crm/accounts", headers={}
+    )
+    assert status == 401
+    assert payload["error"]["code"] == "UNAUTHENTICATED"

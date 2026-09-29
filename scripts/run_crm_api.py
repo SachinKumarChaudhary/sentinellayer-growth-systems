@@ -11,6 +11,7 @@ import psycopg
 
 from sentinellayer_growth_engine.config import Settings
 from sentinellayer_growth_engine.crm import CRMActor, CRMHTTPApplication, CRMReadModelRepository, CRMRepository, CRMService
+from sentinellayer_growth_engine.crm.auth import SupabaseAuthVerifier, bearer_from_headers
 
 
 def build_service(settings: Settings) -> CRMService:
@@ -107,16 +108,26 @@ def build_handler(application: CRMHTTPApplication) -> type[BaseHTTPRequestHandle
     return Handler
 def main() -> int:
     settings = Settings(database_url=os.environ.get("SL_DATABASE_URL", ""))
-    if settings.environment != "development":
-        raise RuntimeError("run_crm_api.py is development-only; production auth must be injected by deployment")
+    if settings.environment not in {"development", "production"}:
+        raise RuntimeError("SL_ENVIRONMENT must be development or production")
     if not settings.database_url:
         raise RuntimeError("SL_DATABASE_URL is required")
     actor_raw = os.environ.get("SL_CRM_DEV_ACTOR_USER_ID", "")
-    if not actor_raw:
-        raise RuntimeError("SL_CRM_DEV_ACTOR_USER_ID is required for local mutation testing")
-    actor = CRMActor(user_id=UUID(actor_raw))
     service = build_service(settings)
-    application = CRMHTTPApplication(service, lambda _headers: actor)
+    if settings.environment == "production":
+        if not settings.supabase_url or not settings.supabase_service_key:
+            raise RuntimeError("SUPABASE_URL and SUPABASE_SERVICE_KEY are required in production")
+        verifier = SupabaseAuthVerifier(settings)
+        def resolve_actor(headers: dict[str, str]) -> CRMActor | None:
+            token = bearer_from_headers(headers)
+            user_id = verifier.verify_bearer_token(token) if token else None
+            return CRMActor(user_id=user_id) if user_id else None
+    else:
+        if not actor_raw:
+            raise RuntimeError("SL_CRM_DEV_ACTOR_USER_ID is required for local mutation testing")
+        actor = CRMActor(user_id=UUID(actor_raw))
+        resolve_actor = lambda _headers: actor
+    application = CRMHTTPApplication(service, resolve_actor)
     host = "127.0.0.1"
     port = int(os.environ.get("SL_CRM_PORT", "8090"))
     server = ThreadingHTTPServer((host, port), build_handler(application))

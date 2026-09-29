@@ -1,0 +1,48 @@
+{
+  "source": {
+    "name": "sentinellayer-outreach-sheet",
+    "sha256": "18839423e77b7c135b2769a74c58507fb315d43fb32531d939afeb00a59d5093",
+    "row_count": 131,
+    "headers": [
+      "company",
+      "buyer",
+      "title",
+      "linkedin_url",
+      "Phone ",
+      "Email",
+      "Lead Status",
+      "Intent"
+    ],
+    "null_rates": {
+      "company": 0.2748091603053435,
+      "buyer": 0.2595419847328244,
+      "title": 0.2824427480916031,
+      "linkedin_url": 0.2824427480916031,
+      "Phone ": 0.5114503816793893,
+      "Email": 0.5114503816793893,
+      "Lead Status": 0.9389312977099237,
+      "Intent": 0.8931297709923665
+    }
+  },
+  "migration_profile": {
+    "source_rows": 131,
+    "dispositions": {
+      "imported": 92,
+      "quarantined": 1,
+      "merged": 1,
+      "rejected": 37
+    },
+    "status_categories": {
+      "UNKNOWN": 123,
+      "NO_RESPONSE": 3,
+      "NOT_QUALIFIED": 2,
+      "DEMO_BOOKED": 1,
+      "OUTREACH_SENT": 2
+    },
+    "intent_rows": 14,
+    "duplicate_linkedin_rows": 1,
+    "invalid_identity_rows": 1,
+    "structural_rows": 37,
+    "reconciliation_complete": true
+  }
+}
