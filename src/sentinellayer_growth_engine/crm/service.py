@@ -71,6 +71,25 @@ class CRMService:
         except Exception as exc:
             raise self._map_error(exc) from exc
 
+    def contacts(
+        self, *, query: str | None = None, account_id: int | None = None,
+        state: str | None = None, channel: str | None = None,
+        after_id: UUID | None = None, limit: int = 50,
+    ) -> dict[str, Any]:
+        try:
+            return self._read.list_contacts(
+                query=query, account_id=account_id, state=state,
+                channel=channel, after_id=after_id, limit=limit,
+            )
+        except Exception as exc:
+            raise self._map_error(exc) from exc
+
+    def pipeline(self) -> dict[str, Any]:
+        try:
+            return self._read.pipeline_summary()
+        except Exception as exc:
+            raise self._map_error(exc) from exc
+
     def account_360(self, *, account_id: int) -> dict[str, Any]:
         try:
             return {"data": self._read.get_account_360(account_id=account_id), "meta": {}}

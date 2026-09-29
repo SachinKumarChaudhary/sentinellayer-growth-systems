@@ -61,6 +61,10 @@ class CRMHTTPApplication:
                 return 200, self.service.search_accounts(query=term)
             if path == "/v1/crm/accounts" and method == "GET":
                 return self._accounts(query)
+            if path == "/v1/crm/contacts" and method == "GET":
+                return self._contacts(query)
+            if path == "/v1/crm/pipeline" and method == "GET":
+                return 200, self.service.pipeline()
             if path == "/v1/crm/tasks" and method == "GET":
                 limit = int(query.get("limit", ["100"])[0])
                 return 200, self.service.task_queue(limit=limit)
@@ -91,6 +95,18 @@ class CRMHTTPApplication:
         return 200, self.service.accounts(
             query=query.get("q", [None])[0], state=state,
             owner_user_id=owner, after_id=after_id, limit=limit,
+        )
+
+    def _contacts(self, query: dict[str, list[str]]) -> tuple[int, dict[str, Any]]:
+        limit = int(query.get("limit", ["50"])[0])
+        after_raw = query.get("after_cursor", [None])[0]
+        after_id = UUID(after_raw) if after_raw else None
+        account_raw = query.get("account_id", [None])[0]
+        account_id = int(account_raw) if account_raw else None
+        return 200, self.service.contacts(
+            query=query.get("q", [None])[0], account_id=account_id,
+            state=query.get("state", [None])[0], channel=query.get("channel", [None])[0],
+            after_id=after_id, limit=limit,
         )
 
     def _account_route(

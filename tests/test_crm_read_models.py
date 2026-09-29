@@ -74,6 +74,9 @@ def test_account_360_assembles_core_sections():
           "due_at": None, "assigned_to": None, "created_at": None, "updated_at": None}],
         [{"note_id": "note-1", "decision_maker_id": None, "body": "Context",
           "author_user_id": "user-1", "created_at": None, "updated_at": None}],
+        None,
+        [],
+        [],
         [{"occurred_at": None, "event_type": "state_changed",
           "event_id": "h-1", "channel": None, "touchpoint_type": "state_changed",
           "summary": "∅ → NEW", "person_id": None}],
@@ -98,3 +101,30 @@ def test_search_accounts_rejects_blank_query():
         assert "search query" in str(exc)
     else:
         raise AssertionError("blank query must be rejected")
+
+
+def test_pipeline_summary_uses_state_order():
+    conn = Connection([[{"state": "NEW", "account_count": 5}, {"state": "WORKING", "account_count": 2}]])
+    repo = CRMReadModelRepository(lambda: conn)
+    result = repo.pipeline_summary()
+    assert result["data"][0]["state"] == "NEW"
+    assert result["meta"]["total_accounts"] == 7
+
+
+def test_contacts_returns_cursor_metadata():
+    conn = Connection([[
+        {"decision_maker_id": "11111111-1111-4111-8111-111111111111", "company_id": 1,
+         "company_name": "Alpha", "domain": "alpha.example", "full_name": "Ada",
+         "title": "CISO", "role_family": "security", "role_priority": 1,
+         "research_status": "validated", "state": "NOT_CONTACTED",
+         "owner_user_id": None, "version": 0, "contact_methods": []},
+        {"decision_maker_id": "22222222-2222-4222-8222-222222222222", "company_id": 2,
+         "company_name": "Beta", "domain": "beta.example", "full_name": "Bob",
+         "title": "CISO", "role_family": "security", "role_priority": 2,
+         "research_status": "validated", "state": "CONTACTED",
+         "owner_user_id": None, "version": 1, "contact_methods": []},
+    ]])
+    repo = CRMReadModelRepository(lambda: conn)
+    result = repo.list_contacts(limit=1)
+    assert len(result["data"]) == 1
+    assert result["meta"]["has_more"] is True

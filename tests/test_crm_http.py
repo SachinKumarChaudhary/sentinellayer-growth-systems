@@ -20,6 +20,12 @@ class FakeService:
 
     def task_queue(self, **kwargs):
         return {"data": [], "meta": {"has_more": False}}
+
+    def contacts(self, **kwargs):
+        return {"data": [{"decision_maker_id": "dm-1"}], "meta": {"has_more": False}}
+
+    def pipeline(self):
+        return {"data": [{"state": "NEW", "account_count": 1}], "meta": {"total_accounts": 1}}
     def transition_account(self, **kwargs):
         if kwargs["actor"] is None:
             raise CRMServiceError("FORBIDDEN", "authenticated actor is required")
@@ -81,3 +87,13 @@ def test_unknown_route_returns_not_found():
     status, payload = app().handle(method="GET", target="/v1/crm/nope", headers={})
     assert status == 404
     assert payload["error"]["code"] == "NOT_FOUND"
+
+
+def test_contacts_and_pipeline_routes():
+    status, payload = app().handle(method="GET", target="/v1/crm/contacts", headers={})
+    assert status == 200
+    assert payload["data"][0]["decision_maker_id"] == "dm-1"
+
+    status, payload = app().handle(method="GET", target="/v1/crm/pipeline", headers={})
+    assert status == 200
+    assert payload["meta"]["total_accounts"] == 1

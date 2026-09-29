@@ -18,6 +18,12 @@ class ReadRepo:
     def get_account_360(self, **kwargs):
         return {"account": {"id": kwargs["account_id"]}}
 
+    def list_contacts(self, **kwargs):
+        return {"data": [{"decision_maker_id": "dm-1"}], "meta": {"has_more": False}}
+
+    def pipeline_summary(self):
+        return {"data": [{"state": "NEW", "account_count": 1}], "meta": {"total_accounts": 1}}
+
 
 class WriteRepo:
     def initialize_account_state(self, **kwargs):
@@ -76,3 +82,8 @@ def test_contact_transition_uses_uuid():
         actor=ACTOR,
     )
     assert result["data"]["state"] == "REPLIED"
+
+
+def test_contacts_and_pipeline():
+    assert service().contacts()["data"][0]["decision_maker_id"] == "dm-1"
+    assert service().pipeline()["meta"]["total_accounts"] == 1
