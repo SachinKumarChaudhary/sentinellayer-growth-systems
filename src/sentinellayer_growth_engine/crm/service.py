@@ -150,7 +150,8 @@ class CRMService:
         self, *, account_id: int, channel: str, activity_type: str,
         occurred_at: datetime, summary: str, actor: CRMActor,
         decision_maker_id: UUID | None = None, direction: str = "outbound",
-        reference: str | None = None, idempotency_key: str | None = None,
+        reference: str | None = None, request_id: str | None = None,
+        idempotency_key: str | None = None,
     ) -> dict[str, Any]:
         actor = self._require_actor(actor)
         try:
@@ -159,9 +160,9 @@ class CRMService:
                 activity_type=activity_type, occurred_at=occurred_at,
                 summary=summary, actor_user_id=actor.user_id,
                 decision_maker_id=decision_maker_id, direction=direction,
-                reference=reference, idempotency_key=idempotency_key,
+                reference=reference, request_id=request_id, idempotency_key=idempotency_key,
             )
-            return {"data": data, "meta": {"request_id": None}}
+            return {"data": data, "meta": {"request_id": request_id}}
         except Exception as exc:
             raise self._map_error(exc) from exc
     def create_task(
@@ -180,7 +181,7 @@ class CRMService:
                 decision_maker_id=decision_maker_id, assigned_to=assigned_to,
                 why_now=why_now, source_event_type=source_event_type,
                 source_event_id=source_event_id, actor_user_id=actor.user_id,
-                idempotency_key=idempotency_key,
+                request_id=request_id, idempotency_key=idempotency_key,
             )
             return {"data": data, "meta": {"request_id": request_id}}
         except Exception as exc:

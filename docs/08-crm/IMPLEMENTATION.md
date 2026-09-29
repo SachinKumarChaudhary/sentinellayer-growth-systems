@@ -73,3 +73,41 @@ A missing repository-root Python path also caused one initial collection error; 
 - CRM service boundary implemented with actor context and stable error codes.
 - Live Supabase compatibility checks passed for the Accounts Index and Account 360 query shapes.
 - CRM test suite now contains 12 passing tests.
+
+## Migration tooling
+
+Profile a CSV or JSON source without mutating Supabase:
+
+```bash
+PYTHONPATH=. python scripts/profile_crm_source.py \
+  --source /path/to/source.csv \
+  --name production-sheet \
+  --output source_snapshot.json
+```
+
+The profiler records exact headers, row count, null rates, file SHA-256, sample row hashes and importer version.
+
+The importer intentionally does not invent a production Sheet schema. The exact production Google Sheet headers remain a pre-migration gate.
+
+## HTTP adapter
+
+`src/sentinellayer_growth_engine/crm/http.py` implements the frozen CRM routes over `CRMService`.
+
+Authentication is injected with an `actor_resolver`; the transport does not trust a client-supplied user ID as authorization. Production deployment therefore still requires the repository's real auth/session layer.
+
+Implemented transport routes include `/v1/crm/accounts`, account 360, `/v1/crm/search`, `/v1/crm/tasks`, state transitions, activity creation, task creation and note creation.
+
+## Third implementation slice
+
+- Deterministic source profiler for CSV/JSON.
+- File SHA-256 and row-hash snapshots.
+- Legacy lead-status parser preserving raw evidence.
+- Explicit row dispositions with quarantine for ambiguous status.
+- Replay-safe crm.migration_rows staging function.
+- Dry-run-by-default staging CLI with explicit `--apply`.
+- CRM HTTP transport adapter with injected actor resolver.
+
+Verification:
+- CRM tests: 23 passed.
+- Adjacent db/sales/conversation compatibility tests: 36 passed.
+- Full-repository baseline remains 452 passed, 7 skipped, 3 unrelated intelligence/compliance failures.

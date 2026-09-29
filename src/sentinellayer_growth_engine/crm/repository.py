@@ -254,7 +254,8 @@ class CRMRepository:
         occurred_at: datetime, summary: str,
         decision_maker_id: UUID | None = None,
         direction: str = "outbound", reference: str | None = None,
-        actor_user_id: UUID | None = None, idempotency_key: str | None = None,
+        actor_user_id: UUID | None = None, request_id: str | None = None,
+        idempotency_key: str | None = None,
     ) -> dict[str, Any]:
         if not summary.strip():
             raise ValueError("activity summary must not be empty")
@@ -300,13 +301,13 @@ class CRMRepository:
             cur.execute(
                 """
                 insert into crm.audit_events(
-                    entity_type,entity_id,action,actor_user_id,
+                    entity_type,entity_id,action,actor_user_id,request_id,
                     idempotency_key,after_json
                 )
-                values ('activity',%s,'created',%s,%s,%s::jsonb)
+                values ('activity',%s,'created',%s,%s,%s,%s::jsonb)
                 """,
                 (
-                    touchpoint_id, actor_user_id, idempotency_key, self._json(row),
+                    touchpoint_id, actor_user_id, request_id, idempotency_key, self._json(row),
                 ),
             )
             return row
@@ -316,7 +317,8 @@ class CRMRepository:
         decision_maker_id: UUID | None = None, assigned_to: UUID | None = None,
         why_now: list[Any] | None = None, source_event_type: str | None = None,
         source_event_id: str | None = None,
-        actor_user_id: UUID | None = None, idempotency_key: str | None = None,
+        actor_user_id: UUID | None = None, request_id: str | None = None,
+        idempotency_key: str | None = None,
     ) -> dict[str, Any]:
         if not recommended_action.strip():
             raise ValueError("recommended_action must not be empty")
@@ -351,12 +353,12 @@ class CRMRepository:
             cur.execute(
                 """
                 insert into crm.audit_events(
-                    entity_type,entity_id,action,actor_user_id,
+                    entity_type,entity_id,action,actor_user_id,request_id,
                     idempotency_key,after_json
                 )
-                values ('task',%s,'created',%s,%s,%s::jsonb)
+                values ('task',%s,'created',%s,%s,%s,%s::jsonb)
                 """,
-                (task_id, actor_user_id, idempotency_key, self._json(row)),
+                (task_id, actor_user_id, request_id, idempotency_key, self._json(row)),
             )
             return row
 
