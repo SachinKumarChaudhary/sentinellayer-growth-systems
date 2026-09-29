@@ -111,3 +111,12 @@ Verification:
 - CRM tests: 23 passed.
 - Adjacent db/sales/conversation compatibility tests: 36 passed.
 - Full-repository baseline remains 452 passed, 7 skipped, 3 unrelated intelligence/compliance failures.
+
+## Development server
+
+`scripts/run_crm_api.py` provides a localhost-only development server. It requires:
+- `SL_ENVIRONMENT=development`
+- `SL_DATABASE_URL`
+- `SL_CRM_DEV_ACTOR_USER_ID`
+
+The static actor mode is rejected outside development. Production deployment must provide the real authenticated-session resolver before CRM mutations are exposed.
