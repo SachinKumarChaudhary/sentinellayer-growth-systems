@@ -120,3 +120,16 @@ Verification:
 - `SL_CRM_DEV_ACTOR_USER_ID`
 
 The static actor mode is rejected outside development. Production deployment must provide the real authenticated-session resolver before CRM mutations are exposed.
+
+## Operator UI slice
+
+- Added `dashboard/crm.html` as the CRM operator surface.
+- Uses the canonical SentinelLayer palette: `#000513`, `#141936`, `#4A54E8`, `#7183EE`, `#F2F3F5`, `#A4A8BA`, `#6F7394`, `#404566`.
+- Core screens: Today, Accounts, Contacts, Tasks, Pipeline and Account 360 drawer.
+- Same-origin development server route: `/crm`.
+- Account state actions include optimistic version + idempotency headers.
+- UI is responsive for narrow screens; production auth remains a separate gate.
+
+Verification:
+- 40 CRM/adjacent compatibility tests passing.
+- `/crm` HTTP smoke test: 200, `text/html`, correct CRM title.

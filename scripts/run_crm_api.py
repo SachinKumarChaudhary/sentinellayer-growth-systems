@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from typing import Any
 from uuid import UUID
 
@@ -39,6 +40,30 @@ def build_handler(application: CRMHTTPApplication) -> type[BaseHTTPRequestHandle
 
         def _headers(self) -> dict[str, str]:
             return {key.lower(): value for key, value in self.headers.items()}
+
+        def _send_static(self, path: str) -> bool:
+            if path == "/crm":
+                path = "/dashboard/crm.html"
+            if path != "/dashboard/crm.html":
+                return False
+            root = Path(__file__).resolve().parents[1]
+            asset = (root / "dashboard" / "crm.html").resolve()
+            if root not in asset.parents:
+                self.send_error(403)
+                return True
+            if not asset.is_file():
+                self.send_error(404)
+                return True
+            body = asset.read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return True
+
         def _body(self) -> dict[str, Any]:
             length = int(self.headers.get("Content-Length", "0"))
             if length > 1024 * 1024:
@@ -58,6 +83,8 @@ def build_handler(application: CRMHTTPApplication) -> type[BaseHTTPRequestHandle
             self._dispatch("POST")
 
         def _dispatch(self, method: str) -> None:
+            if method == "GET" and self._send_static(self.path.split("?", 1)[0]):
+                return
             try:
                 body = self._body() if method == "POST" else {}
                 status, payload = application.handle(
