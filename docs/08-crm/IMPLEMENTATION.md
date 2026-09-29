@@ -143,3 +143,11 @@ Verification:
 - Individual record conflicts/failures do not abort unrelated records.
 
 The operator UI bulk-selection workflow remains the next Phase 4 gap.
+
+## Operator bulk-selection UI
+
+- Account rows now support explicit multi-selection.
+- Bulk `Mark working` and `Suppress` actions use the CRM bulk-state API.
+- Confirmation is required before execution.
+- UI surfaces succeeded/failed record counts and clears selection after completion.
+- Version snapshots are taken from the current Accounts Index before execution.
