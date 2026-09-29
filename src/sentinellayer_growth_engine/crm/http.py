@@ -68,6 +68,26 @@ class CRMHTTPApplication:
             if path == "/v1/crm/tasks" and method == "GET":
                 limit = int(query.get("limit", ["100"])[0])
                 return 200, self.service.task_queue(limit=limit)
+            if path == "/v1/crm/bulk/state" and method == "POST":
+                return 200, self.service.bulk_state(
+                    account_ids=[int(x) for x in self._body_value(body, "account_ids")],
+                    to_state=str(self._body_value(body, "to_state")),
+                    expected_versions={int(k): int(v) for k, v in dict(body.get("expected_versions", {})).items()},
+                    actor=actor,
+                    request_id=request_id,
+                    idempotency_key=body.get("idempotency_key"),
+                    explicit_unsuppress=bool(body.get("explicit_unsuppress", False)),
+                )
+            if path == "/v1/crm/bulk/assign" and method == "POST":
+                owner = body.get("owner_user_id")
+                return 200, self.service.bulk_assign(
+                    account_ids=[int(x) for x in self._body_value(body, "account_ids")],
+                    owner_user_id=UUID(owner) if owner else None,
+                    expected_versions={int(k): int(v) for k, v in dict(body.get("expected_versions", {})).items()},
+                    actor=actor,
+                    request_id=request_id,
+                    idempotency_key=body.get("idempotency_key"),
+                )
             if path.startswith("/v1/crm/accounts/"):
                 return self._account_route(method, path, headers, body, actor, request_id)
             if path.startswith("/v1/crm/contacts/"):

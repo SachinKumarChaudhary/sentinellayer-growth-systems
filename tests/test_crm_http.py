@@ -26,6 +26,12 @@ class FakeService:
 
     def pipeline(self):
         return {"data": [{"state": "NEW", "account_count": 1}], "meta": {"total_accounts": 1}}
+
+    def bulk_state(self, **kwargs):
+        return {"data": [{"id": 1, "status": "success"}], "meta": {"partial_failure": False, "succeeded": 1, "failed": 0}}
+
+    def bulk_assign(self, **kwargs):
+        return {"data": [{"id": 1, "status": "success"}], "meta": {"partial_failure": False, "succeeded": 1, "failed": 0}}
     def transition_account(self, **kwargs):
         if kwargs["actor"] is None:
             raise CRMServiceError("FORBIDDEN", "authenticated actor is required")
@@ -97,3 +103,20 @@ def test_contacts_and_pipeline_routes():
     status, payload = app().handle(method="GET", target="/v1/crm/pipeline", headers={})
     assert status == 200
     assert payload["meta"]["total_accounts"] == 1
+
+
+def test_bulk_routes_return_per_record_envelope():
+    headers = {"X-Request-ID": "bulk-1", "Idempotency-Key": "bulk-1"}
+    status, payload = app().handle(
+        method="POST", target="/v1/crm/bulk/state", headers=headers,
+        body={"account_ids": [1], "to_state": "WORKING", "expected_versions": {"1": 1}},
+    )
+    assert status == 200
+    assert payload["meta"]["succeeded"] == 1
+
+    status, payload = app().handle(
+        method="POST", target="/v1/crm/bulk/assign", headers=headers,
+        body={"account_ids": [1], "owner_user_id": None, "expected_versions": {"1": 1}},
+    )
+    assert status == 200
+    assert payload["data"][0]["status"] == "success"

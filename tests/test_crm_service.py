@@ -46,6 +46,19 @@ class WriteRepo:
 
     def list_task_queue(self, **kwargs):
         return [{"sales_task_id": "task-1"}]
+
+    def bulk_transition_accounts(self, **kwargs):
+        return [
+            {"id": 1, "status": "success", "data": {"state": kwargs["to_state"]}},
+            {"id": 2, "status": "failed", "error": "version conflict"},
+        ]
+
+    def bulk_assign_accounts(self, **kwargs):
+        return [
+            {"id": 1, "status": "success", "data": {"owner_user_id": "u"}},
+            {"id": 2, "status": "failed", "error": "forbidden"},
+        ]
+
 def service() -> CRMService:
     return CRMService(write_repo=WriteRepo(), read_repo=ReadRepo())
 
@@ -87,3 +100,20 @@ def test_contact_transition_uses_uuid():
 def test_contacts_and_pipeline():
     assert service().contacts()["data"][0]["decision_maker_id"] == "dm-1"
     assert service().pipeline()["meta"]["total_accounts"] == 1
+
+
+def test_bulk_operations_return_per_record_results():
+    write = WriteRepo()
+    service_obj = CRMService(write_repo=write, read_repo=ReadRepo())
+    state = service_obj.bulk_state(
+        account_ids=[1,2], to_state="WORKING",
+        expected_versions={1:1,2:1}, actor=ACTOR,
+        idempotency_key="bulk-1",
+    )
+    assert state["meta"]["partial_failure"] is True
+    assert state["meta"]["succeeded"] == 1
+    assigned = service_obj.bulk_assign(
+        account_ids=[1,2], owner_user_id=None,
+        expected_versions={1:1,2:1}, actor=ACTOR,
+    )
+    assert assigned["meta"]["failed"] == 1

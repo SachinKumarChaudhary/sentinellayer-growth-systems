@@ -212,3 +212,56 @@ class CRMService:
             return {"data": data, "meta": {"has_more": len(data) == limit}}
         except Exception as exc:
             raise self._map_error(exc) from exc
+
+    def bulk_state(
+        self, *, account_ids: list[int], to_state: str,
+        expected_versions: dict[int, int], actor: CRMActor,
+        request_id: str | None = None, idempotency_key: str | None = None,
+        explicit_unsuppress: bool = False,
+    ) -> dict[str, Any]:
+        actor = self._require_actor(actor)
+        if not account_ids:
+            raise CRMServiceError("INVALID_INPUT", "account_ids must not be empty")
+        try:
+            results = self._write.bulk_transition_accounts(
+                account_ids=account_ids, to_state=to_state,
+                expected_versions=expected_versions, actor_user_id=actor.user_id,
+                request_id=request_id, idempotency_key=idempotency_key,
+                explicit_unsuppress=explicit_unsuppress,
+            )
+            return self._bulk_envelope(results, request_id)
+        except Exception as exc:
+            raise self._map_error(exc) from exc
+
+    def bulk_assign(
+        self, *, account_ids: list[int], owner_user_id: UUID | None,
+        expected_versions: dict[int, int], actor: CRMActor,
+        request_id: str | None = None, idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        actor = self._require_actor(actor)
+        if not account_ids:
+            raise CRMServiceError("INVALID_INPUT", "account_ids must not be empty")
+        try:
+            results = self._write.bulk_assign_accounts(
+                account_ids=account_ids, owner_user_id=owner_user_id,
+                expected_versions=expected_versions, actor_user_id=actor.user_id,
+                request_id=request_id, idempotency_key=idempotency_key,
+            )
+            return self._bulk_envelope(results, request_id)
+        except Exception as exc:
+            raise self._map_error(exc) from exc
+
+    @staticmethod
+    def _bulk_envelope(results: list[dict[str, Any]], request_id: str | None) -> dict[str, Any]:
+        success = sum(1 for item in results if item["status"] == "success")
+        failed = len(results) - success
+        return {
+            "data": results,
+            "meta": {
+                "request_id": request_id,
+                "total": len(results),
+                "succeeded": success,
+                "failed": failed,
+                "partial_failure": success > 0 and failed > 0,
+            },
+        }

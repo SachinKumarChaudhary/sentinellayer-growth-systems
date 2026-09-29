@@ -133,3 +133,13 @@ The static actor mode is rejected outside development. Production deployment mus
 Verification:
 - 40 CRM/adjacent compatibility tests passing.
 - `/crm` HTTP smoke test: 200, `text/html`, correct CRM title.
+
+## Bulk operations backend
+
+- Added per-record bulk state transition endpoint: `POST /v1/crm/bulk/state`.
+- Added per-record bulk owner assignment endpoint: `POST /v1/crm/bulk/assign`.
+- Bulk responses expose total/succeeded/failed and partial-failure state.
+- Child idempotency keys are derived from the bulk key plus canonical account ID.
+- Individual record conflicts/failures do not abort unrelated records.
+
+The operator UI bulk-selection workflow remains the next Phase 4 gap.

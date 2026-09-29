@@ -385,3 +385,97 @@ class CRMRepository:
                 (limit,),
             )
             return [dict(row) for row in cur.fetchall()]
+
+    def assign_account_owner(
+        self, *, account_id: int, owner_user_id: UUID | None,
+        expected_version: int, actor_user_id: UUID | None = None,
+        request_id: str | None = None, idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        with self._connection_factory() as conn, conn.cursor() as cur:
+            replay = self._load_replay(cur, idempotency_key)
+            if replay is not None:
+                return replay
+            cur.execute(
+                """
+                select account_id, state, owner_user_id, version
+                from crm.account_state
+                where account_id = %s
+                for update
+                """,
+                (account_id,),
+            )
+            row = cur.fetchone()
+            if row is None:
+                raise CRMNotFoundError(f"account {account_id} has no CRM state")
+            self._check_version(int(row["version"]), expected_version)
+            new_version = int(row["version"]) + 1
+            cur.execute(
+                """
+                update crm.account_state
+                set owner_user_id = %s, version = %s, updated_at = now()
+                where account_id = %s
+                returning account_id, state, owner_user_id, version, updated_at
+                """,
+                (owner_user_id, new_version, account_id),
+            )
+            updated = dict(cur.fetchone())
+            cur.execute(
+                """
+                insert into crm.audit_events(
+                  entity_type,entity_id,action,actor_user_id,request_id,
+                  idempotency_key,before_json,after_json
+                ) values ('account',%s,'owner_changed',%s,%s,%s,%s::jsonb,%s::jsonb)
+                """,
+                (
+                    str(account_id), actor_user_id, request_id, idempotency_key,
+                    self._json({"owner_user_id": row["owner_user_id"], "version": row["version"]}),
+                    self._json(updated),
+                ),
+            )
+            return updated
+
+    def bulk_transition_accounts(
+        self, *, account_ids: list[int], to_state: str,
+        expected_versions: dict[int, int], actor_user_id: UUID | None = None,
+        request_id: str | None = None, idempotency_key: str | None = None,
+        explicit_unsuppress: bool = False,
+    ) -> list[dict[str, Any]]:
+        results: list[dict[str, Any]] = []
+        for account_id in account_ids:
+            child_key = f"{idempotency_key}:{account_id}" if idempotency_key else None
+            try:
+                row = self.transition_account_state(
+                    account_id=account_id, to_state=to_state,
+                    expected_version=expected_versions.get(account_id, 0),
+                    actor_user_id=actor_user_id, request_id=request_id,
+                    idempotency_key=child_key,
+                    explicit_unsuppress=explicit_unsuppress,
+                )
+                results.append({"id": account_id, "status": "success", "data": row})
+            except CRMRepositoryError as exc:
+                results.append({"id": account_id, "status": "failed", "error": str(exc)})
+            except Exception as exc:
+                results.append({"id": account_id, "status": "failed", "error": str(exc)})
+        return results
+
+    def bulk_assign_accounts(
+        self, *, account_ids: list[int], owner_user_id: UUID | None,
+        expected_versions: dict[int, int], actor_user_id: UUID | None = None,
+        request_id: str | None = None, idempotency_key: str | None = None,
+    ) -> list[dict[str, Any]]:
+        results: list[dict[str, Any]] = []
+        for account_id in account_ids:
+            child_key = f"{idempotency_key}:{account_id}" if idempotency_key else None
+            try:
+                row = self.assign_account_owner(
+                    account_id=account_id, owner_user_id=owner_user_id,
+                    expected_version=expected_versions.get(account_id, 0),
+                    actor_user_id=actor_user_id, request_id=request_id,
+                    idempotency_key=child_key,
+                )
+                results.append({"id": account_id, "status": "success", "data": row})
+            except CRMRepositoryError as exc:
+                results.append({"id": account_id, "status": "failed", "error": str(exc)})
+            except Exception as exc:
+                results.append({"id": account_id, "status": "failed", "error": str(exc)})
+        return results
