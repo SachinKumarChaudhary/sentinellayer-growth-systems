@@ -72,6 +72,20 @@ class CRMHTTPApplication:
                 return self._accounts(query)
             if path == "/v1/crm/contacts" and method == "GET":
                 return self._contacts(query)
+            if path == "/v1/crm/export" and method == "GET":
+                entity=query.get("entity", [""])[0]
+                return 200, self.service.export(entity=entity, actor=actor)
+            if path == "/v1/crm/opportunities" and method == "GET":
+                account_raw=query.get("account_id", [None])[0]
+                owner_raw=query.get("owner", [None])[0]
+                limit=int(query.get("limit", ["100"])[0])
+                return 200, self.service.opportunities(
+                    account_id=int(account_raw) if account_raw else None,
+                    owner_user_id=UUID(owner_raw) if owner_raw else None,
+                    stage=query.get("stage", [None])[0], limit=limit,
+                )
+            if path == "/v1/crm/opportunities" and method == "POST":
+                return 201, self._create_opportunity(body, actor, request_id)
             if path == "/v1/crm/pipeline" and method == "GET":
                 return 200, self.service.pipeline()
             if path == "/v1/crm/tasks" and method == "GET":
@@ -103,6 +117,8 @@ class CRMHTTPApplication:
                 return self._account_route(method, path, headers, body, actor, request_id)
             if path.startswith("/v1/crm/contacts/"):
                 return self._contact_route(method, path, headers, body, actor, request_id)
+            if path.startswith("/v1/crm/opportunities/"):
+                return self._opportunity_route(method, path, headers, body, actor, request_id)
             if path == "/v1/crm/activities" and method == "POST":
                 return self._create_activity(body, actor, request_id)
             if path == "/v1/crm/tasks" and method == "POST":
@@ -192,6 +208,50 @@ class CRMHTTPApplication:
                 explicit_unsuppress=bool(body.get("explicit_unsuppress", False)),
             )
         return 404, {"error": {"code": "NOT_FOUND", "message": "contact route not found", "field_errors": []}}
+    def _create_opportunity(self, body: dict[str, Any], actor: CRMActor | None, request_id: str) -> dict[str, Any]:
+        primary=body.get("primary_contact_id")
+        owner=body.get("owner_user_id")
+        next_task=body.get("next_task_id")
+        return self.service.create_opportunity(
+            account_id=int(self._body_value(body,"account_id")),
+            name=str(self._body_value(body,"name")),
+            owner_user_id=UUID(owner) if owner else actor.user_id,
+            actor=actor,
+            primary_contact_id=UUID(primary) if primary else None,
+            stage=str(body.get("stage","QUALIFIED")),
+            value=body.get("value"),
+            currency=body.get("currency"),
+            expected_close_date=body.get("expected_close_date"),
+            next_task_id=UUID(next_task) if next_task else None,
+            notes=body.get("notes"),
+            closed_reason=body.get("closed_reason"),
+            request_id=request_id,
+            idempotency_key=body.get("idempotency_key"),
+        )
+
+    def _opportunity_route(
+        self, method: str, path: str, headers: dict[str, str], body: dict[str, Any],
+        actor: CRMActor | None, request_id: str,
+    ) -> tuple[int, dict[str, Any]]:
+        parts=path.split("/")
+        opportunity_id=UUID(parts[4])
+        if len(parts)==5 and method=="GET":
+            return 200, self.service.opportunity(opportunity_id=opportunity_id)
+        if len(parts)==5 and method=="PATCH":
+            return 200, self.service.update_opportunity(
+                opportunity_id=opportunity_id, fields=body.get("fields") or {},
+                expected_version=int(self._body_value(body,"expected_version")),
+                actor=actor, request_id=request_id, idempotency_key=headers.get("idempotency-key"),
+            )
+        if len(parts)==6 and parts[5]=="stages" and method=="POST":
+            return 200, self.service.transition_opportunity(
+                opportunity_id=opportunity_id, to_stage=str(self._body_value(body,"to_stage")),
+                expected_version=int(self._body_value(body,"expected_version")),
+                actor=actor, closed_reason=body.get("closed_reason"), request_id=request_id,
+                idempotency_key=headers.get("idempotency-key"),
+            )
+        return 404, {"error":{"code":"NOT_FOUND","message":"opportunity route not found","field_errors":[]}}
+
     def _create_activity(
         self, body: dict[str, Any], actor: CRMActor | None, request_id: str
     ) -> tuple[int, dict[str, Any]]:

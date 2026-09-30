@@ -618,6 +618,152 @@ class CRMRepository:
             )
             return updated
 
+    def export_records(self, *, entity: str, limit: int = 5000) -> list[dict[str, Any]]:
+        if entity == 'accounts':
+            sql="""select c.id, c.name, c.domain, c.website, c.company_linkedin, c.country, c.city, c.segment, c.revenue_est, c.visits_est, coalesce(s.state,'NEW') as crm_state, s.owner_user_id, c.created_at, c.updated_at from public.companies c left join crm.account_state s on s.account_id=c.id order by c.id limit %s"""
+        elif entity == 'contacts':
+            sql="""select dm.decision_maker_id, dm.company_id, c.name as company_name, dm.full_name, dm.title, dm.role_family, dm.role_priority, dm.status, dm.research_status, dm.confidence, coalesce(cs.state,'NOT_CONTACTED') as crm_state, cs.owner_user_id, dm.created_at, dm.updated_at from growth.decision_makers dm join public.companies c on c.id=dm.company_id left join crm.contact_state cs on cs.decision_maker_id=dm.decision_maker_id order by dm.created_at desc limit %s"""
+        elif entity == 'opportunities':
+            sql="""select o.opportunity_id, o.account_id, c.name as account_name, o.primary_contact_id, o.owner_user_id, o.name, o.stage, o.value, o.currency, o.expected_close_date, o.next_task_id, o.closed_at, o.closed_reason, o.version, o.created_at, o.updated_at from crm.opportunities o join public.companies c on c.id=o.account_id order by o.updated_at desc limit %s"""
+        elif entity == 'tasks':
+            sql="""select sales_task_id, canonical_account_id, canonical_person_id, trigger_type, priority, recommended_action, status, due_at, assigned_to, created_at, updated_at from sales.tasks where canonical_account_id is not null order by created_at desc limit %s"""
+        else:
+            raise ValueError('unsupported export entity')
+        with self._connection_factory() as conn, conn.cursor() as cur:
+            cur.execute(sql,(limit,)); return [dict(row) for row in cur.fetchall()]
+
+    def list_opportunities(self, *, account_id: int | None = None, owner_user_id: UUID | None = None, stage: str | None = None, limit: int = 100) -> list[dict[str, Any]]:
+        if not 1 <= limit <= 200:
+            raise ValueError("limit must be between 1 and 200")
+        where = ["1=1"]
+        params: list[Any] = []
+        if account_id is not None:
+            where.append("o.account_id = %s"); params.append(account_id)
+        if owner_user_id is not None:
+            where.append("o.owner_user_id = %s"); params.append(owner_user_id)
+        if stage:
+            where.append("o.stage = %s"); params.append(stage)
+        params.append(limit)
+        with self._connection_factory() as conn, conn.cursor() as cur:
+            cur.execute(f"""
+                select o.opportunity_id, o.account_id, c.name as account_name, c.domain,
+                       o.primary_contact_id, dm.full_name as primary_contact_name,
+                       o.owner_user_id, u.email as owner_email, o.name, o.stage, o.value,
+                       o.currency, o.expected_close_date, o.next_task_id, o.notes,
+                       o.closed_at, o.closed_reason, o.version, o.created_at, o.updated_at
+                from crm.opportunities o
+                join public.companies c on c.id = o.account_id
+                left join growth.decision_makers dm on dm.decision_maker_id = o.primary_contact_id
+                left join auth.users u on u.id = o.owner_user_id
+                where {' and '.join(where)}
+                order by case when o.stage in ('WON','LOST') then 1 else 0 end,
+                         o.updated_at desc, o.opportunity_id asc
+                limit %s
+            """, params)
+            return [dict(row) for row in cur.fetchall()]
+
+    def get_opportunity(self, *, opportunity_id: UUID) -> dict[str, Any]:
+        with self._connection_factory() as conn, conn.cursor() as cur:
+            cur.execute("""
+                select o.opportunity_id, o.account_id, c.name as account_name, c.domain,
+                       o.primary_contact_id, dm.full_name as primary_contact_name, dm.title as primary_contact_title,
+                       o.owner_user_id, u.email as owner_email, o.name, o.stage, o.value,
+                       o.currency, o.expected_close_date, o.next_task_id, o.notes,
+                       o.closed_at, o.closed_reason, o.version, o.created_at, o.updated_at
+                from crm.opportunities o
+                join public.companies c on c.id = o.account_id
+                left join growth.decision_makers dm on dm.decision_maker_id = o.primary_contact_id
+                left join auth.users u on u.id = o.owner_user_id
+                where o.opportunity_id = %s
+            """, (opportunity_id,))
+            row = cur.fetchone()
+            if row is None:
+                raise CRMNotFoundError(f"opportunity {opportunity_id} not found")
+            return dict(row)
+
+    def create_opportunity(self, *, account_id: int, name: str, owner_user_id: UUID, actor_user_id: UUID,
+                           primary_contact_id: UUID | None = None, stage: str = 'QUALIFIED',
+                           value: Any = None, currency: str | None = None, expected_close_date: Any = None,
+                           next_task_id: UUID | None = None, notes: str | None = None,
+                           closed_reason: str | None = None, request_id: str | None = None,
+                           idempotency_key: str | None = None) -> dict[str, Any]:
+        if not str(name).strip():
+            raise ValueError('opportunity name must not be empty')
+        allowed_stages={'QUALIFIED','DISCOVERY','EVALUATION','PROPOSAL','NEGOTIATION','WON','LOST'}
+        if stage not in allowed_stages:
+            raise ValueError('invalid opportunity stage')
+        with self._connection_factory() as conn, conn.cursor() as cur:
+            replay=self._load_replay(cur,idempotency_key)
+            if replay is not None: return replay
+            cur.execute("select user_id from crm.user_access where user_id=%s and active=true",(owner_user_id,))
+            if cur.fetchone() is None: raise CRMConflictError('opportunity owner must be an active CRM member')
+            cur.execute("select id from public.companies where id=%s",(account_id,))
+            if cur.fetchone() is None: raise CRMNotFoundError(f'account {account_id} not found')
+            if primary_contact_id is not None:
+                cur.execute("select 1 from growth.decision_makers where decision_maker_id=%s and company_id=%s",(primary_contact_id,account_id))
+                if cur.fetchone() is None: raise CRMConflictError('primary contact must belong to opportunity account')
+            closed_at = datetime.now().astimezone() if stage in {'WON','LOST'} else None
+            cur.execute("""
+                insert into crm.opportunities(account_id,primary_contact_id,owner_user_id,name,stage,value,currency,expected_close_date,next_task_id,notes,closed_at,closed_reason)
+                values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                returning opportunity_id,account_id,primary_contact_id,owner_user_id,name,stage,value,currency,expected_close_date,next_task_id,notes,closed_at,closed_reason,version,created_at,updated_at
+            """,(account_id,primary_contact_id,owner_user_id,name.strip(),stage,value,currency,expected_close_date,next_task_id,notes,closed_at,closed_reason))
+            row=dict(cur.fetchone())
+            cur.execute("""insert into crm.audit_events(entity_type,entity_id,action,actor_user_id,request_id,idempotency_key,after_json) values ('opportunity',%s,'created',%s,%s,%s,%s::jsonb)""",(str(row['opportunity_id']),actor_user_id,request_id,idempotency_key,self._json(row)))
+            return row
+
+    def update_opportunity(self, *, opportunity_id: UUID, fields: dict[str, Any], expected_version: int, actor_user_id: UUID,
+                           request_id: str | None = None, idempotency_key: str | None = None) -> dict[str, Any]:
+        allowed={'name','primary_contact_id','owner_user_id','value','currency','expected_close_date','next_task_id','notes'}
+        clean={k:v for k,v in fields.items() if k in allowed}
+        if not clean: raise ValueError('no editable opportunity fields supplied')
+        with self._connection_factory() as conn, conn.cursor() as cur:
+            replay=self._load_replay(cur,idempotency_key)
+            if replay is not None: return replay
+            cur.execute("select * from crm.opportunities where opportunity_id=%s for update",(opportunity_id,))
+            row=cur.fetchone()
+            if row is None: raise CRMNotFoundError(f'opportunity {opportunity_id} not found')
+            self._check_version(int(row['version']),expected_version)
+            account_id=int(row['account_id'])
+            if 'owner_user_id' in clean:
+                owner=clean['owner_user_id']
+                cur.execute("select 1 from crm.user_access where user_id=%s and active=true",(owner,))
+                if cur.fetchone() is None: raise CRMConflictError('opportunity owner must be an active CRM member')
+            if 'primary_contact_id' in clean and clean['primary_contact_id'] is not None:
+                cur.execute("select 1 from growth.decision_makers where decision_maker_id=%s and company_id=%s",(clean['primary_contact_id'],account_id))
+                if cur.fetchone() is None: raise CRMConflictError('primary contact must belong to opportunity account')
+            params=[]; sets=[]
+            for key,val in clean.items(): sets.append(f"{key}=%s"); params.append(val)
+            sets.append('version=%s'); params.append(int(row['version'])+1); sets.append('updated_at=now()'); params.append(opportunity_id)
+            cur.execute(f"update crm.opportunities set {', '.join(sets)} where opportunity_id=%s returning *",params)
+            updated=dict(cur.fetchone())
+            before={k:row.get(k) for k in clean}
+            after={k:updated.get(k) for k in clean}
+            cur.execute("""insert into crm.audit_events(entity_type,entity_id,action,actor_user_id,request_id,idempotency_key,before_json,after_json,metadata) values ('opportunity',%s,'fields_updated',%s,%s,%s,%s::jsonb,%s::jsonb,%s::jsonb)""",(str(opportunity_id),actor_user_id,request_id,idempotency_key,self._json(before),self._json(after),self._json({'fields':list(clean)})))
+            return updated
+
+    def transition_opportunity(self, *, opportunity_id: UUID, to_stage: str, expected_version: int, actor_user_id: UUID,
+                               closed_reason: str | None = None, request_id: str | None = None,
+                               idempotency_key: str | None = None) -> dict[str, Any]:
+        allowed={'QUALIFIED','DISCOVERY','EVALUATION','PROPOSAL','NEGOTIATION','WON','LOST'}
+        if to_stage not in allowed: raise ValueError('invalid opportunity stage')
+        with self._connection_factory() as conn, conn.cursor() as cur:
+            replay=self._load_replay(cur,idempotency_key)
+            if replay is not None: return replay
+            cur.execute("select * from crm.opportunities where opportunity_id=%s for update",(opportunity_id,))
+            row=cur.fetchone()
+            if row is None: raise CRMNotFoundError(f'opportunity {opportunity_id} not found')
+            self._check_version(int(row['version']),expected_version)
+            current=str(row['stage'])
+            if current in {'WON','LOST'}: raise CRMConflictError('closed opportunities cannot be reopened in CRM MVP')
+            if current == to_stage: raise CRMConflictError('opportunity is already in that stage')
+            closed_at=datetime.now().astimezone() if to_stage in {'WON','LOST'} else None
+            if to_stage == 'LOST' and not str(closed_reason or '').strip(): raise ValueError('closed_reason is required when marking LOST')
+            cur.execute("update crm.opportunities set stage=%s,closed_at=%s,closed_reason=%s,version=%s,updated_at=now() where opportunity_id=%s returning *",(to_stage,closed_at,closed_reason if to_stage=='LOST' else None,int(row['version'])+1,opportunity_id))
+            updated=dict(cur.fetchone())
+            cur.execute("""insert into crm.audit_events(entity_type,entity_id,action,actor_user_id,request_id,idempotency_key,before_json,after_json) values ('opportunity',%s,'stage_changed',%s,%s,%s,%s::jsonb,%s::jsonb)""",(str(opportunity_id),actor_user_id,request_id,idempotency_key,self._json({'stage':current,'version':row['version']}),self._json({'stage':to_stage,'version':updated['version'],'closed_at':updated['closed_at'],'closed_reason':updated['closed_reason']})))
+            return updated
+
     def list_crm_members(self) -> list[dict[str, Any]]:
         with self._connection_factory() as conn, conn.cursor() as cur:
             cur.execute(

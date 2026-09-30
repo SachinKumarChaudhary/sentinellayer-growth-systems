@@ -144,6 +144,59 @@ class CRMService:
         except Exception as exc:
             raise self._map_error(exc) from exc
 
+    def export(self, *, entity: str, actor: CRMActor, limit: int = 5000) -> dict[str, Any]:
+        self._require_actor(actor)
+        try:
+            data=self._write.export_records(entity=entity,limit=limit)
+            return {"data":data,"meta":{"entity":entity,"count":len(data)}}
+        except Exception as exc:
+            raise self._map_error(exc) from exc
+
+    def opportunities(self, *, account_id: int | None = None, owner_user_id: UUID | None = None, stage: str | None = None, limit: int = 100) -> dict[str, Any]:
+        try:
+            data=self._write.list_opportunities(account_id=account_id,owner_user_id=owner_user_id,stage=stage,limit=limit)
+            return {"data":data,"meta":{"has_more":len(data)==limit}}
+        except Exception as exc:
+            raise self._map_error(exc) from exc
+
+    def opportunity(self, *, opportunity_id: UUID) -> dict[str, Any]:
+        try:
+            return {"data":self._write.get_opportunity(opportunity_id=opportunity_id),"meta":{}}
+        except Exception as exc:
+            raise self._map_error(exc) from exc
+
+    def create_opportunity(self, *, account_id: int, name: str, owner_user_id: UUID, actor: CRMActor,
+                           primary_contact_id: UUID | None = None, stage: str = 'QUALIFIED', value: Any = None,
+                           currency: str | None = None, expected_close_date: Any = None, next_task_id: UUID | None = None,
+                           notes: str | None = None, closed_reason: str | None = None, request_id: str | None = None,
+                           idempotency_key: str | None = None) -> dict[str, Any]:
+        actor=self._require_actor(actor)
+        try:
+            data=self._write.create_opportunity(account_id=account_id,name=name,owner_user_id=owner_user_id,actor_user_id=actor.user_id,
+                primary_contact_id=primary_contact_id,stage=stage,value=value,currency=currency,expected_close_date=expected_close_date,
+                next_task_id=next_task_id,notes=notes,closed_reason=closed_reason,request_id=request_id,idempotency_key=idempotency_key)
+            return {"data":data,"meta":{"request_id":request_id}}
+        except Exception as exc:
+            raise self._map_error(exc) from exc
+
+    def update_opportunity(self, *, opportunity_id: UUID, fields: dict[str, Any], expected_version: int, actor: CRMActor,
+                           request_id: str | None = None, idempotency_key: str | None = None) -> dict[str, Any]:
+        actor=self._require_actor(actor)
+        try:
+            data=self._write.update_opportunity(opportunity_id=opportunity_id,fields=fields,expected_version=expected_version,actor_user_id=actor.user_id,request_id=request_id,idempotency_key=idempotency_key)
+            return {"data":data,"meta":{"request_id":request_id}}
+        except Exception as exc:
+            raise self._map_error(exc) from exc
+
+    def transition_opportunity(self, *, opportunity_id: UUID, to_stage: str, expected_version: int, actor: CRMActor,
+                               closed_reason: str | None = None, request_id: str | None = None, idempotency_key: str | None = None) -> dict[str, Any]:
+        actor=self._require_actor(actor)
+        try:
+            data=self._write.transition_opportunity(opportunity_id=opportunity_id,to_stage=to_stage,expected_version=expected_version,actor_user_id=actor.user_id,closed_reason=closed_reason,request_id=request_id,idempotency_key=idempotency_key)
+            return {"data":data,"meta":{"request_id":request_id}}
+        except Exception as exc:
+            raise self._map_error(exc) from exc
+
     def crm_members(self) -> dict[str, Any]:
         try:
             return {"data": self._write.list_crm_members(), "meta": {}}
