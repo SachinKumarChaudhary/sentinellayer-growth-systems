@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 from urllib.parse import parse_qs, urlsplit
 from uuid import UUID, uuid4
 
@@ -58,13 +58,14 @@ class CRMHTTPApplication:
             if path == "/healthz" and method == "GET":
                 return 200, {"data": {"status": "ok"}, "meta": {"request_id": request_id}}
             actor = self.actor_resolver(headers)
-            if path.startswith("/v1/crm/") and actor is None:
-                return 401, {"error": {"code": "UNAUTHENTICATED", "message": "Supabase bearer token is required", "field_errors": []}, "meta": {"request_id": request_id}}
             if path.startswith("/v1/crm/"):
+                if actor is None:
+                    return 401, {"error": {"code": "UNAUTHENTICATED", "message": "Supabase bearer token is required", "field_errors": []}, "meta": {"request_id": request_id}}
                 actor = self.service.authorize(
                     actor,
                     mutation=method in {"POST", "PUT", "PATCH", "DELETE"},
                 )
+                actor = cast(CRMActor, actor)
             if path == "/v1/crm/search" and method == "GET":
                 term = query.get("q", [""])[0]
                 return 200, self.service.search_accounts(query=term)
@@ -160,7 +161,7 @@ class CRMHTTPApplication:
 
     def _account_route(
         self, method: str, path: str, headers: dict[str, str],
-        body: dict[str, Any], actor: CRMActor | None, request_id: str,
+        body: dict[str, Any], actor: CRMActor, request_id: str,
     ) -> tuple[int, dict[str, Any]]:
         parts = path.split("/")
         account_id = int(parts[4])
@@ -185,7 +186,7 @@ class CRMHTTPApplication:
         return 404, {"error": {"code": "NOT_FOUND", "message": "account route not found", "field_errors": []}}
     def _contact_route(
         self, method: str, path: str, headers: dict[str, str],
-        body: dict[str, Any], actor: CRMActor | None, request_id: str,
+        body: dict[str, Any], actor: CRMActor, request_id: str,
     ) -> tuple[int, dict[str, Any]]:
         parts = path.split("/")
         person_id = UUID(parts[4])
@@ -208,7 +209,7 @@ class CRMHTTPApplication:
                 explicit_unsuppress=bool(body.get("explicit_unsuppress", False)),
             )
         return 404, {"error": {"code": "NOT_FOUND", "message": "contact route not found", "field_errors": []}}
-    def _create_opportunity(self, body: dict[str, Any], actor: CRMActor | None, request_id: str) -> dict[str, Any]:
+    def _create_opportunity(self, body: dict[str, Any], actor: CRMActor, request_id: str) -> dict[str, Any]:
         primary=body.get("primary_contact_id")
         owner=body.get("owner_user_id")
         next_task=body.get("next_task_id")
@@ -231,7 +232,7 @@ class CRMHTTPApplication:
 
     def _opportunity_route(
         self, method: str, path: str, headers: dict[str, str], body: dict[str, Any],
-        actor: CRMActor | None, request_id: str,
+        actor: CRMActor, request_id: str,
     ) -> tuple[int, dict[str, Any]]:
         parts=path.split("/")
         opportunity_id=UUID(parts[4])
@@ -253,7 +254,7 @@ class CRMHTTPApplication:
         return 404, {"error":{"code":"NOT_FOUND","message":"opportunity route not found","field_errors":[]}}
 
     def _create_activity(
-        self, body: dict[str, Any], actor: CRMActor | None, request_id: str
+        self, body: dict[str, Any], actor: CRMActor, request_id: str
     ) -> tuple[int, dict[str, Any]]:
         occurred_at = datetime.fromisoformat(str(self._body_value(body, "occurred_at")).replace("Z", "+00:00"))
         person = body.get("decision_maker_id")
@@ -271,7 +272,7 @@ class CRMHTTPApplication:
             idempotency_key=body.get("idempotency_key"),
         )
     def _create_task(
-        self, body: dict[str, Any], actor: CRMActor | None, request_id: str
+        self, body: dict[str, Any], actor: CRMActor, request_id: str
     ) -> tuple[int, dict[str, Any]]:
         person = body.get("decision_maker_id")
         assigned = body.get("assigned_to")
@@ -293,7 +294,7 @@ class CRMHTTPApplication:
             idempotency_key=body.get("idempotency_key"),
         )
     def _create_note(
-        self, body: dict[str, Any], actor: CRMActor | None, request_id: str
+        self, body: dict[str, Any], actor: CRMActor, request_id: str
     ) -> tuple[int, dict[str, Any]]:
         person = body.get("decision_maker_id")
         return 201, self.service.create_note(

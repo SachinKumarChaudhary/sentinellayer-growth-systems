@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Any, Callable
 from uuid import UUID, uuid4
 
-from .state import validate_state_transition
+from .state import EntityType, validate_state_transition
 
 
 class CRMRepositoryError(RuntimeError):
@@ -128,7 +128,7 @@ class CRMRepository:
         )
 
     def _transition(
-        self, *, entity_type: str, entity_id: int | UUID, to_state: str,
+        self, *, entity_type: EntityType, entity_id: int | UUID, to_state: str,
         expected_version: int, actor_user_id: UUID | None, request_id: str | None,
         idempotency_key: str | None, reason: str | None, explicit_unsuppress: bool,
     ) -> dict[str, Any]:

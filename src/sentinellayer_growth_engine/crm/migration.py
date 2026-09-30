@@ -284,7 +284,7 @@ def parse_operational_sheet_row(
     raw_phones = _split_multi_value(row.get("Phone "))
     emails = [value for value in (normalize_email(x) for x in raw_emails) if value]
     phones = [value for value in (normalize_phone(x) for x in raw_phones) if value]
-    invalid = []
+    invalid: list[str] = []
     invalid.extend(x for x in raw_emails if normalize_email(x) is None)
     invalid.extend(x for x in raw_phones if normalize_phone(x) is None)
     linkedin = normalize_linkedin(raw_linkedin)
