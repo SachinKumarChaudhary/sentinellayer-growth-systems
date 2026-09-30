@@ -8,6 +8,7 @@ from typing import Any
 from uuid import UUID
 
 import psycopg
+from psycopg.rows import dict_row
 
 from sentinellayer_growth_engine.config import Settings
 from sentinellayer_growth_engine.crm import CRMActor, CRMHTTPApplication, CRMReadModelRepository, CRMRepository, CRMService
@@ -20,6 +21,7 @@ def build_service(settings: Settings) -> CRMService:
             settings.database_url,
             connect_timeout=settings.database_connect_timeout_seconds,
             options=f"-c statement_timeout={settings.database_statement_timeout_seconds}",
+            row_factory=dict_row,
         )
     return CRMService(
         write_repo=CRMRepository(connection_factory),
