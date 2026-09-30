@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from datetime import datetime
-from typing import Any, cast
+from typing import Any
 from urllib.parse import parse_qs, urlsplit
 from uuid import UUID, uuid4
 
@@ -57,15 +57,15 @@ class CRMHTTPApplication:
         try:
             if path == "/healthz" and method == "GET":
                 return 200, {"data": {"status": "ok"}, "meta": {"request_id": request_id}}
+            if not path.startswith("/v1/crm/"):
+                return 404, {"error": {"code": "NOT_FOUND", "message": "route not found", "field_errors": []}}
             actor = self.actor_resolver(headers)
-            if path.startswith("/v1/crm/"):
-                if actor is None:
-                    return 401, {"error": {"code": "UNAUTHENTICATED", "message": "Supabase bearer token is required", "field_errors": []}, "meta": {"request_id": request_id}}
-                actor = self.service.authorize(
-                    actor,
-                    mutation=method in {"POST", "PUT", "PATCH", "DELETE"},
-                )
-                actor = cast(CRMActor, actor)
+            if actor is None:
+                return 401, {"error": {"code": "UNAUTHENTICATED", "message": "Supabase bearer token is required", "field_errors": []}, "meta": {"request_id": request_id}}
+            actor = self.service.authorize(
+                actor,
+                mutation=method in {"POST", "PUT", "PATCH", "DELETE"},
+            )
             if path == "/v1/crm/search" and method == "GET":
                 term = query.get("q", [""])[0]
                 return 200, self.service.search_accounts(query=term)
