@@ -16,7 +16,7 @@ from .extraction import (
     extract_with_fallback,
 )
 from .execution import Phase2CandidateSet, Phase2ProviderUnavailable
-from .models import Currentness, EntityCandidate
+from .models import Currentness, EntityCandidate, EntityRelationship
 from .normalization import normalize_domain, normalize_name, registrable_domain
 from .observability import TinyFishAttemptRecorder
 from .research import (
@@ -200,7 +200,13 @@ class TinyFishEntityCandidateProvider:
             lead=handoff,
             evidence=evidence,
         )
-        return _candidate_set(self._candidate_objects(handoff, extracted, evidence))
+        candidates = self._candidate_objects(handoff, extracted, evidence)
+        relationships = self._relationship_objects(
+            handoff,
+            extracted,
+            candidates,
+        )
+        return _candidate_set(candidates, relationships)
 
     def _persist_search_observations(
         self,
@@ -384,6 +390,7 @@ class TinyFishEntityCandidateProvider:
         display_name = normalize_name(lead.display_name)
         legal_name = normalize_name(lead.legal_name)
         lead_domain = normalize_domain(lead.domain)
+        target_registrable = registrable_domain(lead.domain)
 
         evidence_by_id = {item.evidence_id: item for item in evidence}
         result: list[EntityCandidate] = []
@@ -407,7 +414,6 @@ class TinyFishEntityCandidateProvider:
                 normalize_domain(urlparse(evidence_by_id[evidence_id].url).hostname)
                 for evidence_id in evidence_refs
             }
-            target_registrable = registrable_domain(lead.domain)
             supported_registrables = {
                 registrable_domain(domain)
                 for domain in supported_domains
@@ -494,13 +500,18 @@ class TinyFishEntityCandidateProvider:
                 if registrable_domain(urlparse(item.url).hostname) == target_registrable
             ]
             if first_party_refs:
-                candidate_name = lead.display_name or lead.legal_name or lead.domain
-                candidate_key = f"{normalize_name(candidate_name)}|{lead.domain}|BRAND"
+                candidate_name = (
+                    lead.display_name
+                    or lead.legal_name
+                    or lead.domain
+                    or handoff.lead_id
+                )
+                candidate_key = f"{normalize_name(candidate_name)}|{lead.domain}|UNKNOWN"
                 result.append(
                     EntityCandidate(
                         candidate_id=f"research:{self_hash(candidate_key)}",
                         entity_id=None,
-                        entity_type="BRAND",
+                        entity_type="UNKNOWN",
                         canonical_name=candidate_name,
                         canonical_domain=lead.domain,
                         official_url=next(
@@ -512,14 +523,111 @@ class TinyFishEntityCandidateProvider:
                             evidence_by_id[first_party_refs[0]].url,
                         ),
                         domain_verified=True,
-                        official_corporate_url_match=True,
-                        explicit_official_identity_tie=True,
-                        currentness="CURRENT",
+                        official_corporate_url_match=False,
+                        explicit_official_identity_tie=False,
+                        currentness="UNKNOWN",
                         evidence_refs=first_party_refs,
                         origin="research",
                     )
                 )
         return result
+
+    @staticmethod
+    def _relationship_objects(
+        handoff: Phase1Handoff,
+        extracted: EntityEvidenceExtraction,
+        candidates: Sequence[EntityCandidate],
+    ) -> list[EntityRelationship]:
+        """Materialize explicit supported relationship claims without making them identity decisions."""
+        lead = handoff.canonical_lead
+        target_names = {
+            normalize_name(value)
+            for value in (lead.display_name, lead.legal_name)
+            if value
+        }
+        target_candidate = next(
+            (
+                candidate
+                for candidate in candidates
+                if (
+                    candidate.domain_verified
+                    and normalize_domain(candidate.canonical_domain) == normalize_domain(lead.domain)
+                )
+            ),
+            None,
+        )
+        if target_candidate is None:
+            return []
+
+        target_entity_id = target_candidate.entity_id or target_candidate.candidate_id
+        predicate_map = {
+            "OWNED_BY": "OWNED_BY",
+            "SUBSIDIARY_OF": "SUBSIDIARY_OF",
+            "BRAND_OF": "BRAND_OF",
+            "OPERATED_BY": "OPERATES",
+            "ACQUIRED_BY": "ACQUIRED",
+        }
+        reverse_predicates = {"OPERATED_BY", "ACQUIRED_BY"}
+        relationships: list[EntityRelationship] = []
+        seen: set[str] = set()
+
+        for claim in extracted.relationship_claims:
+            predicate = str(claim.predicate).strip().upper()
+            mapped = predicate_map.get(predicate)
+            if mapped is None:
+                continue
+            subject_name = normalize_name(claim.subject_name)
+            object_name = normalize_name(claim.object_name)
+            if not subject_name or not object_name:
+                continue
+            if subject_name not in target_names:
+                continue
+            evidence_refs = [
+                evidence_id
+                for evidence_id in claim.evidence_ids
+                if evidence_id
+            ]
+            if not evidence_refs:
+                continue
+
+            object_entity_id = f"research:entity:{self_hash(object_name)}"
+            if predicate in reverse_predicates:
+                subject_entity_id = object_entity_id
+                relationship_object_id = target_entity_id
+            else:
+                subject_entity_id = target_entity_id
+                relationship_object_id = object_entity_id
+
+            relationship_key = (
+                f"{handoff.lead_id}|{mapped}|{subject_entity_id}|"
+                f"{relationship_object_id}|{'|'.join(sorted(evidence_refs))}"
+            )
+            relationship_id = f"research-rel:{self_hash(relationship_key)}"
+            if relationship_id in seen:
+                continue
+            seen.add(relationship_id)
+
+            currentness = str(getattr(claim, "currentness", "UNKNOWN")).upper()
+            if currentness not in {"CURRENT", "HISTORICAL", "UNKNOWN", "NOT_ESTABLISHED", "CONFLICT"}:
+                currentness = "UNKNOWN"
+
+            relationships.append(
+                EntityRelationship(
+                    relationship_id=relationship_id,
+                    subject_entity_id=subject_entity_id,
+                    predicate=mapped,  # type: ignore[arg-type]
+                    object_entity_id=relationship_object_id,
+                    currentness=currentness,  # type: ignore[arg-type]
+                    evidence_refs=evidence_refs,
+                    status="ESTABLISHED",
+                    adjudication_reason=(
+                        "Explicit relationship claim extracted from fetched first-party evidence; "
+                        "relationship semantics are preserved separately from identity matching."
+                    ),
+                )
+            )
+
+        return relationships
 
     @staticmethod
     def _internal_request_id(
@@ -534,8 +642,14 @@ class TinyFishEntityCandidateProvider:
         return self_hash("|".join(parts))
 
 
-def _candidate_set(candidates: Sequence[EntityCandidate]) -> Phase2CandidateSet:
-    return Phase2CandidateSet(candidates=tuple(candidates))
+def _candidate_set(
+    candidates: Sequence[EntityCandidate],
+    relationships: Sequence[EntityRelationship] = (),
+) -> Phase2CandidateSet:
+    return Phase2CandidateSet(
+        candidates=tuple(candidates),
+        relationships=tuple(relationships),
+    )
 
 
 def _currentness_for_name(name: str, claims: Sequence[object]) -> Currentness:

@@ -24,11 +24,11 @@ def test_scoring_parameters_are_taken_from_playbook_not_input_labels() -> None:
     assert signal.half_life_days == 21
 
 
-def test_compliance_signals_use_canonical_compliance_rules() -> None:
+def test_compliance_signals_are_context_only_without_an_active_project() -> None:
     signal = normalize_signal(signal_type="FTC Click-to-Cancel", signal_date=date(2026, 9, 1))
     assert signal.signal_type == "ftc_click_to_cancel"
-    assert signal.weight == 3
-    assert signal.half_life_days == 9999
+    assert signal.weight == 0.0
+    assert signal.half_life_days == 1
 
 
 def test_unknown_signal_is_fail_closed() -> None:

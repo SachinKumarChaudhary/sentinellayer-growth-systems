@@ -1,0 +1,10 @@
+{
+  "source_rows": 131,
+  "candidate_rows": 93,
+  "resolution_status": {
+    "AUTO_CANDIDATE": 51,
+    "UNRESOLVED": 41,
+    "REVIEW": 1
+  },
+  "apply": false
+}

@@ -230,3 +230,27 @@ def test_relationship_optional_validity_timestamps_accept_null() -> None:
     assert relationship.valid_from is None
     assert relationship.valid_to is None
 
+def test_unknown_entity_type_requires_research_even_with_verified_domain() -> None:
+    handoff = make_lead(
+        name="BrandCo",
+        domain="brand.example",
+        lead_id="fallback-brand",
+    )
+    candidate = EntityCandidate(
+        candidate_id="fallback-brand",
+        entity_type="UNKNOWN",
+        canonical_name="BrandCo",
+        canonical_domain="brand.example",
+        domain_verified=True,
+        currentness="UNKNOWN",
+        evidence_refs=["https://brand.example/about"],
+        origin="research",
+    )
+
+    decision = resolve_entity(handoff, [candidate])
+
+    assert decision.status == "AMBIGUOUS"
+    assert decision.entity_type == "UNKNOWN"
+    assert decision.canonical_entity_id is None
+    assert decision.research_required is True
+    assert "entity_type" in decision.research_missions
