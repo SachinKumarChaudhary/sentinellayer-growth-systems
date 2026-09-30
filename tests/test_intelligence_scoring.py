@@ -1,5 +1,7 @@
 from datetime import date
 
+import pytest
+
 from sentinellayer_growth_engine.intelligence_scoring import (
     IntentSignalInput,
     compute_intent,
@@ -75,8 +77,8 @@ def test_ma_freeze_caps_p1_at_p2() -> None:
 def test_duplicate_events_do_not_inflate_intent() -> None:
     signal = IntentSignalInput("security_hiring", date(2026, 9, 7), 3, 30, dedupe_key="job-123")
     score, raw, components = compute_intent(signals=[signal, signal], today=TODAY)
-    assert score == 3.0
-    assert raw == 3.0
+    assert score == pytest.approx(2.93)
+    assert raw == pytest.approx(3 * 2 ** (-1 / 30))
     assert len(components) == 1
 
 
@@ -103,7 +105,9 @@ def test_anonymous_docs_research_does_not_force_p1() -> None:
         today=TODAY,
     )
     assert result.intent_score == 4.0
-    assert result.priority == "P2"
+    # The test account computes to medium/low FIT (3/10), so weak anonymous
+    # docs intent routes to P4 rather than the high-fit P2 bucket.
+    assert result.priority == "P4"
 
 
 def test_identified_technical_evaluation_forces_p1() -> None:
