@@ -77,6 +77,8 @@ class CRMHTTPApplication:
             if path == "/v1/crm/tasks" and method == "GET":
                 limit = int(query.get("limit", ["100"])[0])
                 return 200, self.service.task_queue(limit=limit)
+            if path == "/v1/crm/members" and method == "GET":
+                return 200, self.service.crm_members()
             if path == "/v1/crm/bulk/state" and method == "POST":
                 return 200, self.service.bulk_state(
                     account_ids=[int(x) for x in self._body_value(body, "account_ids")],
@@ -148,6 +150,11 @@ class CRMHTTPApplication:
         account_id = int(parts[4])
         if len(parts) == 5 and method == "GET":
             return 200, self.service.account_360(account_id=account_id)
+        if len(parts) == 5 and method == "PATCH":
+            return 200, self.service.update_account_fields(
+                account_id=account_id, fields=body.get("fields") or {}, actor=actor,
+                request_id=request_id, idempotency_key=headers.get("idempotency-key"),
+            )
         if len(parts) == 6 and parts[5] == "state-transitions" and method == "POST":
             return 200, self.service.transition_account(
                 account_id=account_id,
@@ -166,6 +173,13 @@ class CRMHTTPApplication:
     ) -> tuple[int, dict[str, Any]]:
         parts = path.split("/")
         person_id = UUID(parts[4])
+        if len(parts) == 5 and method == "GET":
+            return 200, self.service.contact_360(decision_maker_id=person_id)
+        if len(parts) == 5 and method == "PATCH":
+            return 200, self.service.update_contact_fields(
+                decision_maker_id=person_id, fields=body.get("fields") or {}, actor=actor,
+                request_id=request_id, idempotency_key=headers.get("idempotency-key"),
+            )
         if len(parts) == 6 and parts[5] == "state-transitions" and method == "POST":
             return 200, self.service.transition_contact(
                 decision_maker_id=person_id,

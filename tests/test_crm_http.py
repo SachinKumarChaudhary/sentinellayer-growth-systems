@@ -21,6 +21,18 @@ class FakeService:
     def account_360(self, **kwargs):
         return {"data": {"account": {"id": kwargs["account_id"]}}, "meta": {}}
 
+    def contact_360(self, **kwargs):
+        return {"data": {"contact": {"decision_maker_id": str(kwargs["decision_maker_id"])}}, "meta": {}}
+
+    def crm_members(self):
+        return {"data": [{"email": "operator@example.com", "role": "OPERATOR"}], "meta": {}}
+
+    def update_account_fields(self, **kwargs):
+        return {"data": {"id": kwargs["account_id"], **kwargs["fields"]}, "meta": {"request_id": kwargs["request_id"]}}
+
+    def update_contact_fields(self, **kwargs):
+        return {"data": {"decision_maker_id": str(kwargs["decision_maker_id"]), **kwargs["fields"]}, "meta": {"request_id": kwargs["request_id"]}}
+
     def task_queue(self, **kwargs):
         return {"data": [], "meta": {"has_more": False}}
 
@@ -131,3 +143,18 @@ def test_crm_route_requires_authentication():
     )
     assert status == 401
     assert payload["error"]["code"] == "UNAUTHENTICATED"
+
+
+def test_contact_profile_and_edit_routes():
+    person="00153984-f963-4c99-bf20-c0993b86c93b"
+    status, payload = app().handle(method="GET", target=f"/v1/crm/contacts/{person}", headers={})
+    assert status == 200
+    assert payload["data"]["contact"]["decision_maker_id"] == person
+
+    status, payload = app().handle(method="PATCH", target="/v1/crm/accounts/123", headers={"Idempotency-Key":"edit-1"}, body={"fields":{"name":"New Name"}})
+    assert status == 200
+    assert payload["data"]["name"] == "New Name"
+
+    status, payload = app().handle(method="PATCH", target=f"/v1/crm/contacts/{person}", headers={"Idempotency-Key":"edit-2"}, body={"fields":{"title":"CTO"}})
+    assert status == 200
+    assert payload["data"]["title"] == "CTO"

@@ -504,6 +504,133 @@ class CRMRepository:
             )
             return updated
 
+    def update_account_fields(
+        self, *, account_id: int, fields: dict[str, Any], actor_user_id: UUID,
+        request_id: str | None = None, idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        allowed = {
+            "name": "name",
+            "domain": "domain",
+            "website": "website",
+            "company_linkedin": "company_linkedin",
+            "country": "country",
+            "city": "city",
+            "segment": "segment",
+            "revenue_est": "revenue_est",
+            "visits_est": "visits_est",
+            "notes": "notes",
+        }
+        clean = {key: value for key, value in fields.items() if key in allowed}
+        if not clean:
+            raise ValueError("no editable account fields supplied")
+        if "domain" in clean and not str(clean["domain"]).strip():
+            raise ValueError("domain must not be empty")
+        if "name" in clean and clean["name"] is not None and not str(clean["name"]).strip():
+            raise ValueError("name must not be empty when provided")
+        with self._connection_factory() as conn, conn.cursor() as cur:
+            replay = self._load_replay(cur, idempotency_key)
+            if replay is not None:
+                return replay
+            cur.execute("select id, name, domain, website, company_linkedin, country, city, segment, revenue_est, visits_est, notes from public.companies where id = %s for update", (account_id,))
+            row = cur.fetchone()
+            if row is None:
+                raise CRMNotFoundError(f"account {account_id} not found")
+            before = {key: row.get(key) for key in clean}
+            sets = []
+            params: list[Any] = []
+            for key, value in clean.items():
+                sets.append(f"{allowed[key]} = %s")
+                params.append(value)
+            sets.append("updated_at = now()")
+            params.append(account_id)
+            cur.execute(
+                f"update public.companies set {', '.join(sets)} where id = %s returning id, name, domain, website, company_linkedin, country, city, segment, revenue_est, visits_est, notes, updated_at",
+                params,
+            )
+            updated = dict(cur.fetchone())
+            after = {key: updated.get(key) for key in clean}
+            cur.execute(
+                """
+                insert into crm.audit_events(
+                  entity_type, entity_id, action, actor_user_id, request_id,
+                  idempotency_key, before_json, after_json, metadata
+                ) values ('account', %s, 'fields_updated', %s, %s, %s, %s::jsonb, %s::jsonb, %s::jsonb)
+                """,
+                (
+                    str(account_id), actor_user_id, request_id, idempotency_key,
+                    self._json(before), self._json(after), self._json({"fields": list(clean)}),
+                ),
+            )
+            return updated
+
+    def update_contact_fields(
+        self, *, decision_maker_id: UUID, fields: dict[str, Any], actor_user_id: UUID,
+        request_id: str | None = None, idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        allowed = {
+            "full_name": "full_name",
+            "title": "title",
+            "role_family": "role_family",
+            "role_priority": "role_priority",
+            "rationale": "rationale",
+        }
+        clean = {key: value for key, value in fields.items() if key in allowed}
+        if not clean:
+            raise ValueError("no editable contact fields supplied")
+        if "full_name" in clean and not str(clean["full_name"]).strip():
+            raise ValueError("full_name must not be empty")
+        with self._connection_factory() as conn, conn.cursor() as cur:
+            replay = self._load_replay(cur, idempotency_key)
+            if replay is not None:
+                return replay
+            cur.execute(
+                "select decision_maker_id, company_id, full_name, title, role_family, role_priority, rationale from growth.decision_makers where decision_maker_id = %s for update",
+                (decision_maker_id,),
+            )
+            row = cur.fetchone()
+            if row is None:
+                raise CRMNotFoundError(f"contact {decision_maker_id} not found")
+            before = {key: row.get(key) for key in clean}
+            sets = []
+            params: list[Any] = []
+            for key, value in clean.items():
+                sets.append(f"{allowed[key]} = %s")
+                params.append(value)
+            sets.append("updated_at = now()")
+            params.append(decision_maker_id)
+            cur.execute(
+                f"update growth.decision_makers set {', '.join(sets)} where decision_maker_id = %s returning decision_maker_id, company_id, full_name, title, role_family, role_priority, rationale, status, research_status, confidence, last_verified_at, updated_at",
+                params,
+            )
+            updated = dict(cur.fetchone())
+            after = {key: updated.get(key) for key in clean}
+            cur.execute(
+                """
+                insert into crm.audit_events(
+                  entity_type, entity_id, action, actor_user_id, request_id,
+                  idempotency_key, before_json, after_json, metadata
+                ) values ('contact', %s, 'fields_updated', %s, %s, %s, %s::jsonb, %s::jsonb, %s::jsonb)
+                """,
+                (
+                    str(decision_maker_id), actor_user_id, request_id, idempotency_key,
+                    self._json(before), self._json(after), self._json({"fields": list(clean)}),
+                ),
+            )
+            return updated
+
+    def list_crm_members(self) -> list[dict[str, Any]]:
+        with self._connection_factory() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                select ua.user_id, u.email, ua.role, ua.active
+                from crm.user_access ua
+                join auth.users u on u.id = ua.user_id
+                where ua.active = true
+                order by lower(coalesce(u.email, '')), ua.user_id
+                """
+            )
+            return [dict(row) for row in cur.fetchall()]
+
     def bulk_transition_accounts(
         self, *, account_ids: list[int], to_state: str,
         expected_versions: dict[int, int], actor_user_id: UUID | None = None,

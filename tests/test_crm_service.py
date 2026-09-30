@@ -18,6 +18,9 @@ class ReadRepo:
     def get_account_360(self, **kwargs):
         return {"account": {"id": kwargs["account_id"]}}
 
+    def get_contact_360(self, **kwargs):
+        return {"contact": {"decision_maker_id": str(kwargs["decision_maker_id"])}}
+
     def list_contacts(self, **kwargs):
         return {"data": [{"decision_maker_id": "dm-1"}], "meta": {"has_more": False}}
 
@@ -28,6 +31,15 @@ class ReadRepo:
 class WriteRepo:
     def get_user_access(self, **kwargs):
         return {"user_id": kwargs["user_id"], "role": "OPERATOR", "active": True}
+
+    def update_account_fields(self, **kwargs):
+        return {"id": kwargs["account_id"], **kwargs["fields"]}
+
+    def update_contact_fields(self, **kwargs):
+        return {"decision_maker_id": str(kwargs["decision_maker_id"]), **kwargs["fields"]}
+
+    def list_crm_members(self):
+        return [{"user_id": str(ACTOR.user_id), "email": "operator@example.com", "role": "OPERATOR", "active": True}]
     def initialize_account_state(self, **kwargs):
         return {"account_id": kwargs["account_id"], "state": "NEW"}
 
@@ -119,3 +131,11 @@ def test_bulk_operations_return_per_record_results():
         expected_versions={1:1,2:1}, actor=ACTOR,
     )
     assert assigned["meta"]["failed"] == 1
+
+
+def test_account_and_contact_profile_mutations_are_exposed():
+    obj=service()
+    assert obj.update_account_fields(account_id=1, fields={"name":"Acme"}, actor=ACTOR)["data"]["name"] == "Acme"
+    assert obj.update_contact_fields(decision_maker_id=uuid4(), fields={"title":"CTO"}, actor=ACTOR)["data"]["title"] == "CTO"
+    assert obj.contact_360(decision_maker_id=uuid4())["data"]["contact"]["decision_maker_id"]
+    assert obj.crm_members()["data"][0]["role"] == "OPERATOR"

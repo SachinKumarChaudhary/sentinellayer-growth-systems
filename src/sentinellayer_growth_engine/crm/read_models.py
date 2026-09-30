@@ -287,6 +287,88 @@ class CRMReadModelRepository:
             )
             return [dict(row) for row in cur.fetchall()]
 
+    def get_contact_360(self, *, decision_maker_id: UUID) -> dict[str, Any]:
+        with self._connection_factory() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                select dm.decision_maker_id, dm.company_id, c.name as company_name,
+                       c.domain, dm.full_name, dm.title, dm.role_family,
+                       dm.role_priority, dm.rationale, dm.status, dm.research_status,
+                       dm.confidence, dm.first_seen_at, dm.last_verified_at,
+                       dm.created_at, dm.updated_at,
+                       coalesce(cs.state, 'NOT_CONTACTED') as state,
+                       cs.owner_user_id, coalesce(cs.version, 0) as version
+                from growth.decision_makers dm
+                join public.companies c on c.id = dm.company_id
+                left join crm.contact_state cs on cs.decision_maker_id = dm.decision_maker_id
+                where dm.decision_maker_id = %s
+                """,
+                (decision_maker_id,),
+            )
+            person = cur.fetchone()
+            if person is None:
+                raise KeyError(f"contact {decision_maker_id} not found")
+            cur.execute(
+                """
+                select contact_method_id, channel, value, normalized_value,
+                       verification_status, confidence, source, first_seen_at, last_verified_at
+                from growth.decision_maker_contact_methods
+                where decision_maker_id = %s
+                order by channel, contact_method_id
+                """,
+                (decision_maker_id,),
+            )
+            contact_methods = [dict(row) for row in cur.fetchall()]
+            cur.execute(
+                """
+                select note_id, account_id, body, author_user_id, created_at, updated_at
+                from crm.notes
+                where decision_maker_id = %s
+                order by created_at desc
+                """,
+                (decision_maker_id,),
+            )
+            notes = [dict(row) for row in cur.fetchall()]
+            cur.execute(
+                """
+                with events as (
+                  select coalesce(tp.executed_at, tp.scheduled_at, tp.created_at) as occurred_at,
+                         'activity'::text as event_type, tp.touchpoint_id::text as event_id,
+                         tp.channel, tp.touchpoint_type,
+                         coalesce(tp.metadata->>'summary', tp.touchpoint_type) as summary
+                  from outreach.touchpoints tp
+                  where tp.decision_maker_id = %s
+                  union all
+                  select r.received_at, 'reply'::text, r.reply_id::text, null::text,
+                         'reply', left(r.body_text, 500)
+                  from conversation.replies r
+                  where r.person_id = %s::text or r.canonical_person_id = %s
+                  union all
+                  select h.occurred_at, 'state_changed'::text, h.history_id::text,
+                         null::text, 'state_changed', concat(coalesce(h.from_state,'∅'),' → ',h.to_state)
+                  from crm.state_history h
+                  where h.entity_type = 'contact' and h.entity_id = %s::text
+                  union all
+                  select t.created_at, 'task'::text, t.sales_task_id::text,
+                         null::text, null::text, t.trigger_type || ': ' || t.recommended_action
+                  from sales.tasks t
+                  where t.canonical_person_id = %s
+                )
+                select occurred_at, event_type, event_id, channel, touchpoint_type, summary
+                from events
+                order by occurred_at desc nulls last, event_id desc
+                limit 200
+                """,
+                (decision_maker_id, str(decision_maker_id), decision_maker_id, str(decision_maker_id), decision_maker_id),
+            )
+            timeline = [dict(row) for row in cur.fetchall()]
+            return {
+                "contact": dict(person),
+                "contact_methods": contact_methods,
+                "notes": notes,
+                "timeline": timeline,
+            }
+
     def list_contacts(
         self, *, query: str | None = None, account_id: int | None = None,
         state: str | None = None, channel: str | None = None,

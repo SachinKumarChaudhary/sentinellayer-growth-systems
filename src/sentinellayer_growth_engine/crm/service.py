@@ -98,6 +98,12 @@ class CRMService:
         except Exception as exc:
             raise self._map_error(exc) from exc
 
+    def contact_360(self, *, decision_maker_id: UUID) -> dict[str, Any]:
+        try:
+            return {"data": self._read.get_contact_360(decision_maker_id=decision_maker_id), "meta": {}}
+        except Exception as exc:
+            raise self._map_error(exc) from exc
+
     def pipeline(self) -> dict[str, Any]:
         try:
             return self._read.pipeline_summary()
@@ -107,6 +113,40 @@ class CRMService:
     def account_360(self, *, account_id: int) -> dict[str, Any]:
         try:
             return {"data": self._read.get_account_360(account_id=account_id), "meta": {}}
+        except Exception as exc:
+            raise self._map_error(exc) from exc
+
+    def update_account_fields(
+        self, *, account_id: int, fields: dict[str, Any], actor: CRMActor,
+        request_id: str | None = None, idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        actor = self._require_actor(actor)
+        try:
+            data = self._write.update_account_fields(
+                account_id=account_id, fields=fields, actor_user_id=actor.user_id,
+                request_id=request_id, idempotency_key=idempotency_key,
+            )
+            return {"data": data, "meta": {"request_id": request_id}}
+        except Exception as exc:
+            raise self._map_error(exc) from exc
+
+    def update_contact_fields(
+        self, *, decision_maker_id: UUID, fields: dict[str, Any], actor: CRMActor,
+        request_id: str | None = None, idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        actor = self._require_actor(actor)
+        try:
+            data = self._write.update_contact_fields(
+                decision_maker_id=decision_maker_id, fields=fields, actor_user_id=actor.user_id,
+                request_id=request_id, idempotency_key=idempotency_key,
+            )
+            return {"data": data, "meta": {"request_id": request_id}}
+        except Exception as exc:
+            raise self._map_error(exc) from exc
+
+    def crm_members(self) -> dict[str, Any]:
+        try:
+            return {"data": self._write.list_crm_members(), "meta": {}}
         except Exception as exc:
             raise self._map_error(exc) from exc
 
