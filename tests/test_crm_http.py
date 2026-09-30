@@ -64,6 +64,24 @@ class FakeService:
     def create_note(self, **kwargs):
         return {"data": {"note_id": "n1"}, "meta": {"request_id": kwargs["request_id"]}}
 
+    def export(self, **kwargs):
+        return {"data": [{"id": 1}], "meta": {"entity": kwargs["entity"], "count": 1}}
+
+    def opportunities(self, **kwargs):
+        return {"data": [{"opportunity_id": "opp-1", "stage": kwargs.get("stage") or "QUALIFIED"}], "meta": {"has_more": False}}
+
+    def opportunity(self, **kwargs):
+        return {"data": {"opportunity_id": str(kwargs["opportunity_id"]), "stage": "QUALIFIED"}, "meta": {}}
+
+    def create_opportunity(self, **kwargs):
+        return {"data": {"opportunity_id": "opp-1", "name": kwargs["name"], "stage": kwargs["stage"]}, "meta": {"request_id": kwargs["request_id"]}}
+
+    def update_opportunity(self, **kwargs):
+        return {"data": {"opportunity_id": str(kwargs["opportunity_id"]), **kwargs["fields"]}, "meta": {"request_id": kwargs["request_id"]}}
+
+    def transition_opportunity(self, **kwargs):
+        return {"data": {"opportunity_id": str(kwargs["opportunity_id"]), "stage": kwargs["to_stage"]}, "meta": {"request_id": kwargs["request_id"]}}
+
 
 def app(actor=ACTOR):
     return CRMHTTPApplication(FakeService(), lambda headers: actor)
@@ -158,3 +176,59 @@ def test_contact_profile_and_edit_routes():
     status, payload = app().handle(method="PATCH", target=f"/v1/crm/contacts/{person}", headers={"Idempotency-Key":"edit-2"}, body={"fields":{"title":"CTO"}})
     assert status == 200
     assert payload["data"]["title"] == "CTO"
+
+
+def test_opportunity_routes_cover_create_list_detail_update_and_stage_transition():
+    person = "00153984-f963-4c99-bf20-c0993b86c93b"
+    headers = {"X-Request-ID": "opp-1", "Idempotency-Key": "opp-1"}
+
+    status, payload = app().handle(
+        method="GET",
+        target="/v1/crm/opportunities?stage=DISCOVERY&limit=10",
+        headers=headers,
+    )
+    assert status == 200
+    assert payload["data"][0]["stage"] == "DISCOVERY"
+
+    status, payload = app().handle(
+        method="POST",
+        target="/v1/crm/opportunities",
+        headers=headers,
+        body={"account_id": 42, "name": "SentinelLayer Pilot", "primary_contact_id": person},
+    )
+    assert status == 201
+    assert payload["data"]["name"] == "SentinelLayer Pilot"
+
+    status, payload = app().handle(
+        method="GET",
+        target="/v1/crm/opportunities/00153984-f963-4c99-bf20-c0993b86c93b",
+        headers={},
+    )
+    assert status == 200
+
+    status, payload = app().handle(
+        method="PATCH",
+        target="/v1/crm/opportunities/00153984-f963-4c99-bf20-c0993b86c93b",
+        headers={"Idempotency-Key": "opp-edit"},
+        body={"fields": {"value": 2500}, "expected_version": 1},
+    )
+    assert status == 200
+    assert payload["data"]["value"] == 2500
+
+    status, payload = app().handle(
+        method="POST",
+        target="/v1/crm/opportunities/00153984-f963-4c99-bf20-c0993b86c93b/stages",
+        headers={"Idempotency-Key": "opp-stage"},
+        body={"to_stage": "PROPOSAL", "expected_version": 2},
+    )
+    assert status == 200
+    assert payload["data"]["stage"] == "PROPOSAL"
+
+
+def test_export_route_requires_auth_and_returns_entity_envelope():
+    status, payload = app().handle(
+        method="GET", target="/v1/crm/export?entity=opportunities", headers={}
+    )
+    assert status == 200
+    assert payload["meta"]["entity"] == "opportunities"
+    assert payload["meta"]["count"] == 1

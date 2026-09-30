@@ -58,6 +58,24 @@ class WriteRepo:
     def create_task(self, **kwargs):
         return {"sales_task_id": "task-1"}
 
+    def export_records(self, **kwargs):
+        return [{"id": 1}]
+
+    def list_opportunities(self, **kwargs):
+        return [{"opportunity_id": "opp-1", "stage": kwargs.get("stage") or "QUALIFIED"}]
+
+    def get_opportunity(self, **kwargs):
+        return {"opportunity_id": str(kwargs["opportunity_id"]), "stage": "QUALIFIED"}
+
+    def create_opportunity(self, **kwargs):
+        return {"opportunity_id": "opp-1", "name": kwargs["name"], "stage": kwargs["stage"]}
+
+    def update_opportunity(self, **kwargs):
+        return {"opportunity_id": str(kwargs["opportunity_id"]), **kwargs["fields"]}
+
+    def transition_opportunity(self, **kwargs):
+        return {"opportunity_id": str(kwargs["opportunity_id"]), "stage": kwargs["to_stage"]}
+
     def list_task_queue(self, **kwargs):
         return [{"sales_task_id": "task-1"}]
 
@@ -131,6 +149,29 @@ def test_bulk_operations_return_per_record_results():
         expected_versions={1:1,2:1}, actor=ACTOR,
     )
     assert assigned["meta"]["failed"] == 1
+
+
+def test_opportunity_and_export_services_are_exposed():
+    obj = service()
+    opportunity_id = uuid4()
+    assert obj.export(entity="opportunities", actor=ACTOR)["data"][0]["id"] == 1
+    assert obj.opportunities(stage="DISCOVERY")["data"][0]["stage"] == "DISCOVERY"
+    assert obj.opportunity(opportunity_id=opportunity_id)["data"]["opportunity_id"] == str(opportunity_id)
+    created = obj.create_opportunity(
+        account_id=1, name="Pilot", owner_user_id=ACTOR.user_id, actor=ACTOR,
+        stage="QUALIFIED", request_id="opp-create", idempotency_key="opp-create",
+    )
+    assert created["data"]["name"] == "Pilot"
+    updated = obj.update_opportunity(
+        opportunity_id=opportunity_id, fields={"value": 100}, expected_version=1,
+        actor=ACTOR,
+    )
+    assert updated["data"]["value"] == 100
+    moved = obj.transition_opportunity(
+        opportunity_id=opportunity_id, to_stage="DISCOVERY", expected_version=2,
+        actor=ACTOR,
+    )
+    assert moved["data"]["stage"] == "DISCOVERY"
 
 
 def test_account_and_contact_profile_mutations_are_exposed():
