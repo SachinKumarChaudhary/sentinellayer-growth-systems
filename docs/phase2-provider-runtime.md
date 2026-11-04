@@ -36,7 +36,7 @@ The manual workflow:
 - optionally runs one minimal Groq completion;
 - processes zero leads, writes no database rows, sends no email, and does not call QorpIQ's paid REST API.
 
-The Keenable step checks MCP connection only; it does not execute a search query or consume a deliberate search credit. Live research calls should be introduced as an explicitly budgeted pilot after credentials and connectivity pass.
+The normal preflight checks Keenable MCP connection only; it does not execute a search query. A separate `run_live_mcp_pilot` dispatch input is disabled by default. When explicitly enabled, OpenCode is instructed to make at most one QorpIQ public-MCP company lookup and at most one Keenable SELECT search for Reliance Industries Limited, with no retries and no other providers. The transcript is uploaded as a GitHub Actions artifact for inspection. This is a provider-tool smoke test, not an EntityResolutionDecision or a lead batch.
 
 ## Provider role and evidence rules
 
