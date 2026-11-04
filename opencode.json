@@ -1,0 +1,23 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "{env:OPENCODE_MODEL}",
+  "mcp": {
+    "servers": {
+      "keenable-select": {
+        "type": "remote",
+        "url": "https://select.keenable.ai/mcp",
+        "enabled": true,
+        "oauth": false,
+        "headers": {
+          "X-API-Key": "{env:KEENABLE_API_KEY}"
+        }
+      },
+      "qorpiq": {
+        "type": "remote",
+        "url": "https://mcp.qorpiq.com/mcp",
+        "enabled": true,
+        "oauth": false
+      }
+    }
+  }
+}
