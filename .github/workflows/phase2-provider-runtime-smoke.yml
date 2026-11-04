@@ -8,6 +8,11 @@ on:
         required: true
         type: boolean
         default: true
+      run_live_mcp_pilot:
+        description: "Spend one bounded Keenable search and run one QorpIQ public MCP lookup"
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -84,6 +89,24 @@ jobs:
             "Reply with exactly this token and nothing else: PHASE2_GROQ_RUNTIME_OK" \
             | tee /tmp/opencode-model-smoke.txt
           grep -q 'PHASE2_GROQ_RUNTIME_OK' /tmp/opencode-model-smoke.txt
+
+      - name: Optional one-call-per-provider live MCP pilot
+        if: inputs.run_live_mcp_pilot
+        shell: bash
+        run: |
+          set -euo pipefail
+          prompt='Use only the configured QorpIQ public MCP and Keenable SELECT MCP. Make at most one tool call to QorpIQ to look up the Indian company name "Reliance Industries Limited", and at most one tool call to Keenable SELECT to search for the official legal identity/CIN of "Reliance Industries Limited". Do not call the QorpIQ paid REST API. Do not use TinyFish, Exa, a browser, or any other provider. Do not retry either provider. Inspect available MCP tool descriptions to choose the correct tool names. Do not invent fields or results: report a provider as unavailable if its tool is missing or the call fails. Summarize returned fields and source URLs, not a final entity-resolution decision. End with the exact line PHASE2_LIVE_MCP_PILOT_DONE.'
+          opencode --standalone --auto run --model "$OPENCODE_MODEL" "$prompt" \
+            | tee /tmp/phase2-live-mcp-pilot.log
+          grep -q 'PHASE2_LIVE_MCP_PILOT_DONE' /tmp/phase2-live-mcp-pilot.log
+
+      - name: Upload optional live MCP pilot transcript
+        if: always() && inputs.run_live_mcp_pilot
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2-live-mcp-pilot-${{ github.run_id }}
+          path: /tmp/phase2-live-mcp-pilot.log
+          if-no-files-found: warn
 
       - name: Runtime boundary summary
         if: always()
