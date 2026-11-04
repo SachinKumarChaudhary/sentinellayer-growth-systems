@@ -1,0 +1,101 @@
+name: Phase 2 Provider Runtime Smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_groq_smoke:
+        description: "Run a minimal Groq model request after provider connection checks"
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase2-provider-runtime-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  provider-runtime-smoke:
+    runs-on: ubuntu-latest
+    environment: staging-mail
+    timeout-minutes: 12
+    env:
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      KEENABLE_API_KEY: ${{ secrets.KEENABLE_API_KEY }}
+      DATA_GOV_IN_API_KEY: ${{ secrets.DATA_GOV_IN_API_KEY }}
+      OPENCODE_MODEL: groq/openai/gpt-oss-20b
+      SL_ENVIRONMENT: development
+      SL_REAL_EMAIL_ENABLED: "false"
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install OpenCode CLI
+        run: npm install --global @opencode/cli@2.0.18
+
+      - name: Validate required credentials without printing values
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in GROQ_API_KEY KEENABLE_API_KEY DATA_GOV_IN_API_KEY; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::Missing required secret: ${name}"
+              exit 2
+            fi
+          done
+          echo "Required provider credentials are present."
+
+      - name: Verify Keenable and QorpIQ MCP connections
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$(opencode --standalone mcp list 2>&1)" || {
+            echo "$output"
+            exit 1
+          }
+          echo "$output"
+          grep -Eq '✓[[:space:]]+keenable-select[[:space:]]+connected' <<<"$output" || {
+            echo "::error::Keenable SELECT MCP did not connect."
+            exit 1
+          }
+          grep -Eq '✓[[:space:]]+qorpiq[[:space:]]+connected' <<<"$output" || {
+            echo "::error::QorpIQ public MCP did not connect."
+            exit 1
+          }
+
+      - name: Verify data.gov.in and QorpIQ registry service health
+        run: python scripts/phase2_provider_runtime_smoke.py
+
+      - name: Verify Groq model execution
+        if: inputs.run_groq_smoke
+        run: |
+          set -euo pipefail
+          opencode run --standalone --model "$OPENCODE_MODEL" \
+            "Reply with exactly this token and nothing else: PHASE2_GROQ_RUNTIME_OK" \
+            | tee /tmp/opencode-model-smoke.txt
+          grep -q 'PHASE2_GROQ_RUNTIME_OK' /tmp/opencode-model-smoke.txt
+
+      - name: Runtime boundary summary
+        if: always()
+        run: |
+          {
+            echo "workflow=phase2-provider-runtime-smoke"
+            echo "commit=$GITHUB_SHA"
+            echo "qorpiq_public_mcp=no_api_key"
+            echo "keenable=actions_secret"
+            echo "data_gov_in=actions_secret"
+            echo "groq=actions_secret"
+            echo "phase2_leads_processed=0"
+            echo "database_written=false"
+            echo "real_email_enabled=false"
+          } >> "$GITHUB_STEP_SUMMARY"
