@@ -114,7 +114,7 @@ run_version() {
   docker run -d --name "$pg" --network "$network" \
     --memory=512m --memory-swap=512m --cpus=0.5 \
     -e POSTGRES_USER=bench -e POSTGRES_PASSWORD=bench-only-not-real \
-    -e POSTGRES_DB=n8nbench postgres:16-alpine >/dev/null
+    -e POSTGRES_DB=n8nbench postgres:17-alpine >/dev/null
 
   local pg_ready=0
   for ((i=0; i<90; i++)); do
@@ -132,18 +132,18 @@ run_version() {
   if [[ -z "$failure" ]]; then
     if ! docker run -d --name "$container" --network "$network" \
       -p 127.0.0.1:5678:5678 \
-      --memory=512m --memory-swap=512m --cpus=0.1 --pids-limit=256 \
+      --memory=1g --memory-swap=1g --cpus=1 --pids-limit=256 \
       -e DB_TYPE=postgresdb \
       -e DB_POSTGRESDB_HOST="$pg" -e DB_POSTGRESDB_PORT=5432 \
       -e DB_POSTGRESDB_DATABASE=n8nbench -e DB_POSTGRESDB_USER=bench \
       -e DB_POSTGRESDB_PASSWORD=bench-only-not-real \
       -e N8N_ENCRYPTION_KEY=disposable-n8n-benchmark-key-2026-only \
       -e N8N_INSTANCE_OWNER_MANAGED_BY_ENV=true \
-      -e N8N_INSTANCE_OWNER_EMAIL=benchmark@example.test \
+      -e N8N_INSTANCE_OWNER_EMAIL=benchmark@example.com \
       -e N8N_INSTANCE_OWNER_FIRST_NAME=Benchmark \
       -e N8N_INSTANCE_OWNER_LAST_NAME=Only \
       -e N8N_INSTANCE_OWNER_PASSWORD_HASH="$OWNER_HASH" \
-      -e N8N_RUNNERS_ENABLED=true -e N8N_RUNNERS_MODE=internal \
+      -e N8N_RUNNERS_MODE=internal \
       -e N8N_RUNNERS_MAX_CONCURRENCY=5 \
       -e N8N_DIAGNOSTICS_ENABLED=false \
       -e N8N_VERSION_NOTIFICATIONS_ENABLED=false \
@@ -169,10 +169,18 @@ run_version() {
       status="FAIL"
       failure="workflow publish failed"
     else
-      docker restart "$container" >/dev/null
-      if ! wait_for_health 180; then
+      # Migrations and one-time workflow setup run with headroom. Stop n8n,
+      # apply the Render-equivalent cap, then measure only the steady-state server.
+      docker stop "$container" >/dev/null
+      if ! docker update --memory=512m --memory-swap=512m --cpus=0.1 "$container" >/dev/null; then
         status="FAIL"
-        failure="n8n did not become healthy after workflow publication"
+        failure="could not apply the 512 MiB steady-state limit"
+      elif ! docker start "$container" >/dev/null; then
+        status="FAIL"
+        failure="n8n could not restart under the 512 MiB limit"
+      elif ! wait_for_health 180; then
+        status="FAIL"
+        failure="n8n did not become healthy under the 512 MiB limit"
       fi
     fi
   fi
@@ -226,7 +234,7 @@ run_version() {
 cat > "$OUT/report.md" <<'EOF'
 # n8n image comparison — 512 MiB container cap
 
-Both images run sequentially with the same PostgreSQL backend, owner bootstrap, internal task runners (concurrency 5), and synthetic webhook workflow. Each n8n container is limited to 512 MiB RAM and 0.1 CPU. The database runs in a separate container, so its memory is not counted against the n8n container. This is an isolated GitHub-hosted benchmark, not a reproduction of Render's host or exact persisted service configuration.
+Both images run sequentially with the same PostgreSQL 17 backend, owner bootstrap, internal task runners (concurrency 5), and synthetic webhook workflow. One-time database migrations and workflow import are completed with 1 GiB headroom. The n8n container is then stopped, capped at 512 MiB RAM and 0.1 CPU, restarted, and measured only in steady state. The database runs separately, so its memory is not counted against n8n. This is an isolated GitHub-hosted benchmark, not a reproduction of Render's host or exact persisted service configuration.
 
 EOF
 
