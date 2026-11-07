@@ -1,0 +1,48 @@
+{
+  "id": "benchMemoryTest001",
+  "name": "Disposable n8n memory benchmark",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "memory-bench",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "bench-webhook-node",
+      "name": "Benchmark Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "webhookId": "n8n-memory-benchmark-only"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const count = 5000;\nconst payloadBytes = 2048;\nconst runId = String($json.body?.runId ?? 'test');\nreturn Array.from({ length: count }, (_, index) => ({\n  json: {\n    id: index,\n    company: `benchmark-${runId}-${index}`,\n    payload: `${runId}-${index}-` + 'x'.repeat(payloadBytes)\n  }\n}));"
+      },
+      "id": "bench-code-node",
+      "name": "Generate Synthetic Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [280, 0]
+    }
+  ],
+  "connections": {
+    "Benchmark Webhook": {
+      "main": [
+        [
+          {
+            "node": "Generate Synthetic Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false
+}
