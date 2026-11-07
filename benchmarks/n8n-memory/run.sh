@@ -160,28 +160,93 @@ run_version() {
   fi
 
   if [[ -z "$failure" ]]; then
-    docker exec "$container" node --version > "$dir/node-version.txt" 2>&1 || true
-    docker cp "$WORKFLOW_JSON" "$container:/tmp/memory-benchmark.json" >/dev/null
-    if ! docker exec -u node "$container" n8n import:workflow --input=/tmp/memory-benchmark.json > "$dir/import.log" 2>&1; then
-      status="FAIL"
-      failure="workflow import failed"
-    elif ! docker exec -u node "$container" n8n publish:workflow --id=benchMemoryTest001 > "$dir/publish.log" 2>&1; then
-      status="FAIL"
-      failure="workflow publish failed"
-    else
-      # Migrations and one-time workflow setup run with headroom. Stop n8n,
-      # apply the Render-equivalent cap, then measure only the steady-state server.
-      docker stop "$container" >/dev/null
-      if ! docker update --memory=512m --memory-swap=512m --cpus=0.1 "$container" >/dev/null; then
-        status="FAIL"
-        failure="could not apply the 512 MiB steady-state limit"
-      elif ! docker start "$container" >/dev/null; then
-        status="FAIL"
-        failure="n8n could not restart under the 512 MiB limit"
-      elif ! wait_for_health 180; then
-        status="FAIL"
-        failure="n8n did not become healthy under the 512 MiB limit"
+    # Health can return before database migrations finish. Wait for the editor-ready message.
+    local ready=0
+    for ((i=0; i<240; i++)); do
+      if docker logs "$container" 2>&1 | grep -Eq 'Editor is now accessible|n8n ready on'; then
+        ready=1
+        break
       fi
+      if ! docker inspect -f '{{.State.Running}}' "$container" 2>/dev/null | grep -q true; then break; fi
+      sleep 1
+    done
+    if [[ "$ready" -ne 1 ]]; then
+      status="FAIL"
+      failure="n8n bootstrap did not finish database migrations"
+    fi
+  fi
+
+  if [[ -z "$failure" ]]; then
+    docker exec "$container" node --version > "$dir/node-version.txt" 2>&1 || true
+    # Stop the server before any CLI operation; this prevents concurrent migrations.
+    docker stop "$container" >/dev/null
+    docker rm "$container" >/dev/null
+
+    if ! docker run --rm --network "$network" --memory=1g --memory-swap=1g --cpus=1 \
+      -e DB_TYPE=postgresdb \
+      -e DB_POSTGRESDB_HOST="$pg" -e DB_POSTGRESDB_PORT=5432 \
+      -e DB_POSTGRESDB_DATABASE=n8nbench -e DB_POSTGRESDB_USER=bench \
+      -e DB_POSTGRESDB_PASSWORD=bench-only-not-real \
+      -e N8N_ENCRYPTION_KEY=disposable-n8n-benchmark-key-2026-only \
+      -e N8N_INSTANCE_OWNER_MANAGED_BY_ENV=true \
+      -e N8N_INSTANCE_OWNER_EMAIL=benchmark@example.com \
+      -e N8N_INSTANCE_OWNER_FIRST_NAME=Benchmark \
+      -e N8N_INSTANCE_OWNER_LAST_NAME=Only \
+      -e N8N_INSTANCE_OWNER_PASSWORD_HASH="$OWNER_HASH" \
+      -e N8N_RUNNERS_MODE=internal -e N8N_RUNNERS_MAX_CONCURRENCY=5 \
+      -e N8N_RUNNERS_GRANT_TOKEN_TTL=120 -e N8N_RUNNERS_TASK_TIMEOUT=300 \
+      -e N8N_DIAGNOSTICS_ENABLED=false -e N8N_VERSION_NOTIFICATIONS_ENABLED=false \
+      -e N8N_LOG_LEVEL=info \
+      -v "$WORKFLOW_JSON:/tmp/memory-benchmark.json:ro" \
+      "$image" import:workflow --input=/tmp/memory-benchmark.json > "$dir/import.log" 2>&1; then
+      status="FAIL"
+      failure="workflow import failed after migrations completed"
+    elif ! docker run --rm --network "$network" --memory=1g --memory-swap=1g --cpus=1 \
+      -e DB_TYPE=postgresdb \
+      -e DB_POSTGRESDB_HOST="$pg" -e DB_POSTGRESDB_PORT=5432 \
+      -e DB_POSTGRESDB_DATABASE=n8nbench -e DB_POSTGRESDB_USER=bench \
+      -e DB_POSTGRESDB_PASSWORD=bench-only-not-real \
+      -e N8N_ENCRYPTION_KEY=disposable-n8n-benchmark-key-2026-only \
+      -e N8N_INSTANCE_OWNER_MANAGED_BY_ENV=true \
+      -e N8N_INSTANCE_OWNER_EMAIL=benchmark@example.com \
+      -e N8N_INSTANCE_OWNER_FIRST_NAME=Benchmark \
+      -e N8N_INSTANCE_OWNER_LAST_NAME=Only \
+      -e N8N_INSTANCE_OWNER_PASSWORD_HASH="$OWNER_HASH" \
+      -e N8N_RUNNERS_MODE=internal -e N8N_RUNNERS_MAX_CONCURRENCY=5 \
+      -e N8N_RUNNERS_GRANT_TOKEN_TTL=120 -e N8N_RUNNERS_TASK_TIMEOUT=300 \
+      -e N8N_DIAGNOSTICS_ENABLED=false -e N8N_VERSION_NOTIFICATIONS_ENABLED=false \
+      -e N8N_LOG_LEVEL=info \
+      "$image" publish:workflow --id=benchMemoryTest001 > "$dir/publish.log" 2>&1; then
+      status="FAIL"
+      failure="workflow publish failed while n8n was stopped"
+    fi
+  fi
+
+  # Start the measured service directly under the 512 MiB / 0.1 CPU limits.
+  if [[ -z "$failure" ]]; then
+    docker run -d --name "$container" --network "$network" \
+      -p 127.0.0.1:5678:5678 --memory=512m --memory-swap=512m --cpus=0.1 --pids-limit=256 \
+      -e DB_TYPE=postgresdb \
+      -e DB_POSTGRESDB_HOST="$pg" -e DB_POSTGRESDB_PORT=5432 \
+      -e DB_POSTGRESDB_DATABASE=n8nbench -e DB_POSTGRESDB_USER=bench \
+      -e DB_POSTGRESDB_PASSWORD=bench-only-not-real \
+      -e N8N_ENCRYPTION_KEY=disposable-n8n-benchmark-key-2026-only \
+      -e N8N_INSTANCE_OWNER_MANAGED_BY_ENV=true \
+      -e N8N_INSTANCE_OWNER_EMAIL=benchmark@example.com \
+      -e N8N_INSTANCE_OWNER_FIRST_NAME=Benchmark \
+      -e N8N_INSTANCE_OWNER_LAST_NAME=Only \
+      -e N8N_INSTANCE_OWNER_PASSWORD_HASH="$OWNER_HASH" \
+      -e N8N_RUNNERS_MODE=internal -e N8N_RUNNERS_MAX_CONCURRENCY=5 \
+      -e N8N_RUNNERS_GRANT_TOKEN_TTL=120 -e N8N_RUNNERS_TASK_TIMEOUT=300 \
+      -e N8N_DIAGNOSTICS_ENABLED=false -e N8N_VERSION_NOTIFICATIONS_ENABLED=false \
+      -e N8N_LOG_LEVEL=info \
+      "$image" >/dev/null
+    if ! wait_for_health 300; then
+      status="FAIL"
+      failure="n8n did not become healthy under the 512 MiB limit"
+    else
+      # Give the JS task runner time to authenticate under the constrained CPU quota.
+      sleep 35
     fi
   fi
 
@@ -234,7 +299,7 @@ run_version() {
 cat > "$OUT/report.md" <<'EOF'
 # n8n image comparison — 512 MiB container cap
 
-Both images run sequentially with the same PostgreSQL 17 backend, owner bootstrap, internal task runners (concurrency 5), and synthetic webhook workflow. One-time database migrations and workflow import are completed with 1 GiB headroom. The n8n container is then stopped, capped at 512 MiB RAM and 0.1 CPU, restarted, and measured only in steady state. The database runs separately, so its memory is not counted against n8n. This is an isolated GitHub-hosted benchmark, not a reproduction of Render's host or exact persisted service configuration.
+Both images run sequentially against PostgreSQL 17. A bootstrap server completes database migrations and is stopped before workflow import and publication, avoiding concurrent migration races. The measured server runs at 512 MiB RAM and 0.1 CPU. Both versions use the same internal JS task-runner configuration and a 120-second grant-token TTL so slow runner startup does not invalidate the comparison. The database runs separately. This is an isolated GitHub-hosted benchmark, not a reproduction of Render's full host or persisted service configuration.
 
 EOF
 
