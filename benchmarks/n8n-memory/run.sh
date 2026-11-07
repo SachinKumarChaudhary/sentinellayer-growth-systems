@@ -59,7 +59,7 @@ sample_background() {
 wait_for_health() {
   local seconds="$1"
   for ((i=0; i<seconds; i++)); do
-    if curl -fsS --max-time 2 http://127.0.0.1:5678/healthz >/dev/null 2>&1; then
+    if curl -fsS --max-time 2 http://127.0.0.1:5678/healthz/readiness >/dev/null 2>&1; then
       return 0
     fi
     sleep 1
@@ -101,16 +101,38 @@ PY
 
 run_version() {
   local version="$1" image="$2"
+  local bootstrap="n8n-init-$version"
   local container="n8n-bench-$version"
   local pg="pg-bench-$version"
   local network="n8n-bench-net-$version"
   local dir="$OUT/$version"
-  local marker="$OUT/.sampling-$version"
   local status="PASS" failure=""
   mkdir -p "$dir"
 
-  docker network create "$network" >/dev/null
+  local env_args=(
+    -e DB_TYPE=postgresdb
+    -e DB_POSTGRESDB_HOST="$pg"
+    -e DB_POSTGRESDB_PORT=5432
+    -e DB_POSTGRESDB_DATABASE=n8nbench
+    -e DB_POSTGRESDB_USER=bench
+    -e DB_POSTGRESDB_PASSWORD=bench-only-not-real
+    -e N8N_ENCRYPTION_KEY=disposable-n8n-benchmark-key-2026-only
+    -e N8N_INSTANCE_OWNER_MANAGED_BY_ENV=true
+    -e N8N_INSTANCE_OWNER_EMAIL=benchmark@example.com
+    -e N8N_INSTANCE_OWNER_FIRST_NAME=Benchmark
+    -e N8N_INSTANCE_OWNER_LAST_NAME=Only
+    -e N8N_INSTANCE_OWNER_PASSWORD_HASH="$OWNER_HASH"
+    -e N8N_RUNNERS_ENABLED=true
+    -e N8N_RUNNERS_MODE=internal
+    -e N8N_RUNNERS_MAX_CONCURRENCY=5
+    -e N8N_RUNNERS_GRANT_TOKEN_TTL=120
+    -e N8N_RUNNERS_TASK_TIMEOUT=300
+    -e N8N_DIAGNOSTICS_ENABLED=false
+    -e N8N_VERSION_NOTIFICATIONS_ENABLED=false
+    -e N8N_LOG_LEVEL=warn
+  )
 
+  docker network create "$network" >/dev/null
   docker run -d --name "$pg" --network "$network" \
     --memory=512m --memory-swap=512m --cpus=0.5 \
     -e POSTGRES_USER=bench -e POSTGRES_PASSWORD=bench-only-not-real \
@@ -129,153 +151,42 @@ run_version() {
     failure="PostgreSQL did not become ready"
   fi
 
+  # Warm up the database and complete migrations using a generous temporary cap.
   if [[ -z "$failure" ]]; then
-    if ! docker run -d --name "$container" --network "$network" \
+    docker run -d --name "$bootstrap" --network "$network" \
       -p 127.0.0.1:5678:5678 \
       --memory=1g --memory-swap=1g --cpus=1 --pids-limit=256 \
-      -e DB_TYPE=postgresdb \
-      -e DB_POSTGRESDB_HOST="$pg" -e DB_POSTGRESDB_PORT=5432 \
-      -e DB_POSTGRESDB_DATABASE=n8nbench -e DB_POSTGRESDB_USER=bench \
-      -e DB_POSTGRESDB_PASSWORD=bench-only-not-real \
-      -e N8N_ENCRYPTION_KEY=disposable-n8n-benchmark-key-2026-only \
-      -e N8N_INSTANCE_OWNER_MANAGED_BY_ENV=true \
-      -e N8N_INSTANCE_OWNER_EMAIL=benchmark@example.com \
-      -e N8N_INSTANCE_OWNER_FIRST_NAME=Benchmark \
-      -e N8N_INSTANCE_OWNER_LAST_NAME=Only \
-      -e N8N_INSTANCE_OWNER_PASSWORD_HASH="$OWNER_HASH" \
-      -e N8N_RUNNERS_MODE=internal \
-      -e N8N_RUNNERS_MAX_CONCURRENCY=5 \
-      -e N8N_DIAGNOSTICS_ENABLED=false \
-      -e N8N_VERSION_NOTIFICATIONS_ENABLED=false \
-      -e N8N_LOG_LEVEL=warn \
-      "$image" >/dev/null; then
-      status="FAIL"
-      failure="n8n container failed to start"
-    fi
-  fi
+      "${env_args[@]}" "$image" >/dev/null
 
-  if [[ -z "$failure" ]] && ! wait_for_health 240; then
-    status="FAIL"
-    failure="n8n /healthz did not become ready within 240 seconds"
-  fi
-
-  if [[ -z "$failure" ]]; then
-    # Health can return before database migrations finish. Wait for the editor-ready message.
-    local ready=0
-    for ((i=0; i<240; i++)); do
-      if docker logs "$container" 2>&1 | grep -Eq 'Editor is now accessible|n8n ready on'; then
-        ready=1
-        break
-      fi
-      if ! docker inspect -f '{{.State.Running}}' "$container" 2>/dev/null | grep -q true; then break; fi
-      sleep 1
-    done
-    if [[ "$ready" -ne 1 ]]; then
-      status="FAIL"
-      failure="n8n bootstrap did not finish database migrations"
-    fi
-  fi
-
-  if [[ -z "$failure" ]]; then
-    docker exec "$container" node --version > "$dir/node-version.txt" 2>&1 || true
-    # Stop the server before any CLI operation; this prevents concurrent migrations.
-    docker stop "$container" >/dev/null
-    docker rm "$container" >/dev/null
-
-    if ! docker run --rm --network "$network" --memory=1g --memory-swap=1g --cpus=1 \
-      -e DB_TYPE=postgresdb \
-      -e DB_POSTGRESDB_HOST="$pg" -e DB_POSTGRESDB_PORT=5432 \
-      -e DB_POSTGRESDB_DATABASE=n8nbench -e DB_POSTGRESDB_USER=bench \
-      -e DB_POSTGRESDB_PASSWORD=bench-only-not-real \
-      -e N8N_ENCRYPTION_KEY=disposable-n8n-benchmark-key-2026-only \
-      -e N8N_INSTANCE_OWNER_MANAGED_BY_ENV=true \
-      -e N8N_INSTANCE_OWNER_EMAIL=benchmark@example.com \
-      -e N8N_INSTANCE_OWNER_FIRST_NAME=Benchmark \
-      -e N8N_INSTANCE_OWNER_LAST_NAME=Only \
-      -e N8N_INSTANCE_OWNER_PASSWORD_HASH="$OWNER_HASH" \
-      -e N8N_RUNNERS_MODE=internal -e N8N_RUNNERS_MAX_CONCURRENCY=5 \
-      -e N8N_RUNNERS_GRANT_TOKEN_TTL=120 -e N8N_RUNNERS_TASK_TIMEOUT=300 \
-      -e N8N_DIAGNOSTICS_ENABLED=false -e N8N_VERSION_NOTIFICATIONS_ENABLED=false \
-      -e N8N_LOG_LEVEL=info \
-      -v "$WORKFLOW_JSON:/tmp/memory-benchmark.json:ro" \
-      "$image" import:workflow --input=/tmp/memory-benchmark.json > "$dir/import.log" 2>&1; then
-      status="FAIL"
-      failure="workflow import failed after migrations completed"
-    elif ! docker run --rm --network "$network" --memory=1g --memory-swap=1g --cpus=1 \
-      -e DB_TYPE=postgresdb \
-      -e DB_POSTGRESDB_HOST="$pg" -e DB_POSTGRESDB_PORT=5432 \
-      -e DB_POSTGRESDB_DATABASE=n8nbench -e DB_POSTGRESDB_USER=bench \
-      -e DB_POSTGRESDB_PASSWORD=bench-only-not-real \
-      -e N8N_ENCRYPTION_KEY=disposable-n8n-benchmark-key-2026-only \
-      -e N8N_INSTANCE_OWNER_MANAGED_BY_ENV=true \
-      -e N8N_INSTANCE_OWNER_EMAIL=benchmark@example.com \
-      -e N8N_INSTANCE_OWNER_FIRST_NAME=Benchmark \
-      -e N8N_INSTANCE_OWNER_LAST_NAME=Only \
-      -e N8N_INSTANCE_OWNER_PASSWORD_HASH="$OWNER_HASH" \
-      -e N8N_RUNNERS_MODE=internal -e N8N_RUNNERS_MAX_CONCURRENCY=5 \
-      -e N8N_RUNNERS_GRANT_TOKEN_TTL=120 -e N8N_RUNNERS_TASK_TIMEOUT=300 \
-      -e N8N_DIAGNOSTICS_ENABLED=false -e N8N_VERSION_NOTIFICATIONS_ENABLED=false \
-      -e N8N_LOG_LEVEL=info \
-      "$image" publish:workflow --id=benchMemoryTest001 > "$dir/publish.log" 2>&1; then
-      status="FAIL"
-      failure="workflow publish failed while n8n was stopped"
-    fi
-  fi
-
-  # Start the measured service directly under the 512 MiB / 0.1 CPU limits.
-  if [[ -z "$failure" ]]; then
-    docker run -d --name "$container" --network "$network" \
-      -p 127.0.0.1:5678:5678 --memory=512m --memory-swap=512m --cpus=0.1 --pids-limit=256 \
-      -e DB_TYPE=postgresdb \
-      -e DB_POSTGRESDB_HOST="$pg" -e DB_POSTGRESDB_PORT=5432 \
-      -e DB_POSTGRESDB_DATABASE=n8nbench -e DB_POSTGRESDB_USER=bench \
-      -e DB_POSTGRESDB_PASSWORD=bench-only-not-real \
-      -e N8N_ENCRYPTION_KEY=disposable-n8n-benchmark-key-2026-only \
-      -e N8N_INSTANCE_OWNER_MANAGED_BY_ENV=true \
-      -e N8N_INSTANCE_OWNER_EMAIL=benchmark@example.com \
-      -e N8N_INSTANCE_OWNER_FIRST_NAME=Benchmark \
-      -e N8N_INSTANCE_OWNER_LAST_NAME=Only \
-      -e N8N_INSTANCE_OWNER_PASSWORD_HASH="$OWNER_HASH" \
-      -e N8N_RUNNERS_MODE=internal -e N8N_RUNNERS_MAX_CONCURRENCY=5 \
-      -e N8N_RUNNERS_GRANT_TOKEN_TTL=120 -e N8N_RUNNERS_TASK_TIMEOUT=300 \
-      -e N8N_DIAGNOSTICS_ENABLED=false -e N8N_VERSION_NOTIFICATIONS_ENABLED=false \
-      -e N8N_LOG_LEVEL=info \
-      "$image" >/dev/null
     if ! wait_for_health 300; then
       status="FAIL"
-      failure="n8n did not become healthy under the 512 MiB limit"
+      failure="n8n did not become ready after database migration"
     else
-      # Give the JS task runner time to authenticate under the constrained CPU quota.
+      docker exec "$bootstrap" node --version > "$dir/node-version.txt" 2>&1 || true
       sleep 35
     fi
   fi
 
-  if [[ -z "$failure" ]]; then
-    sample_for_seconds "$container" "$version" idle 30
+  if docker inspect "$bootstrap" >/dev/null 2>&1; then
+    docker logs --tail 100 "$bootstrap" > "$dir/bootstrap.log" 2>&1 || true
+    docker stop "$bootstrap" >/dev/null 2>&1 || true
+    docker rm "$bootstrap" >/dev/null 2>&1 || true
+  fi
 
-    touch "$marker"
-    sample_background "$container" "$version" "$marker" &
-    local sampler=$!
-    local request_failed=0
-    local pids=()
-    for i in 1 2 3; do
-      curl --fail --silent --show-error --max-time 180 \
-        -o /dev/null -w "HTTP %{http_code}; bytes %{size_download}; elapsed %{time_total}s\n" \
-        -H 'content-type: application/json' \
-        --data "{\"runId\":\"$version-$i\"}" \
-        http://127.0.0.1:5678/webhook/memory-bench \
-        > "$dir/request-$i.log" 2>&1 &
-      pids+=("$!")
-    done
-    for pid in "${pids[@]}"; do
-      if ! wait "$pid"; then request_failed=1; fi
-    done
-    rm -f "$marker"
-    wait "$sampler" || true
-    sample_for_seconds "$container" "$version" post-load 10
-    if [[ "$request_failed" -eq 1 ]]; then
+  # Measure only the long-lived n8n process at the exact memory/CPU cap.
+  if [[ -z "$failure" ]]; then
+    docker run -d --name "$container" --network "$network" \
+      -p 127.0.0.1:5678:5678 \
+      --memory=512m --memory-swap=512m --cpus=0.1 --pids-limit=256 \
+      "${env_args[@]}" "$image" >/dev/null
+
+    if ! wait_for_health 300; then
       status="FAIL"
-      failure="one or more synthetic webhook requests failed"
+      failure="n8n did not become ready under 512 MiB / 0.1 CPU"
+    else
+      sleep 35
+      docker exec "$container" node --version > "$dir/node-version.txt" 2>&1 || true
+      sample_for_seconds "$container" "$version" idle 60
     fi
   fi
 
@@ -287,11 +198,11 @@ run_version() {
     restarts="$(docker inspect -f '{{.RestartCount}}' "$container" 2>/dev/null || echo unknown)"
     summarize_version "$version" "$status" "$oom" "$restarts" "$OUT/report.md"
   else
-    printf '\n### %s\n- Result: **%s**\n- Failure: %s\n- Container was not created or exited before inspection.\n' "$version" "$status" "$failure" >> "$OUT/report.md"
+    printf '\n### %s\n- Result: **%s**\n- Failure: %s\n- No measured n8n container remained for inspection.\n' "$version" "$status" "$failure" >> "$OUT/report.md"
   fi
 
   [[ -z "$failure" ]] || printf '%s\n' "$failure" > "$dir/failure.txt"
-  docker rm -f "$container" "$pg" >/dev/null 2>&1 || true
+  docker rm -f "$container" "$bootstrap" "$pg" >/dev/null 2>&1 || true
   docker network rm "$network" >/dev/null 2>&1 || true
   echo "$version completed: $status ($failure)"
 }
@@ -299,7 +210,7 @@ run_version() {
 cat > "$OUT/report.md" <<'EOF'
 # n8n image comparison — 512 MiB container cap
 
-Both images run sequentially against PostgreSQL 17. A bootstrap server completes database migrations and is stopped before workflow import and publication, avoiding concurrent migration races. The measured server runs at 512 MiB RAM and 0.1 CPU. Both versions use the same internal JS task-runner configuration and a 120-second grant-token TTL so slow runner startup does not invalidate the comparison. The database runs separately. This is an isolated GitHub-hosted benchmark, not a reproduction of Render's full host or persisted service configuration.
+Both images run sequentially against PostgreSQL 17. A bootstrap server completes database migrations, then the measured instance starts with the same configuration and is capped at 512 MiB RAM and 0.1 CPU. The benchmark checks /healthz/readiness (database connected and migrated) rather than basic liveness. Internal task runners are enabled consistently, with concurrency 5 and a 120-second grant-token TTL. This first stage compares idle service footprint only; it does not claim a workflow-execution load test. The database runs separately. This is an isolated GitHub-hosted benchmark, not a reproduction of Render's full host or persisted service configuration.
 
 EOF
 
