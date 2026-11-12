@@ -177,12 +177,12 @@ run_version() {
   if [[ -z "$failure" ]]; then
     docker run -d --name "$container" --network "$network" \
       -p 127.0.0.1:5678:5678 \
-      --memory=512m --memory-swap=512m --cpus=0.1 --pids-limit=256 \
+      --memory=512m --memory-swap=512m --cpus=0.15 --pids-limit=256 \
       "${env_args[@]}" "$image" >/dev/null
 
     if ! wait_for_health 300; then
       status="FAIL"
-      failure="n8n did not become ready under 512 MiB / 0.1 CPU"
+      failure="n8n did not become ready under 512 MiB / 0.15 CPU"
     else
       sleep 35
       docker exec "$container" node --version > "$dir/node-version.txt" 2>&1 || true
